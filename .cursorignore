@@ -1,0 +1,139 @@
+# Python compiled files and caches
+__pycache__/
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+.env/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+.hypothesis/
+nosetests.xml
+coverage.xml
+
+# Documentation builds
+docs/_build/
+_build/
+site/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+db.sqlite3-journal
+
+# Log files
+*.log
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# System files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Node.js (if present)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Large data files
+*.csv
+*.json
+*.xml
+*.parquet
+*.h5
+*.hdf5
+*.pickle
+*.pkl
+
+# Model files and checkpoints
+*.model
+*.pth
+*.h5
+*.pkl
+models/
+checkpoints/
+weights/
+
+# Temporary and cache directories
+.cache/
+.tmp/
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Agent/LLM specific files
+*.memory
+*.session
+
+
+
+# Large media files
+*.mp4
+*.avi
+*.mov
+*.mp3
+*.wav
+*.pdf
+*.zip
+*.tar.gz
+*.rar
+
+# Generated documentation
+*.html
+*.pdf
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Configuration files with sensitive data
+config.json
+settings.json
+*.conf
+*.cfg
+
+# Lock files
+poetry.lock
+Pipfile.lock
+requirements-dev.txt 
