@@ -22,6 +22,7 @@ aiodocker==0.21.0
 # External Services
 anthropic==0.8.0
 httpx==0.25.1
+aiohttp==3.9.0
 PyGithub==2.1.1
 github3.py==4.0.1
 
