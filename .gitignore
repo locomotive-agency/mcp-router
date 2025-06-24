@@ -1,3 +1,6 @@
+assets/external/
+.states
+.web
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -192,4 +195,4 @@ memory_store/
 # MCP servers and tools
 mcp_tools/
 tool_configs/
-api_keys/ 
+api_keys/

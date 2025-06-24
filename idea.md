@@ -49,7 +49,7 @@ The overall intuition of this tool is that it is a UX tool and service that allo
 A Python-based MCP (Model Context Protocol) router that acts as a unified gateway for multiple MCP servers. The tool provides a web-based UI for managing MCP servers, automatically analyzes GitHub repositories using Claude to generate installation plans, and dynamically spawns containerized environments for each MCP server on-demand. The router itself functions as an MCP server, exposing all registered servers' tools through a single interface.
 
 ### Core Components
-1. **Web UI** - React-based interface for server management
+1. **Web UI** - Flask-based interface with server-side rendering for server management
 2. **MCP Router** - FastMCP-based routing engine
 3. **Container Manager** - llm-sandbox integration for multi-runtime support
 4. **Claude Analyzer** - Automated repository analysis and setup
@@ -70,8 +70,8 @@ A Python-based MCP (Model Context Protocol) router that acts as a unified gatewa
 ┌────────┴───────────────────────┴────────────────────────┴────────┐
 │                        MCP Router Service                         │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐  │
-│  │  FastAPI    │  │   FastMCP    │  │   Transport Manager    │  │
-│  │  REST API   │  │   Router     │  │ (stdio/SSE/HTTP)       │  │
+│  │    Flask    │  │   FastMCP    │  │   Transport Manager    │  │
+│  │  Web Server │  │   Router     │  │ (stdio/SSE/HTTP)       │  │
 │  └─────────────┘  └──────────────┘  └────────────────────────┘  │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐  │
 │  │   Claude    │  │   GitHub     │  │  Container Orchestrator │  │
@@ -89,33 +89,38 @@ A Python-based MCP (Model Context Protocol) router that acts as a unified gatewa
 
 ### Technology Stack
 
-#### Backend
+#### Backend (Single Flask Application)
 - **Python 3.11+** - Core language
-- **FastAPI** - REST API and web server
+- **Flask 2.3+** - Web framework with Jinja2 templates
 - **FastMCP** - MCP protocol implementation
 - **llm-sandbox** - Container runtime management
 - **anthropic-sdk-python** - Claude integration
-- **SQLAlchemy + SQLite** - Database
+- **SQLAlchemy + Flask-SQLAlchemy** - Database ORM
+- **Flask-WTF** - Form handling and CSRF protection
+- **Flask-Login** - Session management
 - **Pydantic** - Data validation
 - **httpx** - Async HTTP client
 - **structlog** - Structured logging
 - **pytest + pytest-asyncio** - Testing
-- **loguru** - logging
 
-#### Frontend
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Vite** - Build tool
-- **TailwindCSS** - Styling
-- **React Query** - API state management
-- **React Hook Form** - Form handling
-- **Monaco Editor** - Code display
+#### Frontend (Server-Side Rendered)
+- **Jinja2 Templates** - HTML templating engine
+- **htmx** - Dynamic HTML updates without full page reloads
+- **TailwindCSS** - Styling (via CDN, no build process)
+- **Minimal JavaScript** - Progressive enhancement only
 
 #### Infrastructure
 - **Docker** - Containerization
 - **Docker Compose** - Local development
 - **E2B** - Cloud container runtime (optional)
 - **Prometheus + Grafana** - Monitoring
+
+#### Eliminated Technologies
+- ❌ React/TypeScript frontend
+- ❌ Node.js/npm build pipeline
+- ❌ Separate frontend/backend codebases
+- ❌ API serialization overhead
+- ❌ CORS complexity
 
 ## Database Schema
 
@@ -470,193 +475,303 @@ class ClaudeRepositoryAnalyzer:
 
 ## Web UI Implementation
 
-### React Component Structure
+### Flask Application Structure
 
-```typescript
-// Main App Structure
-src/
-├── components/
-│   ├── ServerList/
-│   │   ├── ServerList.tsx
-│   │   ├── ServerCard.tsx
-│   │   └── ServerStatus.tsx
-│   ├── ServerForm/
-│   │   ├── AddServerModal.tsx
-│   │   ├── GitHubUrlInput.tsx
-│   │   ├── EnvVariableForm.tsx
-│   │   └── InstallationPreview.tsx
-│   ├── ServerDetail/
-│   │   ├── ServerDetailView.tsx
-│   │   ├── ServerLogs.tsx
-│   │   ├── ServerMetrics.tsx
-│   │   └── TestConnection.tsx
-│   └── Common/
-│       ├── Layout.tsx
-│       ├── LoadingSpinner.tsx
-│       └── ErrorBoundary.tsx
-├── hooks/
-│   ├── useServers.ts
-│   ├── useServerAnalysis.ts
-│   └── useWebSocket.ts
-├── services/
-│   ├── api.ts
-│   ├── websocket.ts
-│   └── types.ts
-└── App.tsx
+```python
+# Main Flask application with blueprints
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_wtf import FlaskForm
+from wtforms import StringField, SelectField, FieldList, FormField
+from wtforms.validators import DataRequired, URL
 
-// Example Component: Add Server Modal
-interface AddServerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: (server: Server) => void;
-}
-
-export function AddServerModal({ isOpen, onClose, onSuccess }: AddServerModalProps) {
-  const [githubUrl, setGithubUrl] = useState('');
-  const [analyzing, setAnalyzing] = useState(false);
-  const [config, setConfig] = useState<ServerConfig | null>(null);
-  const [envValues, setEnvValues] = useState<Record<string, string>>({});
-  
-  const analyzeRepository = async () => {
-    setAnalyzing(true);
-    try {
-      const result = await api.analyzeRepository(githubUrl);
-      setConfig(result);
-      
-      // Initialize env values with defaults
-      const defaultEnvs: Record<string, string> = {};
-      result.env_variables.forEach(env => {
-        defaultEnvs[env.key] = env.default_value || '';
-      });
-      setEnvValues(defaultEnvs);
-    } catch (error) {
-      toast.error('Failed to analyze repository');
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-  
-  const handleSubmit = async () => {
-    if (!config) return;
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
     
-    try {
-      const server = await api.createServer({
-        ...config,
-        env_variables: Object.entries(envValues).map(([key, value]) => ({
-          key,
-          value,
-          is_secret: config.env_variables.find(e => e.key === key)?.is_secret || false
-        }))
-      });
-      
-      onSuccess(server);
-      onClose();
-    } catch (error) {
-      toast.error('Failed to create server');
-    }
-  };
-  
-  return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="p-6">
-        <h2 className="text-2xl font-bold mb-4">Add MCP Server</h2>
-        
-        {/* Step 1: GitHub URL Input */}
-        {!config && (
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              GitHub Repository URL
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="url"
-                value={githubUrl}
-                onChange={(e) => setGithubUrl(e.target.value)}
-                placeholder="https://github.com/owner/repo"
-                className="flex-1 px-3 py-2 border rounded-md"
-              />
-              <button
-                onClick={analyzeRepository}
-                disabled={!githubUrl || analyzing}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md"
-              >
-                {analyzing ? <Spinner /> : 'Analyze'}
-              </button>
-            </div>
-          </div>
-        )}
-        
-        {/* Step 2: Configuration Review */}
-        {config && (
-          <div className="space-y-4">
-            <div className="bg-gray-50 p-4 rounded-md">
-              <h3 className="font-semibold">{config.name}</h3>
-              <p className="text-sm text-gray-600">{config.description}</p>
-              <div className="mt-2 flex gap-2">
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
-                  {config.runtime_type}
-                </span>
-                <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
-                  {config.transport_type}
-                </span>
-              </div>
-            </div>
+    # Initialize extensions
+    db.init_app(app)
+    csrf = CSRFProtect(app)
+    
+    # Register blueprints
+    app.register_blueprint(main_bp)
+    app.register_blueprint(servers_bp, url_prefix='/servers')
+    app.register_blueprint(mcp_bp, url_prefix='/mcp')
+    
+    return app
+
+# Server management forms
+class EnvVarForm(FlaskForm):
+    key = StringField('Key', validators=[DataRequired()])
+    value = StringField('Value')
+    description = StringField('Description')
+
+class ServerForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    github_url = StringField('GitHub URL', validators=[DataRequired(), URL()])
+    runtime_type = SelectField('Runtime', choices=[
+        ('npx', 'Node.js (npx)'),
+        ('uvx', 'Python (uvx)'),
+        ('docker', 'Docker')
+    ])
+    env_vars = FieldList(FormField(EnvVarForm), min_entries=0)
+
+# Server routes
+@servers_bp.route('/add', methods=['GET', 'POST'])
+def add_server():
+    """Add new server with GitHub analysis"""
+    form = ServerForm()
+    analysis_result = None
+    
+    if request.method == 'POST':
+        if 'analyze' in request.form:
+            # Analyze GitHub repository using Claude
+            github_url = form.github_url.data
+            if github_url:
+                analyzer = ClaudeAnalyzer()
+                analysis_result = analyzer.analyze_repository(github_url)
+                
+                # Pre-populate form with analysis results
+                form.name.data = analysis_result.name
+                form.runtime_type.data = analysis_result.runtime_type
+                
+                # Add environment variables
+                for env_var in analysis_result.env_variables:
+                    env_form = EnvVarForm()
+                    env_form.key.data = env_var.key
+                    env_form.description.data = env_var.description
+                    form.env_vars.append_entry(env_form)
+                    
+        elif form.validate_on_submit():
+            # Create and save server
+            server = MCPServer(
+                name=form.name.data,
+                github_url=form.github_url.data,
+                runtime_type=form.runtime_type.data
+            )
             
-            {/* Environment Variables */}
-            {config.env_variables.length > 0 && (
-              <div>
-                <h4 className="font-medium mb-2">Environment Variables</h4>
-                <div className="space-y-2">
-                  {config.env_variables.map(env => (
-                    <div key={env.key}>
-                      <label className="block text-sm">
-                        {env.key}
-                        {env.is_required && <span className="text-red-500">*</span>}
-                      </label>
-                      <input
-                        type={env.is_secret ? 'password' : 'text'}
-                        value={envValues[env.key] || ''}
-                        onChange={(e) => setEnvValues({
-                          ...envValues,
-                          [env.key]: e.target.value
-                        })}
-                        placeholder={env.description}
-                        className="w-full px-3 py-1 border rounded-md"
-                      />
-                    </div>
-                  ))}
+            # Add environment variables
+            for env_form in form.env_vars:
+                if env_form.key.data:
+                    server.add_env_var(
+                        key=env_form.key.data,
+                        value=env_form.value.data,
+                        description=env_form.description.data
+                    )
+            
+            db.session.add(server)
+            db.session.commit()
+            
+            flash(f'Server "{server.name}" added successfully!', 'success')
+            return redirect(url_for('servers.list_servers'))
+    
+    return render_template('servers/add.html', 
+                         form=form, 
+                         analysis_result=analysis_result)
+```
+
+### Templates with Progressive Enhancement
+
+#### Base Template (templates/base.html)
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MCP Router{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body class="bg-gray-50">
+    <nav class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-semibold">MCP Router</h1>
                 </div>
-              </div>
-            )}
-            
-            {/* Installation Preview */}
-            <div>
-              <h4 className="font-medium mb-2">Installation Plan</h4>
-              <pre className="bg-gray-900 text-gray-100 p-3 rounded-md text-sm">
-                {config.install_command}
-              </pre>
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('main.dashboard') }}" 
+                       class="text-gray-600 hover:text-gray-900">Dashboard</a>
+                    <a href="{{ url_for('servers.list_servers') }}" 
+                       class="text-gray-600 hover:text-gray-900">Servers</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto py-6 px-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="alert p-4 mb-2 rounded-md
+                                   {% if category == 'success' %}bg-green-100 text-green-700
+                                   {% elif category == 'error' %}bg-red-100 text-red-700
+                                   {% else %}bg-blue-100 text-blue-700{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        // Configure htmx for dynamic updates
+        document.body.addEventListener('htmx:configRequest', function(evt) {
+            evt.detail.headers['X-CSRFToken'] = 
+                document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        });
+    </script>
+</body>
+</html>
+```
+
+#### Server List (templates/servers/list.html)
+
+```html
+{% extends "base.html" %}
+
+{% block title %}Servers - MCP Router{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h2 class="text-2xl font-bold">MCP Servers</h2>
+    <a href="{{ url_for('servers.add_server') }}" 
+       class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
+        Add Server
+    </a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for server in servers %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">{{ server.name }}</h3>
+                <span class="px-2 py-1 rounded-full text-xs font-medium
+                           {% if server.is_healthy %}bg-green-100 text-green-800
+                           {% else %}bg-red-100 text-red-800{% endif %}">
+                    {% if server.is_healthy %}Healthy{% else %}Unhealthy{% endif %}
+                </span>
             </div>
             
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 border rounded-md"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                className="px-4 py-2 bg-green-500 text-white rounded-md"
-              >
-                Add Server
-              </button>
+            <p class="text-gray-600 text-sm mb-4">{{ server.description or 'No description' }}</p>
+            
+            <div class="flex items-center justify-between text-sm">
+                <span class="px-2 py-1 bg-gray-100 rounded">{{ server.runtime_type }}</span>
+                <div class="space-x-2">
+                    <button hx-get="{{ url_for('servers.test_connection', server_id=server.id) }}"
+                            hx-target="#test-result-{{ server.id }}"
+                            class="text-blue-500 hover:text-blue-600">Test</button>
+                    <a href="{{ url_for('servers.detail', server_id=server.id) }}"
+                       class="text-blue-500 hover:text-blue-600">View</a>
+                </div>
             </div>
-          </div>
-        )}
-      </div>
-    </Modal>
-  );
-}
+            
+            <div id="test-result-{{ server.id }}" class="mt-2"></div>
+        </div>
+    {% endfor %}
+</div>
+
+{% if not servers %}
+    <div class="text-center py-12">
+        <p class="text-gray-500 text-lg">No servers configured yet.</p>
+        <a href="{{ url_for('servers.add_server') }}" 
+           class="text-blue-500 hover:text-blue-600">Add your first server →</a>
+    </div>
+{% endif %}
+{% endblock %}
+```
+
+#### Add Server Form (templates/servers/add.html)
+
+```html
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <h2 class="text-2xl font-bold mb-6">Add MCP Server</h2>
+    
+    <form method="POST" class="space-y-6">
+        {{ form.hidden_tag() }}
+        
+        <!-- GitHub URL Analysis -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-medium mb-4">Repository Analysis</h3>
+            
+            <div class="mb-4">
+                {{ form.github_url.label(class="block text-sm font-medium mb-2") }}
+                {{ form.github_url(class="w-full p-2 border rounded-md") }}
+            </div>
+            
+            <button type="submit" name="analyze" 
+                    class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
+                Analyze Repository
+            </button>
+        </div>
+        
+        {% if analysis_result %}
+        <!-- Analysis Results Display -->
+        <div class="bg-green-50 p-6 rounded-lg border border-green-200">
+            <h4 class="text-lg font-medium text-green-800 mb-2">Analysis Complete!</h4>
+            <p class="text-green-700">{{ analysis_result.description }}</p>
+            
+            <div class="mt-4 flex space-x-2">
+                <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-sm">
+                    {{ analysis_result.runtime_type }}
+                </span>
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+                    {{ analysis_result.transport_type }}
+                </span>
+            </div>
+        </div>
+        
+        <!-- Server Configuration Form -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-medium mb-4">Server Configuration</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    {{ form.name.label(class="block text-sm font-medium mb-2") }}
+                    {{ form.name(class="w-full p-2 border rounded-md") }}
+                </div>
+                <div>
+                    {{ form.runtime_type.label(class="block text-sm font-medium mb-2") }}
+                    {{ form.runtime_type(class="w-full p-2 border rounded-md") }}
+                </div>
+            </div>
+            
+            <!-- Environment Variables Section -->
+            {% if form.env_vars %}
+            <div class="mt-6">
+                <h4 class="text-md font-medium mb-3">Environment Variables</h4>
+                {% for env_form in form.env_vars %}
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                    {{ env_form.key(class="p-2 border rounded-md", placeholder="Key") }}
+                    {{ env_form.value(class="p-2 border rounded-md", placeholder="Value") }}
+                    {{ env_form.description(class="p-2 border rounded-md", readonly=true) }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="mt-6 flex justify-end space-x-3">
+                <a href="{{ url_for('servers.list_servers') }}" 
+                   class="px-4 py-2 border rounded-md hover:bg-gray-50">Cancel</a>
+                <button type="submit" 
+                        class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">
+                    Add Server
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}
 ```
 
 ## Transport Layer Implementation
@@ -1295,8 +1410,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     git \
     docker.io \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -1306,12 +1419,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application
 COPY . .
 
-# Build frontend
-WORKDIR /app/frontend
-RUN npm install && npm run build
-
-WORKDIR /app
-
 # Create non-root user
 RUN useradd -m -u 1000 mcp && chown -R mcp:mcp /app
 USER mcp
@@ -1320,7 +1427,7 @@ USER mcp
 EXPOSE 8080
 
 # Run application
-CMD ["python", "-m", "mcp_router", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "run.py"]
 ```
 
 ## Sprint-by-Sprint Detailed Plan
@@ -1328,30 +1435,30 @@ CMD ["python", "-m", "mcp_router", "--host", "0.0.0.0", "--port", "8080"]
 ### Sprint 1: Foundation & Web UI (Week 1)
 
 **Day 1-2: Project Setup & Database**
-- Initialize Python project with proper structure
+- Initialize Python project with Flask structure
 - Set up SQLAlchemy models and database migrations
 - Create Pydantic schemas for validation
-- Implement basic FastAPI application skeleton
+- Implement basic Flask application factory
 - Set up pytest and testing infrastructure
 
 **Day 3-4: Web UI Foundation**
-- Create React application with TypeScript
-- Implement server list view with mock data
-- Build add server modal with form validation
-- Create API client service for frontend
-- Implement basic routing and layout
+- Create Flask templates with TailwindCSS
+- Implement server list view with Jinja2
+- Build add server form with WTForms
+- Create base template and layout
+- Add htmx for dynamic interactions
 
 **Day 5: Integration**
-- Connect frontend to backend APIs
-- Implement server CRUD operations
-- Add error handling and loading states
-- Basic authentication setup
+- Implement server CRUD routes
+- Add form validation and error handling
+- Create flash messaging system
+- Basic session management
 - End-to-end testing
 
 **Deliverables:**
 - Working web UI for server management
 - Database persistence for configurations
-- Basic API structure established
+- Server-side rendered interface
 
 ### Sprint 2: Container Integration & MCP Core (Week 2)
 
@@ -1503,9 +1610,12 @@ class Settings(BaseSettings):
 
 ```txt
 # requirements.txt
-# Core
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+# Core Flask Application
+flask==2.3.3
+flask-sqlalchemy==3.0.5
+flask-wtf==1.2.1
+flask-login==0.6.3
+wtforms==3.1.0
 pydantic==2.5.0
 python-dotenv==1.0.0
 
@@ -1515,12 +1625,10 @@ fastmcp==2.0.0
 # Database
 sqlalchemy==2.0.23
 alembic==1.12.1
-aiosqlite==0.19.0
 
 # Container Management
 llm-sandbox==0.1.0
 docker==6.1.3
-aiodocker==0.21.0
 
 # External Services
 anthropic==0.8.0
@@ -1530,23 +1638,19 @@ PyGithub==2.1.1
 # Authentication & Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
 
 # Monitoring
 prometheus-client==0.19.0
 structlog==23.2.0
-python-json-logger==2.0.7
 
 # Testing
 pytest==7.4.3
-pytest-asyncio==0.21.1
+pytest-flask==1.3.0
 pytest-cov==4.1.0
 testcontainers==3.7.1
-httpx[cli]==0.25.1
 
 # Utilities
 tenacity==8.2.3
-asyncio-throttle==1.0.2
 cachetools==5.3.2
 ```
 
@@ -1554,53 +1658,59 @@ cachetools==5.3.2
 
 ```
 mcp-router/
-├── backend/
+├── mcp_router/
 │   ├── __init__.py
-│   ├── main.py                    # FastAPI application entry point
-│   ├── api/
+│   ├── app.py                    # Flask application factory
+│   ├── routes/
 │   │   ├── __init__.py
-│   │   ├── routes/
-│   │   │   ├── servers.py         # Server management endpoints
-│   │   │   ├── mcp.py            # MCP protocol endpoints
-│   │   │   ├── health.py         # Health check endpoints
-│   │   │   └── config.py         # Configuration endpoints
-│   │   └── dependencies.py        # FastAPI dependencies
+│   │   ├── main.py              # Dashboard & server list routes
+│   │   ├── servers.py           # Server CRUD operations
+│   │   ├── api.py               # JSON API for htmx
+│   │   └── mcp.py               # MCP protocol endpoints
+│   ├── templates/
+│   │   ├── base.html            # Base template with TailwindCSS
+│   │   ├── dashboard.html       # Main dashboard
+│   │   ├── servers/
+│   │   │   ├── list.html        # Server list view
+│   │   │   ├── add.html         # Add server form
+│   │   │   ├── edit.html        # Edit server form
+│   │   │   └── detail.html      # Server details & logs
+│   │   └── components/
+│   │       ├── server_card.html # Server status card
+│   │       ├── env_form.html    # Environment variables form
+│   │       └── test_result.html # Connection test result
+│   ├── static/
+│   │   ├── css/
+│   │   │   └── app.css          # Custom styles
+│   │   ├── js/
+│   │   │   └── app.js           # Minimal JavaScript + htmx
+│   │   └── favicon.ico
+│   ├── forms/
+│   │   ├── __init__.py
+│   │   ├── server_forms.py      # WTForms for server management
+│   │   └── validators.py        # Custom form validators
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── router.py             # MCP router implementation
-│   │   ├── registry.py           # Server registry
-│   │   └── auth.py               # Authentication logic
+│   │   ├── router.py            # MCP router implementation
+│   │   ├── registry.py          # Server registry
+│   │   └── auth.py              # Authentication logic
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── claude_analyzer.py    # Claude repository analysis
-│   │   ├── github_service.py     # GitHub integration
-│   │   ├── container_manager.py  # Container orchestration
-│   │   └── transport_manager.py  # Transport adapters
+│   │   ├── claude_analyzer.py   # Claude repository analysis
+│   │   ├── github_service.py    # GitHub integration
+│   │   ├── container_manager.py # Container orchestration
+│   │   └── transport_manager.py # Transport adapters
 │   ├── models/
 │   │   ├── __init__.py
-│   │   ├── database.py           # SQLAlchemy models
-│   │   └── schemas.py            # Pydantic schemas
+│   │   ├── database.py          # SQLAlchemy models
+│   │   └── schemas.py           # Pydantic schemas
 │   ├── config/
 │   │   ├── __init__.py
-│   │   └── settings.py           # Application settings
+│   │   └── settings.py          # Application settings
 │   └── utils/
 │       ├── __init__.py
-│       ├── logging.py            # Logging configuration
-│       └── metrics.py            # Prometheus metrics
-├── frontend/
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   ├── index.html
-│   ├── src/
-│   │   ├── main.tsx
-│   │   ├── App.tsx
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── services/
-│   │   ├── styles/
-│   │   └── types/
-│   └── public/
+│       ├── logging.py           # Logging configuration
+│       └── metrics.py           # Prometheus metrics
 ├── tests/
 │   ├── __init__.py
 │   ├── unit/
@@ -1626,6 +1736,7 @@ mcp-router/
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── pyproject.toml
+├── run.py                       # Application entry point
 └── README.md
 ```
 
@@ -1634,14 +1745,43 @@ mcp-router/
 This comprehensive plan provides:
 
 1. **Complete feature coverage** - All 9 requirements addressed with implementation details
-2. **Clear architecture** - Modular design with separation of concerns
-3. **Practical sprint planning** - Daily tasks for a single developer
+2. **Simplified architecture** - Single Flask codebase with server-side rendering
+3. **Practical sprint planning** - Daily tasks optimized for single developer efficiency
 4. **Production readiness** - Security, monitoring, and deployment
-5. **Extensive code examples** - Real implementation patterns
-6. **Testing strategy** - Unit, integration, and E2E tests
-7. **Documentation** - API specs, user guides, and deployment instructions
+5. **Extensive code examples** - Real Flask implementation patterns
+6. **Testing strategy** - Unit, integration, and functional tests
+7. **Documentation** - User guides and deployment instructions
 8. **Configuration management** - Environment-based settings
 9. **Container security** - Isolation and resource limits
 10. **Monitoring and observability** - Metrics and structured logging
 
-The architecture prioritizes simplicity while ensuring production-grade reliability and security. Each sprint builds upon the previous one, ensuring a working system at each stage.
+## Benefits of Flask-Based Approach
+
+### 1. **Dramatically Simplified Development**
+- ✅ Single Python codebase (no frontend/backend split)
+- ✅ No Node.js build pipeline required
+- ✅ No API serialization/deserialization overhead
+- ✅ Server-side rendering is faster for simple forms
+- ✅ Integrated authentication and session handling
+
+### 2. **Better UX for Simple CRUD Operations**
+- ✅ Immediate form validation with server-side processing
+- ✅ Progressive enhancement with htmx for dynamic updates
+- ✅ No JavaScript framework complexity
+- ✅ Better SEO and accessibility out of the box
+- ✅ Graceful degradation (works without JavaScript)
+
+### 3. **Maintenance and Development Benefits**
+- ✅ Fewer dependencies to track and update
+- ✅ Single deployment artifact
+- ✅ Unified logging and error handling
+- ✅ Simpler testing (no frontend/backend API coordination)
+- ✅ Faster development iteration
+
+### 4. **Performance Benefits**
+- ✅ No API round-trips for page loads
+- ✅ Smaller page sizes (no React bundle)
+- ✅ Server-side caching opportunities
+- ✅ Progressive enhancement with htmx
+
+The Flask architecture perfectly aligns with the project's "prefer simplicity" principle while delivering all required functionality. This approach saves significant development time and reduces complexity without sacrificing any features.
