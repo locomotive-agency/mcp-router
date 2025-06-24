@@ -10,12 +10,12 @@ The overall intuition of this tool is that it is a UX tool and service that allo
 ### Core Requirements
 1. Has a UX for adding and editing separate MCP servers.
 2. New MCP servers can be added by github URL but supports npx, uvx, and docker.
-3. Uses claude (https://github.com/anthropics/anthropic-sdk-python) to read github readme, and define an install and serving plan.
+3. Uses claude (https://github.com/anthropics/anthropic-sdk-python) to read github readme content (e.g. retrieved via requests), and define an install and serving plan.
 4. Supports: sse, stdio, and streamable http forms of MCP
 5. Can be connected to Claude Desktop locally, or can be deployed to serve an endpoint that can be added to Claude to access the router tools.
 6. The library FastMCP at https://gofastmcp.com/getting-started/welcome is a well done implementation of MCP and could be used for support for specific requirements.
 7. We launch the services when requested into a containered environment because we need to support typescript, python, and other environments.
-8. The tool should supply a field with any ENV variables with keys that need to be added, based on what was parsed out of the github url. This will be used when the individual mcp tool is called.
+8. The tool should supply a field, when adding a server, with any ENV variables with placeholders for keys that need to be added, based on what was parsed out of the github url. This will be used when the individual mcp tool is called.
 9. We should have a default sandbox tool in python with main libraries like pandas, numpy, etc installed that can be used as a tool to send code to to get the result.
 
 ### Additional Context
@@ -115,12 +115,6 @@ A Python-based MCP (Model Context Protocol) router that acts as a unified gatewa
 - **E2B** - Cloud container runtime (optional)
 - **Prometheus + Grafana** - Monitoring
 
-#### Eliminated Technologies
-- ❌ React/TypeScript frontend
-- ❌ Node.js/npm build pipeline
-- ❌ Separate frontend/backend codebases
-- ❌ API serialization overhead
-- ❌ CORS complexity
 
 ## Database Schema
 
@@ -1755,33 +1749,3 @@ This comprehensive plan provides:
 9. **Container security** - Isolation and resource limits
 10. **Monitoring and observability** - Metrics and structured logging
 
-## Benefits of Flask-Based Approach
-
-### 1. **Dramatically Simplified Development**
-- ✅ Single Python codebase (no frontend/backend split)
-- ✅ No Node.js build pipeline required
-- ✅ No API serialization/deserialization overhead
-- ✅ Server-side rendering is faster for simple forms
-- ✅ Integrated authentication and session handling
-
-### 2. **Better UX for Simple CRUD Operations**
-- ✅ Immediate form validation with server-side processing
-- ✅ Progressive enhancement with htmx for dynamic updates
-- ✅ No JavaScript framework complexity
-- ✅ Better SEO and accessibility out of the box
-- ✅ Graceful degradation (works without JavaScript)
-
-### 3. **Maintenance and Development Benefits**
-- ✅ Fewer dependencies to track and update
-- ✅ Single deployment artifact
-- ✅ Unified logging and error handling
-- ✅ Simpler testing (no frontend/backend API coordination)
-- ✅ Faster development iteration
-
-### 4. **Performance Benefits**
-- ✅ No API round-trips for page loads
-- ✅ Smaller page sizes (no React bundle)
-- ✅ Server-side caching opportunities
-- ✅ Progressive enhancement with htmx
-
-The Flask architecture perfectly aligns with the project's "prefer simplicity" principle while delivering all required functionality. This approach saves significant development time and reduces complexity without sacrificing any features.

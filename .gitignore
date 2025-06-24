@@ -1,6 +1,3 @@
-assets/external/
-.states
-.web
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -23,7 +20,6 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -53,16 +49,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
+cover/
 
 # Flask stuff:
 instance/
@@ -75,6 +62,7 @@ instance/
 docs/_build/
 
 # PyBuilder
+.pybuilder/
 target/
 
 # Jupyter Notebook
@@ -92,7 +80,15 @@ ipython_config.py
 #   However, in case of collaboration, if having platform-specific dependencies or dependencies
 #   having no cross-platform support, pipenv may install dependencies that don't work, or not
 #   install all needed dependencies.
-#Pipfile.lock
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+.pdm-python
+pdm.lock
 
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow
 __pypackages__/
@@ -137,62 +133,26 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# IDE specific files
+# VS Code
 .vscode/
+*.code-workspace
+
+# PyCharm
 .idea/
-*.swp
-*.swo
-*~
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
 # macOS
 .DS_Store
-.AppleDouble
-.LSOverride
 
 # Windows
 Thumbs.db
 ehthumbs.db
-Desktop.ini
 
-# Linux
-*~
-
-# Project specific
+# Application specific
+mcp_router.db
+logs/
 *.log
-*.sqlite
-*.db
-config.json
-.secrets/
-.env.local
-.env.production
-.env.development
-
-# Node.js (for projects with frontend)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.npm
-.yarn-integrity
-
-# Docker
-.dockerignore
-docker-compose.override.yml
-
-# Temporary files
-*.tmp
-*.temp
-.tmp/
-.temp/
-
-# Agent/LLM specific
-conversations/
-chat_history/
-memory_store/
-*.memory
-*.session
-
-# MCP servers and tools
-mcp_tools/
-tool_configs/
-api_keys/

@@ -1,0 +1,18 @@
+# Core
+flask==2.3.3
+flask-sqlalchemy==3.0.5
+flask-wtf==1.2.1
+wtforms==3.1.0
+
+# MCP
+fastmcp==2.0.0
+
+# Container Management
+llm-sandbox==0.1.0
+
+# External Services
+anthropic==0.8.0
+httpx==0.25.1
+
+# Utilities
+python-dotenv==1.0.0 
