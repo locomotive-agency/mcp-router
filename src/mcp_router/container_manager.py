@@ -102,4 +102,70 @@ class ContainerManager:
         for env in server.env_variables:
             if env.get("value"):
                 env_vars[env["key"]] = env["value"]
-        return env_vars 
+        return env_vars
+
+    async def execute_server_tool(self, server_id: str, tool_params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a tool call in a containerized MCP server.
+        This involves installing dependencies and then running the start command.
+        
+        Args:
+            server_id: The ID of the server to execute.
+            tool_params: A dictionary of parameters to pass to the tool.
+
+        Returns:
+            A dictionary with the execution result.
+        """
+        loop = asyncio.get_running_loop()
+        try:
+            result = await loop.run_in_executor(
+                None, self._run_tool_sync, server_id, tool_params
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Error executing tool for server {server_id}: {e}")
+            return {"status": "error", "message": str(e)}
+
+    def _run_tool_sync(self, server_id: str, tool_params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Synchronous method to run the full tool execution flow in the sandbox.
+        """
+        server = get_server_by_id(server_id)
+        if not server:
+            return {"status": "error", "message": "Server not found"}
+
+        try:
+            with self._create_sandbox_session(server) as session:
+                # 1. Install dependencies if an install command is provided
+                if server.install_command:
+                    install_result = session.execute_command(server.install_command)
+                    if install_result.exit_code != 0:
+                        return {
+                            "status": "error",
+                            "message": "Installation command failed",
+                            "details": install_result.stderr,
+                        }
+
+                # 2. Construct the start command with parameters
+                # A simple CLI argument format is assumed: --key value
+                params_str = " ".join([f"--{k} '{v}'" for k, v in tool_params.items()])
+                full_command = f"{server.start_command} {params_str}"
+                
+                # 3. Execute the tool command
+                exec_result = session.execute_command(full_command)
+
+                if exec_result.exit_code == 0:
+                    return {
+                        "status": "success",
+                        "message": "Tool executed successfully.",
+                        "result": exec_result.stdout,
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": "Tool execution failed.",
+                        "details": exec_result.stderr,
+                    }
+        except Exception as e:
+            logger.error(f"Sandbox tool execution failed for server {server.id}: {e}")
+            return {"status": "error", "message": f"Sandbox execution failed: {e}"} 

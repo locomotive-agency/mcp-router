@@ -6,6 +6,7 @@
     <title>{% block title %}MCP Router{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx-ext-ws@1.9.10/ws.js"></script>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
         /* Custom styles for better UI */
@@ -55,6 +56,12 @@
         <p>MCP Router - Unified gateway for Model Context Protocol servers</p>
     </footer>
 
-    {% block scripts %}{% endblock %}
+    {% block scripts %}
+    <script>
+        document.body.addEventListener('htmx:configRequest', function(evt) {
+            evt.detail.headers['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        });
+    </script>
+    {% endblock %}
 </body>
 </html> 

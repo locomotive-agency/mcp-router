@@ -3,13 +3,16 @@ import os
 import logging
 import asyncio
 from typing import Dict, Any, Optional
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy.exc import IntegrityError
 from mcp_router.config import get_config
 from mcp_router.models import db, MCPServer, init_db
 from mcp_router.forms import ServerForm, AnalyzeForm
 from mcp_router.container_manager import ContainerManager
+from mcp_router.claude_analyzer import ClaudeAnalyzer
+from flask_sock import Sock
+import cgi
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,30 +25,38 @@ app.config.from_object(get_config())
 # Initialize extensions
 csrf = CSRFProtect(app)
 init_db(app)
+sock = Sock(app)
 
-# Create a placeholder analyzer for Week 1
-class PlaceholderAnalyzer:
-    """Placeholder for Claude analyzer - will be implemented in Week 3"""
-    def analyze_repository(self, github_url: str) -> Dict[str, Any]:
-        """Return sample analysis data for testing"""
-        # Extract repo name from URL
-        parts = github_url.rstrip('/').split('/')
-        repo_name = parts[-1] if parts else 'unknown'
+
+@sock.route('/ws/logs/<server_id>')
+def stream_logs(ws, server_id: str):
+    """WebSocket route to stream container logs."""
+    logger.info(f"Log streaming requested for server {server_id}")
+    manager = ContainerManager()
+    
+    try:
+        # We need a running container to get logs
+        container = manager.active_containers.get(server_id)
+        if not container:
+            ws.send('<div class="text-yellow-500">[System] Container not running. Start the server to see logs.</div>')
+            logger.warning(f"No active container for server {server_id} to stream logs.")
+            return
+
+        logger.info(f"Streaming logs for container {container.id[:12]}")
+        ws.send(f'<div class="text-green-500">[System] Connected to log stream for {container.name}...</div>')
         
-        return {
-            'name': repo_name,
-            'description': f'MCP server from {repo_name}',
-            'runtime_type': 'npx',
-            'install_command': 'npm install',
-            'start_command': f'npx {repo_name}',
-            'env_variables': [
-                {
-                    'key': 'API_KEY',
-                    'description': 'API key for the service',
-                    'required': True
-                }
-            ]
-        }
+        for log_line in container.logs(stream=True):
+            # Sanitize and format the log line for HTML
+            clean_line = log_line.decode('utf-8').strip()
+            escaped_line = cgi.escape(clean_line)
+            ws.send(f'<div hx-swap-oob="beforeend" id="log-messages">{escaped_line}</div>')
+
+    except Exception as e:
+        logger.error(f"Error during log streaming for server {server_id}: {e}")
+        ws.send(f'<div hx-swap-oob="beforeend" id="log-messages" class="text-red-600">[Error] Failed to stream logs: {e}</div>')
+    finally:
+        logger.info(f"Log stream finished for server {server_id}")
+        ws.send('<div hx-swap-oob="beforeend" id="log-messages" class="text-yellow-500">[System] Log stream disconnected.</div>')
 
 
 @app.route('/')
@@ -63,8 +74,6 @@ def index():
 @app.route('/servers/add', methods=['GET', 'POST'])
 def add_server():
     """Add new server with GitHub analysis"""
-    analyzer = PlaceholderAnalyzer()
-    
     if request.method == 'POST':
         # Handle analyze button
         if 'analyze' in request.form:
@@ -72,17 +81,34 @@ def add_server():
             if analyze_form.validate_on_submit():
                 github_url = analyze_form.github_url.data
                 try:
+                    # Use the real ClaudeAnalyzer
+                    analyzer = ClaudeAnalyzer()
                     analysis = analyzer.analyze_repository(github_url)
-                    return render_template('servers/add.html', 
-                                         github_url=github_url,
-                                         analysis=analysis)
+                    
+                    # For HTMX requests, use a partial template
+                    if request.headers.get('HX-Request'):
+                        return render_template('servers/add_form.html', 
+                                             github_url=github_url,
+                                             analysis=analysis)
+                    else:
+                        return render_template('servers/add.html', 
+                                             github_url=github_url,
+                                             analysis=analysis)
                 except Exception as e:
-                    logger.error(f"Error analyzing repository: {e}")
-                    return render_template('servers/add.html', 
-                                         github_url=github_url,
-                                         error=str(e))
+                    logger.error(f"Error analyzing repository '{github_url}': {e}")
+                    
+                    # For HTMX requests, use a partial template
+                    if request.headers.get('HX-Request'):
+                        return render_template('servers/add_form.html', 
+                                             github_url=github_url,
+                                             error=str(e))
+                    else:
+                        flash(f"Analysis failed: {e}", "error")
+                        return render_template('servers/add.html', 
+                                             github_url=github_url,
+                                             error=str(e))
             else:
-                flash('Invalid GitHub URL format', 'error')
+                flash('Invalid GitHub URL format.', 'error')
         
         # Handle save button
         elif 'save' in request.form:
@@ -113,7 +139,14 @@ def add_server():
                     db.session.commit()
                     
                     flash(f'Server "{server.name}" added successfully!', 'success')
-                    return redirect(url_for('index'))
+                    
+                    # Handle HTMX requests with HX-Redirect to avoid duplicate headers
+                    if request.headers.get('HX-Request'):
+                        response = make_response('', 204)
+                        response.headers['HX-Redirect'] = url_for('index')
+                        return response
+                    else:
+                        return redirect(url_for('index'))
                     
                 except IntegrityError:
                     db.session.rollback()
@@ -206,9 +239,11 @@ def toggle_server(server_id: str):
         status = 'activated' if server.is_active else 'deactivated'
         flash(f'Server "{server.name}" {status}!', 'success')
         
-        # If called via HTMX, return updated card
+        # For HTMX request, redirect to refresh the page
         if request.headers.get('HX-Request'):
-            return render_template('partials/server_card.html', server=server)
+            response = make_response('', 204)
+            response.headers['HX-Refresh'] = 'true'
+            return response
             
     except Exception as e:
         db.session.rollback()

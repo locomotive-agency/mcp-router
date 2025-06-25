@@ -79,13 +79,10 @@ async def register_server_tools():
         # Create a tool function for each server
         async def server_tool(**kwargs):
             """Dynamic tool that proxies to a containerized server"""
-            # This is a placeholder for Week 2. A full implementation
-            # would use the container_manager to execute the tool call.
-            log.info(f"Tool for server {server.id} called with: {kwargs}")
-            return {
-                "status": "placeholder",
-                "message": f"Tool for server '{server.name}' is not fully implemented yet."
-            }
+            return await container_manager.execute_server_tool(
+                server_id=server.id,
+                tool_params=kwargs
+            )
         
         # Register with a unique name
         tool_name = f"{server.name}_tool"

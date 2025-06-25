@@ -1,34 +1,84 @@
-"""Tests for MCP Router models"""
-import unittest
-import sys
-import os
+"""Tests for the MCPServer database model"""
 
-# Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+import json
+import pytest
+from sqlalchemy.exc import IntegrityError
+from mcp_router.models import db, MCPServer
 
-from mcp_router.models import MCPServer
+def test_create_mcp_server(app):
+    """Test creating a new MCPServer instance."""
+    with app.app_context():
+        server = MCPServer(
+            name="test-server",
+            github_url="https://github.com/test/repo",
+            runtime_type="docker",
+            start_command="docker run test-image"
+        )
+        db.session.add(server)
+        db.session.commit()
 
+        retrieved = MCPServer.query.filter_by(name="test-server").first()
+        assert retrieved is not None
+        assert retrieved.id is not None
+        assert retrieved.is_active is True
+        assert retrieved.runtime_type == "docker"
 
-class TestMCPServer(unittest.TestCase):
-    """Test cases for MCPServer model"""
-    
-    def test_env_variables_json_conversion(self):
-        """Test that environment variables are properly serialized/deserialized"""
-        server = MCPServer()
-        test_env = [
-            {'key': 'API_KEY', 'value': 'test123', 'description': 'Test API key'},
-            {'key': 'SECRET', 'value': 'secret456', 'description': 'Secret value'}
-        ]
+def test_env_variables_property(app):
+    """Test the env_variables property saves and loads JSON correctly."""
+    env_data = [{"key": "API_KEY", "value": "12345"}]
+    with app.app_context():
+        server = MCPServer(
+            name="env-test-server",
+            github_url="https://github.com/test/repo",
+            runtime_type="npx",
+            start_command="npx start",
+            env_variables=env_data
+        )
+        db.session.add(server)
+        db.session.commit()
+
+        retrieved = MCPServer.query.first()
+        assert retrieved.env_variables == env_data
+        assert isinstance(retrieved._env_variables, str)
+        assert json.loads(retrieved._env_variables) == env_data
+
+def test_name_uniqueness(app):
+    """Test that the database enforces the uniqueness constraint on the server name."""
+    with app.app_context():
+        server1 = MCPServer(
+            name="unique-server",
+            github_url="https://github.com/test/repo1",
+            runtime_type="uvx",
+            start_command="uvx run"
+        )
+        db.session.add(server1)
+        db.session.commit()
+
+        server2 = MCPServer(
+            name="unique-server",
+            github_url="https://github.com/test/repo2",
+            runtime_type="docker",
+            start_command="docker run"
+        )
+        db.session.add(server2)
         
-        server.env_variables = test_env
-        self.assertEqual(server.env_variables, test_env)
-        
-    def test_server_representation(self):
-        """Test string representation of server"""
-        server = MCPServer()
-        server.name = "test-server"
-        self.assertEqual(str(server), "<MCPServer test-server>")
+        with pytest.raises(IntegrityError):
+            db.session.commit()
 
+def test_default_values(app):
+    """Test the default values for fields like is_active and created_at."""
+    with app.app_context():
+        server = MCPServer(
+            name="default-test",
+            github_url="https://github.com/test/defaults",
+            runtime_type="docker",
+            start_command="docker run default"
+        )
+        db.session.add(server)
+        db.session.commit()
 
-if __name__ == '__main__':
-    unittest.main() 
+        retrieved = MCPServer.query.first()
+        assert retrieved.is_active is True
+        assert retrieved.created_at is not None
+        assert retrieved.install_command == ""
+        assert retrieved.env_variables == [] 
