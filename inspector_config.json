@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mcp-router-dev": {
+      "args": [
+        "-m",
+        "mcp_router.server"
+      ],
+      "command": "python",
+      "env": {
+        "PYTHONPATH": "/Users/jroakes/Projects/MCPRouter"
+      }
+    }
+  }
+}

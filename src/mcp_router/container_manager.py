@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from typing import Dict, Any, Optional
+from flask import current_app
 from llm_sandbox import SandboxSession
 from mcp_router.models import get_server_by_id, MCPServer
 
@@ -11,9 +12,14 @@ logger = logging.getLogger(__name__)
 class ContainerManager:
     """Manages container lifecycle with async bridge for llm-sandbox"""
 
-    def __init__(self):
-        # This could be used to cache active sessions in a future update
+    def __init__(self, app=None):
+        """Initializes the ContainerManager."""
         self.active_sessions: Dict[str, SandboxSession] = {}
+        # Hold a reference to the app object to be able to create context in executors
+        if app:
+            self.app = app
+        else:
+            self.app = current_app._get_current_object()
 
     async def test_server_spawn(self, server_id: str) -> Dict[str, Any]:
         """
@@ -41,35 +47,39 @@ class ContainerManager:
         Synchronous method to fetch server details and run a test in the sandbox.
         This method is designed to be called by `run_in_executor`.
         """
-        server = get_server_by_id(server_id)
-        if not server:
-            return {"status": "error", "message": "Server not found"}
+        with self.app.app_context():
+            server = get_server_by_id(server_id)
+            if not server:
+                return {"status": "error", "message": "Server not found"}
 
-        try:
-            with self._create_sandbox_session(server) as session:
-                # A simple command to verify the environment is working
-                test_command = "pwd"
-                result = session.execute_command(test_command)
+            try:
+                with self._create_sandbox_session(server) as session:
+                    # A simple command to verify the environment is working
+                    test_command = "pwd"
+                    result = session.execute_command(test_command)
 
-                if result.exit_code == 0:
-                    return {
-                        "status": "success",
-                        "message": "Container spawned successfully.",
-                        "details": result.stdout.strip(),
-                    }
-                else:
-                    return {
-                        "status": "error",
-                        "message": "Container test command failed.",
-                        "details": result.stderr,
-                    }
-        except Exception as e:
-            logger.error(f"Sandbox session failed for server {server.id}: {e}")
-            return {"status": "error", "message": f"Sandbox creation failed: {e}"}
+                    if result.exit_code == 0:
+                        return {
+                            "status": "success",
+                            "message": "Container spawned successfully.",
+                            "details": result.stdout.strip(),
+                        }
+                    else:
+                        return {
+                            "status": "error",
+                            "message": "Container test command failed.",
+                            "details": result.stderr,
+                        }
+            except Exception as e:
+                logger.error(f"Sandbox session failed for server {server.id}: {e}")
+                return {"status": "error", "message": f"Sandbox creation failed: {e}"}
 
     def _create_sandbox_session(self, server: MCPServer) -> SandboxSession:
         """Helper to create a SandboxSession based on server runtime"""
         env_vars = self._get_env_vars(server)
+        
+        # Define docker_host for macOS, where the socket might not be in the default location
+        docker_host = "unix:///Users/jroakes/.docker/run/docker.sock"
         
         if server.runtime_type == "npx":
             return SandboxSession(
@@ -77,12 +87,14 @@ class ContainerManager:
                 runtime="node",
                 timeout=60,
                 env_vars=env_vars,
+                docker_host=docker_host,
             )
         elif server.runtime_type == "uvx":
             return SandboxSession(
                 lang="python",
                 timeout=60,
-                env_vars=env_vars
+                env_vars=env_vars,
+                docker_host=docker_host,
             )
         elif server.runtime_type == "docker":
             # Assuming the image name is stored in `start_command` for Docker,
@@ -92,6 +104,7 @@ class ContainerManager:
                 image=server.start_command,
                 timeout=60,
                 env_vars=env_vars,
+                docker_host=docker_host,
             )
         else:
             raise ValueError(f"Unsupported runtime type: {server.runtime_type}")
@@ -130,42 +143,43 @@ class ContainerManager:
         """
         Synchronous method to run the full tool execution flow in the sandbox.
         """
-        server = get_server_by_id(server_id)
-        if not server:
-            return {"status": "error", "message": "Server not found"}
+        with self.app.app_context():
+            server = get_server_by_id(server_id)
+            if not server:
+                return {"status": "error", "message": "Server not found"}
 
-        try:
-            with self._create_sandbox_session(server) as session:
-                # 1. Install dependencies if an install command is provided
-                if server.install_command:
-                    install_result = session.execute_command(server.install_command)
-                    if install_result.exit_code != 0:
+            try:
+                with self._create_sandbox_session(server) as session:
+                    # 1. Install dependencies if an install command is provided
+                    if server.install_command:
+                        install_result = session.execute_command(server.install_command)
+                        if install_result.exit_code != 0:
+                            return {
+                                "status": "error",
+                                "message": "Installation command failed",
+                                "details": install_result.stderr,
+                            }
+
+                    # 2. Construct the start command with parameters
+                    # A simple CLI argument format is assumed: --key value
+                    params_str = " ".join([f"--{k} '{v}'" for k, v in tool_params.items()])
+                    full_command = f"{server.start_command} {params_str}"
+                    
+                    # 3. Execute the tool command
+                    exec_result = session.execute_command(full_command)
+
+                    if exec_result.exit_code == 0:
+                        return {
+                            "status": "success",
+                            "message": "Tool executed successfully.",
+                            "result": exec_result.stdout,
+                        }
+                    else:
                         return {
                             "status": "error",
-                            "message": "Installation command failed",
-                            "details": install_result.stderr,
+                            "message": "Tool execution failed.",
+                            "details": exec_result.stderr,
                         }
-
-                # 2. Construct the start command with parameters
-                # A simple CLI argument format is assumed: --key value
-                params_str = " ".join([f"--{k} '{v}'" for k, v in tool_params.items()])
-                full_command = f"{server.start_command} {params_str}"
-                
-                # 3. Execute the tool command
-                exec_result = session.execute_command(full_command)
-
-                if exec_result.exit_code == 0:
-                    return {
-                        "status": "success",
-                        "message": "Tool executed successfully.",
-                        "result": exec_result.stdout,
-                    }
-                else:
-                    return {
-                        "status": "error",
-                        "message": "Tool execution failed.",
-                        "details": exec_result.stderr,
-                    }
-        except Exception as e:
-            logger.error(f"Sandbox tool execution failed for server {server.id}: {e}")
-            return {"status": "error", "message": f"Sandbox execution failed: {e}"} 
+            except Exception as e:
+                logger.error(f"Sandbox tool execution failed for server {server.id}: {e}")
+                return {"status": "error", "message": f"Sandbox execution failed: {e}"} 

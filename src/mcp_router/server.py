@@ -19,7 +19,7 @@ mcp = FastMCP(
 )
 
 # Built-in Python sandbox tool
-@mcp.tool
+@mcp.tool()
 def python_sandbox(code: str, libraries: list[str] = None) -> dict:
     """
     Execute Python code in a secure sandbox with data science libraries.
@@ -64,17 +64,10 @@ def python_sandbox(code: str, libraries: list[str] = None) -> dict:
         return {"status": "error", "message": str(e)}
 
 # Container manager for dynamic servers
-container_manager = ContainerManager()
+container_manager = ContainerManager(app=app)
 
-async def register_server_tools():
-    """Dynamically register tools from database servers"""
-    loop = asyncio.get_running_loop()
-    
-    # We need the Flask app context to access the database
-    with app.app_context():
-        # Use run_in_executor to call the synchronous DB function
-        servers = await loop.run_in_executor(None, get_active_servers)
-    
+async def register_server_tools(servers: list):
+    """Dynamically register tools from a list of server objects"""
     for server in servers:
         # Create a tool function for each server
         async def server_tool(**kwargs):
@@ -95,8 +88,13 @@ async def register_server_tools():
 def main():
     """Main function to run the MCP server."""
     log.info("Starting MCP Router server...")
+
+    # Synchronously fetch servers from the database before starting the event loop
+    with app.app_context():
+        active_servers = get_active_servers()
+
     # Register dynamic tools on startup
-    asyncio.run(register_server_tools())
+    asyncio.run(register_server_tools(active_servers))
     
     # Run with stdio for Claude Desktop
     log.info("Running with stdio transport for Claude Desktop.")

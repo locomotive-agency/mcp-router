@@ -291,6 +291,25 @@ def claude_desktop_config():
     return response
 
 
+@app.route('/config/local-inspector')
+def local_inspector_config():
+    """Generate a configuration file for the local MCP Inspector."""
+    config = {
+        "mcpServers": {
+            "mcp-router-dev": {
+                "command": "python",
+                "args": ["-m", "mcp_router.server"],
+                "env": {
+                    "PYTHONPATH": os.getcwd()
+                }
+            }
+        }
+    }
+    response = jsonify(config)
+    response.headers['Content-Disposition'] = 'attachment; filename=inspector_config.json'
+    return response
+
+
 @app.errorhandler(404)
 def not_found(e):
     """Handle 404 errors"""
