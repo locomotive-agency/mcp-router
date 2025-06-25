@@ -138,6 +138,20 @@ def add_server():
                     db.session.add(server)
                     db.session.commit()
                     
+                    # Pull Docker image in the background
+                    try:
+                        logger.info(f"Pulling Docker image for {server.name}")
+                        manager = ContainerManager()
+                        pull_result = manager.pull_server_image(server.id)
+                        if pull_result["status"] == "success":
+                            logger.info(f"Successfully pulled image for {server.name}: {pull_result['image']}")
+                        else:
+                            logger.warning(f"Failed to pull image for {server.name}: {pull_result['message']}")
+                            # Don't fail the server addition, just warn
+                    except Exception as e:
+                        logger.error(f"Error pulling image for {server.name}: {e}")
+                        # Don't fail the server addition if image pull fails
+                    
                     flash(f'Server "{server.name}" added successfully!', 'success')
                     
                     # Handle HTMX requests with HX-Redirect to avoid duplicate headers
