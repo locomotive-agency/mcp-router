@@ -1,18 +1,15 @@
 """Main Flask application for MCP Router"""
 import os
 import logging
-import asyncio
 from typing import Dict, Any, Optional
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy.exc import IntegrityError
 from mcp_router.config import get_config
-from mcp_router.models import db, MCPServer, init_db
+from mcp_router.models import db, MCPServer, init_db, get_server_status
 from mcp_router.forms import ServerForm, AnalyzeForm
 from mcp_router.container_manager import ContainerManager
 from mcp_router.claude_analyzer import ClaudeAnalyzer
-from flask_sock import Sock
-import cgi
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,38 +22,10 @@ app.config.from_object(get_config())
 # Initialize extensions
 csrf = CSRFProtect(app)
 init_db(app)
-sock = Sock(app)
 
-
-@sock.route('/ws/logs/<server_id>')
-def stream_logs(ws, server_id: str):
-    """WebSocket route to stream container logs."""
-    logger.info(f"Log streaming requested for server {server_id}")
-    manager = ContainerManager()
-    
-    try:
-        # We need a running container to get logs
-        container = manager.active_containers.get(server_id)
-        if not container:
-            ws.send('<div class="text-yellow-500">[System] Container not running. Start the server to see logs.</div>')
-            logger.warning(f"No active container for server {server_id} to stream logs.")
-            return
-
-        logger.info(f"Streaming logs for container {container.id[:12]}")
-        ws.send(f'<div class="text-green-500">[System] Connected to log stream for {container.name}...</div>')
-        
-        for log_line in container.logs(stream=True):
-            # Sanitize and format the log line for HTML
-            clean_line = log_line.decode('utf-8').strip()
-            escaped_line = cgi.escape(clean_line)
-            ws.send(f'<div hx-swap-oob="beforeend" id="log-messages">{escaped_line}</div>')
-
-    except Exception as e:
-        logger.error(f"Error during log streaming for server {server_id}: {e}")
-        ws.send(f'<div hx-swap-oob="beforeend" id="log-messages" class="text-red-600">[Error] Failed to stream logs: {e}</div>')
-    finally:
-        logger.info(f"Log stream finished for server {server_id}")
-        ws.send('<div hx-swap-oob="beforeend" id="log-messages" class="text-yellow-500">[System] Log stream disconnected.</div>')
+# Initialize server manager with app context
+from mcp_router.server_manager import init_server_manager
+server_manager = init_server_manager(app)
 
 
 @app.route('/')
@@ -272,20 +241,13 @@ def test_server(server_id: str):
     """
     Test server connection by spawning a container (htmx endpoint).
     """
-    # This check is temporary until full async support is in place for Flask
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    manager = ContainerManager()
-    result = loop.run_until_complete(manager.test_server_spawn(server_id))
+    manager = ContainerManager(app)
+    result = manager.test_server(server_id)
     
     if result.get("status") == "success":
-        return f'<div class="text-green-600">✓ {result["message"]} ({result["details"]})</div>'
+        return f'<div class="text-green-600">✓ Server test successful! Exit code: {result["exit_code"]}</div>'
     else:
-        return f'<div class="text-red-600">✗ {result["message"]} ({result.get("details", "No details")})</div>'
+        return f'<div class="text-red-600">✗ {result["message"]} ({result.get("stderr", "No details")})</div>'
 
 
 @app.route('/config/claude-desktop')
@@ -322,6 +284,65 @@ def local_inspector_config():
     response = jsonify(config)
     response.headers['Content-Disposition'] = 'attachment; filename=inspector_config.json'
     return response
+
+
+@app.route('/mcp-control')
+def mcp_control():
+    """MCP Server Control Panel"""
+    return render_template('mcp_control.html')
+
+
+@app.route('/api/mcp/start', methods=['POST'])
+def start_mcp_server():
+    """Start the MCP server with specified transport"""
+    data = request.get_json() or {}
+    transport = data.get('transport', 'stdio')
+    
+    # Validate transport
+    if transport not in ['stdio', 'http', 'sse']:
+        return jsonify({
+            'status': 'error',
+            'message': 'Invalid transport. Must be stdio, http, or sse'
+        }), 400
+    
+    # Start server with appropriate settings
+    kwargs = {}
+    if transport in ['http', 'sse']:
+        kwargs['host'] = data.get('host', '127.0.0.1')
+        kwargs['port'] = data.get('port', 8001)
+        kwargs['path'] = data.get('path', '/mcp' if transport == 'http' else '/sse')
+        kwargs['api_key'] = data.get('api_key')  # Optional, will be generated if not provided
+    
+    result = server_manager.start_server(transport, **kwargs)
+    
+    if result['status'] == 'success':
+        return jsonify(result)
+    else:
+        return jsonify(result), 500
+
+
+@app.route('/api/mcp/stop', methods=['POST'])
+def stop_mcp_server():
+    """Stop the running MCP server"""
+    result = server_manager.stop_server()
+    
+    if result['status'] == 'success':
+        return jsonify(result)
+    else:
+        return jsonify(result), 500
+
+
+@app.route('/api/mcp/status', methods=['GET'])
+def get_mcp_status():
+    """Get current MCP server status"""
+    status = server_manager.get_status()
+    
+    # Return HTML for htmx requests
+    if request.headers.get('HX-Request'):
+        return render_template('partials/mcp_status.html', status=status)
+    
+    # Return JSON for API requests
+    return jsonify(status)
 
 
 @app.errorhandler(404)

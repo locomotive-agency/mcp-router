@@ -6,7 +6,7 @@ wtforms==3.1.0
 flask-sock
 
 # MCP
-fastmcp==2.0.0
+fastmcp>=2.9.0
 
 # Container Management
 llm-sandbox==0.1.0

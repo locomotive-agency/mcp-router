@@ -1,104 +1,222 @@
-"""FastMCP server implementation for MCP Router"""
+"""FastMCP server implementation for MCP Router using proxy pattern"""
 import asyncio
 import logging
+import json
+import os
+from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP
 from llm_sandbox import SandboxSession
-from mcp_router.container_manager import ContainerManager
-from mcp_router.models import get_active_servers
-from mcp_router.app import app  # Import app to get context
+from mcp_router.middleware import ProviderFilterMiddleware
+from mcp_router.models import get_active_servers, MCPServer
+from mcp_router.app import app
+from mcp_router.config import Config
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-# Initialize FastMCP server
-mcp = FastMCP(
-    name="MCP-Router",
-    instructions="""This router provides access to multiple MCP servers and a Python sandbox.
-    Use 'python_sandbox' for data analysis with pandas, numpy, matplotlib, etc.
-    Other tools are dynamically loaded from configured servers."""
-)
 
-# Built-in Python sandbox tool
-@mcp.tool()
-def python_sandbox(code: str, libraries: list[str] = None) -> dict:
+def create_mcp_config(servers: List[MCPServer]) -> Dict[str, Any]:
     """
-    Execute Python code in a secure sandbox with data science libraries.
+    Convert database servers to MCP proxy configuration format.
+    
+    Each server becomes a sub-server that the proxy will manage.
+    """
+    config = {"mcpServers": {}}
+    
+    for server in servers:
+        # Build the command based on runtime type
+        if server.runtime_type == "npx":
+            command = "npx"
+            args = server.start_command.split()[1:] if server.start_command.startswith("npx ") else [server.start_command]
+        elif server.runtime_type == "uvx":
+            command = "uvx"
+            args = server.start_command.split()[1:] if server.start_command.startswith("uvx ") else [server.start_command]
+        elif server.runtime_type == "docker":
+            command = "docker"
+            args = ["run", "--rm", "-i", server.start_command]
+        else:
+            log.warning(f"Unknown runtime type for {server.name}: {server.runtime_type}")
+            continue
+        
+        # Extract environment variables
+        env = {}
+        for env_var in server.env_variables:
+            if env_var.get("value"):
+                env[env_var["key"]] = env_var["value"]
+        
+        # Each server configuration for the proxy
+        config["mcpServers"][server.name] = {
+            "command": command,
+            "args": args,
+            "env": env,
+            "transport": "stdio"  # All sub-servers use stdio within containers
+        }
+    
+    return config
+
+
+def create_router(servers: List[MCPServer], api_key: Optional[str] = None) -> FastMCP:
+    """
+    Create the MCP router as a composite proxy with middleware.
     
     Args:
-        code: Python code to execute.
-        libraries: Additional pip packages to install (e.g., ["pandas", "scikit-learn"]).
-    
-    Returns:
-        A dictionary with stdout, stderr, and exit_code.
+        servers: List of active MCP servers
+        auth: Optional authentication provider
     """
-    log.info(f"Executing Python code with libraries: {libraries}")
+    # Generate proxy configuration from active servers
+    config = create_mcp_config(servers)
     
-    # Default libraries always available
-    default_libs = ["pandas", "numpy", "matplotlib", "seaborn", "scipy"]
+    # Create router as a proxy that manages all sub-servers
+    # Note: In FastMCP 2.x, authentication is handled differently
+    # We'll need to configure it when running the server
+    router = FastMCP.as_proxy(
+        config,
+        name="MCP-Router",
+        instructions="""This router provides access to multiple MCP servers and a Python sandbox.
+        
+Use 'list_providers' to see available servers, then use tools/list with a provider parameter.
+
+Example workflow:
+1. Call list_providers() to see available servers
+2. Call tools/list with provider="server_name" to see that server's tools
+3. Call tools with provider="server_name" parameter to execute them
+"""
+    )
     
-    try:
-        with SandboxSession(lang="python", timeout=30) as session:
-            # Install default + requested libraries
-            all_libs = default_libs + (libraries or [])
-            if all_libs:
-                install_cmd = f"pip install --no-cache-dir {' '.join(all_libs)}"
-                result = session.execute_command(install_cmd)
-                if result.exit_code != 0:
-                    return {
-                        "status": "error",
-                        "message": "Failed to install libraries",
-                        "stderr": result.stderr
-                    }
-            
-            # Execute code
-            result = session.run(code)
-            
-            return {
-                "status": "success" if result.exit_code == 0 else "error",
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "exit_code": result.exit_code
-            }
-    except Exception as e:
-        log.error(f"Sandbox error: {e}")
-        return {"status": "error", "message": str(e)}
-
-# Container manager for dynamic servers
-container_manager = ContainerManager(app=app)
-
-async def register_server_tools(servers: list):
-    """Dynamically register tools from a list of server objects"""
-    for server in servers:
-        # Create a tool function for each server
-        async def server_tool(**kwargs):
-            """Dynamic tool that proxies to a containerized server"""
-            return await container_manager.execute_server_tool(
-                server_id=server.id,
-                tool_params=kwargs
-            )
+    # Add the built-in Python sandbox tool
+    @router.tool()
+    def python_sandbox(code: str, libraries: List[str] = None) -> Dict[str, Any]:
+        """
+        Execute Python code in a secure sandbox with data science libraries.
         
-        # Register with a unique name
-        tool_name = f"{server.name}_tool"
-        server_tool.__name__ = tool_name
-        server_tool.__doc__ = f"Tool from {server.name}: {server.description}"
+        Args:
+            code: Python code to execute
+            libraries: Additional pip packages to install (e.g., ["pandas", "scikit-learn"])
         
-        mcp.tool()(server_tool)
-        log.info(f"Registered tool: {tool_name}")
+        Returns:
+            A dictionary with stdout, stderr, and exit_code
+        """
+        log.info(f"Executing Python code with libraries: {libraries}")
+        
+        # Default libraries always available
+        default_libs = ["pandas", "numpy", "matplotlib", "seaborn", "scipy"]
+        
+        # Get Docker host from config
+        docker_host = Config.DOCKER_HOST
+        
+        try:
+            with SandboxSession(
+                lang="python",
+                timeout=30,
+                docker_host=docker_host
+            ) as session:
+                # Install default + requested libraries
+                all_libs = default_libs + (libraries or [])
+                if all_libs:
+                    install_cmd = f"pip install --no-cache-dir {' '.join(all_libs)}"
+                    result = session.execute_command(install_cmd)
+                    if result.exit_code != 0:
+                        return {
+                            "status": "error",
+                            "message": "Failed to install libraries",
+                            "stderr": result.stderr
+                        }
+                
+                # Execute code
+                result = session.run(code)
+                
+                return {
+                    "status": "success" if result.exit_code == 0 else "error",
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.exit_code
+                }
+        except Exception as e:
+            log.error(f"Sandbox error: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    @router.tool()
+    def list_providers() -> List[str]:
+        """
+        List all available MCP server providers.
+        
+        Returns a list of server names that can be used with the provider parameter
+        in tools/list and tool calls.
+        """
+        # Return the list of server names from the configuration
+        return list(config["mcpServers"].keys())
+    
+    # Add the middleware for hierarchical discovery
+    router.add_middleware(ProviderFilterMiddleware())
+    
+    return router
+
 
 def main():
     """Main function to run the MCP server."""
     log.info("Starting MCP Router server...")
-
-    # Synchronously fetch servers from the database before starting the event loop
+    
+    # Get configuration from environment
+    transport = os.environ.get("MCP_TRANSPORT", "stdio").lower()
+    
+    # Fetch active servers from database synchronously before async context
     with app.app_context():
         active_servers = get_active_servers()
-
-    # Register dynamic tools on startup
-    asyncio.run(register_server_tools(active_servers))
+        log.info(f"Loaded {len(active_servers)} active servers from database")
     
-    # Run with stdio for Claude Desktop
-    log.info("Running with stdio transport for Claude Desktop.")
-    mcp.run(transport="stdio")
+    # Get API key for HTTP transport authentication
+    api_key = None
+    if transport in ["http", "streamable-http", "sse"]:
+        api_key = os.environ.get("MCP_API_KEY")
+        if api_key:
+            log.info("API Key configured for HTTP transport authentication")
+        else:
+            log.warning("No MCP_API_KEY set - HTTP transport will be unauthenticated!")
+    
+    # Create the router with proxy configuration
+    router = create_router(active_servers, api_key=api_key)
+    
+    # Run with appropriate transport
+    if transport == "stdio":
+        log.info("Running with stdio transport for Claude Desktop")
+        router.run(transport="stdio")
+    elif transport in ["http", "streamable-http"]:
+        # HTTP transport configuration
+        host = os.environ.get("MCP_HOST", "127.0.0.1")
+        port = int(os.environ.get("MCP_PORT", "8001"))  # Different from Flask port
+        path = os.environ.get("MCP_PATH", "/mcp")
+        log_level = os.environ.get("MCP_LOG_LEVEL", "info")
+        
+        log.info(f"Running with HTTP transport on {host}:{port}{path}")
+        # Note: In FastMCP 2.x, authentication needs to be configured differently
+        # The API key authentication would be handled via Bearer tokens or custom headers
+        # passed by clients when connecting
+        router.run(
+            transport="http",
+            host=host,
+            port=port,
+            path=path,
+            log_level=log_level
+        )
+    elif transport == "sse":
+        # SSE transport configuration (deprecated but still supported)
+        host = os.environ.get("MCP_HOST", "127.0.0.1")
+        port = int(os.environ.get("MCP_PORT", "8001"))
+        sse_path = os.environ.get("MCP_SSE_PATH", "/sse")
+        log_level = os.environ.get("MCP_LOG_LEVEL", "info")
+        
+        log.info(f"Running with SSE transport on {host}:{port}{sse_path}")
+        log.warning("SSE transport is deprecated - consider using HTTP transport")
+        router.run(
+            transport="sse",
+            host=host,
+            port=port,
+            path=sse_path,
+            log_level=log_level
+        )
+    else:
+        raise ValueError(f"Unknown transport: {transport}")
+
 
 if __name__ == "__main__":
     main() 

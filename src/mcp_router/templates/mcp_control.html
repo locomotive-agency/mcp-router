@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}MCP Server Control{% endblock %}
+
+{% block content %}
+<div class="container mx-auto py-8">
+    <h1 class="text-3xl font-bold mb-8">MCP Server Control</h1>
+    
+    <!-- Status Display -->
+    <div id="server-status" class="mb-8" hx-get="/api/mcp/status" hx-trigger="load, every 5s">
+        <div class="bg-gray-100 rounded-lg p-4">
+            <p class="text-gray-500">Loading server status...</p>
+        </div>
+    </div>
+    
+    <!-- Control Panel - Only shown when server is stopped -->
+    <div id="server-config" class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-xl font-semibold mb-4">Server Configuration</h2>
+        
+        <form id="server-control-form" class="space-y-4">
+            <!-- Transport Selection -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Transport Mode</label>
+                <select id="transport" name="transport" class="w-full rounded-md border-gray-300 shadow-sm" onchange="updateTransportOptions()">
+                    <option value="stdio">stdio (Local - Claude Desktop)</option>
+                    <option value="http">HTTP (Remote Access)</option>
+                    <option value="sse">SSE (Server-Sent Events)</option>
+                </select>
+            </div>
+            
+            <!-- HTTP/SSE Options -->
+            <div id="network-options" class="hidden space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Host</label>
+                        <input type="text" id="host" name="host" value="127.0.0.1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Port</label>
+                        <input type="number" id="port" name="port" value="8001" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Path</label>
+                    <input type="text" id="path" name="path" value="/mcp" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">API Key (optional - will be generated if empty)</label>
+                    <input type="text" id="api_key" name="api_key" placeholder="Leave empty to auto-generate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+            </div>
+            
+            <!-- Start Button - Only shown when stopped -->
+            <div id="start-button-container" class="pt-4">
+                <button type="button" 
+                        id="start-btn"
+                        onclick="startServer()"
+                        class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Start Server
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Connection Info - Only shown when server is running -->
+    <div id="connection-info" class="hidden">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 class="text-lg font-semibold mb-2">Connection Information</h3>
+            <div id="connection-details" class="font-mono text-sm">
+                <!-- Populated by JavaScript -->
+            </div>
+            <div class="mt-4">
+                <button type="button" 
+                        id="stop-btn"
+                        onclick="stopServer()"
+                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Stop Server
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Store the current server status globally
+let currentServerStatus = null;
+
+// Update form based on transport selection
+function updateTransportOptions() {
+    const transport = document.getElementById('transport').value;
+    const networkOptions = document.getElementById('network-options');
+    const pathInput = document.getElementById('path');
+    
+    if (transport === 'stdio') {
+        networkOptions.classList.add('hidden');
+    } else {
+        networkOptions.classList.remove('hidden');
+        // Update default path based on transport
+        if (transport === 'http') {
+            pathInput.value = '/mcp';
+        } else if (transport === 'sse') {
+            pathInput.value = '/sse';
+        }
+    }
+}
+
+// Start the server
+async function startServer() {
+    const transport = document.getElementById('transport').value;
+    const data = { transport };
+    
+    if (transport !== 'stdio') {
+        data.host = document.getElementById('host').value;
+        data.port = parseInt(document.getElementById('port').value);
+        data.path = document.getElementById('path').value;
+        const apiKey = document.getElementById('api_key').value;
+        if (apiKey) {
+            data.api_key = apiKey;
+        }
+    }
+    
+    try {
+        const response = await fetch('/api/mcp/start', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            // Refresh status immediately
+            htmx.trigger('#server-status', 'load');
+        } else {
+            alert('Failed to start server: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error starting server: ' + error.message);
+    }
+}
+
+// Stop the server
+async function stopServer() {
+    try {
+        const response = await fetch('/api/mcp/stop', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            // Refresh status immediately
+            htmx.trigger('#server-status', 'load');
+        } else {
+            alert('Failed to stop server: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error stopping server: ' + error.message);
+    }
+}
+
+// Show connection information
+function showConnectionInfo(info) {
+    const connectionDetails = document.getElementById('connection-details');
+    
+    let html = '';
+    if (info.type === 'stdio') {
+        html = `<p>Command: <span class="text-blue-600">${info.command}</span></p>`;
+    } else if (info.type === 'http' || info.type === 'sse') {
+        html = `
+            <p>URL: <span class="text-blue-600">${info.url}</span></p>
+            ${info.api_key ? `<p>API Key: <span class="text-blue-600">${info.api_key}</span></p>` : ''}
+        `;
+    }
+    
+    connectionDetails.innerHTML = html;
+}
+
+// Update UI based on server status
+function updateUIFromStatus(status) {
+    currentServerStatus = status;
+    
+    const serverConfig = document.getElementById('server-config');
+    const connectionInfo = document.getElementById('connection-info');
+    const transportSelect = document.getElementById('transport');
+    
+    if (status.status === 'running') {
+        // Hide configuration form
+        serverConfig.classList.add('hidden');
+        
+        // Show connection info
+        connectionInfo.classList.remove('hidden');
+        
+        // Display connection information
+        if (status.connection_info) {
+            showConnectionInfo(status.connection_info);
+        }
+    } else {
+        // Show configuration form
+        serverConfig.classList.remove('hidden');
+        
+        // Hide connection info
+        connectionInfo.classList.add('hidden');
+        
+        // Reset form to defaults
+        transportSelect.value = 'stdio';
+        updateTransportOptions();
+    }
+}
+
+// Handle status updates via htmx
+document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.id === 'server-status') {
+        // Extract status data from the response
+        const scriptTag = event.detail.target.querySelector('script[type="application/json"]');
+        if (scriptTag) {
+            try {
+                const status = JSON.parse(scriptTag.textContent);
+                updateUIFromStatus(status);
+            } catch (e) {
+                console.error('Failed to parse status data:', e);
+            }
+        }
+    }
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // This will be handled by the initial htmx load
+});
+</script>
+{% endblock %} 

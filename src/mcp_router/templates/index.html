@@ -6,6 +6,13 @@
     <p class="text-gray-600">Manage and monitor your Model Context Protocol servers</p>
 </div>
 
+<!-- MCP Server Status -->
+<div id="mcp-status" class="mb-6" hx-get="/api/mcp/status" hx-trigger="load, every 5s">
+    <div class="bg-gray-100 rounded-lg p-4">
+        <p class="text-gray-500">Loading MCP server status...</p>
+    </div>
+</div>
+
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for server in servers %}
     <div class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">

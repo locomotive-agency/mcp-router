@@ -14,7 +14,7 @@ def main():
     # Run the development server
     app.run(
         host='0.0.0.0',
-        port=5001,
+        port=app.config['FLASK_PORT'],
         debug=app.config['DEBUG']
     )
 
