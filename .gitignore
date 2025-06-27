@@ -156,3 +156,7 @@ ehthumbs.db
 mcp_router.db
 logs/
 *.log
+.cursorrules
+.cursorignore
+project.md
+
