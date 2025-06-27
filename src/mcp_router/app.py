@@ -4,12 +4,14 @@ import logging
 from typing import Dict, Any, Optional
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response
 from flask_wtf.csrf import CSRFProtect
+from flask_login import login_required
 from sqlalchemy.exc import IntegrityError
 from mcp_router.config import get_config
 from mcp_router.models import db, MCPServer, init_db, get_server_status
 from mcp_router.forms import ServerForm, AnalyzeForm
 from mcp_router.container_manager import ContainerManager
 from mcp_router.claude_analyzer import ClaudeAnalyzer
+from mcp_router.auth import init_auth
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +24,7 @@ app.config.from_object(get_config())
 # Initialize extensions
 csrf = CSRFProtect(app)
 init_db(app)
+init_auth(app)  # Initialize authentication
 
 # Initialize server manager with app context
 from mcp_router.server_manager import init_server_manager
@@ -29,6 +32,7 @@ server_manager = init_server_manager(app)
 
 
 @app.route('/')
+@login_required
 def index():
     """Dashboard showing all servers"""
     try:
@@ -41,6 +45,7 @@ def index():
 
 
 @app.route('/servers/add', methods=['GET', 'POST'])
+@login_required
 def add_server():
     """Add new server with GitHub analysis"""
     if request.method == 'POST':
@@ -143,6 +148,7 @@ def add_server():
 
 
 @app.route('/servers/<server_id>')
+@login_required
 def server_detail(server_id: str):
     """Show server details"""
     server = MCPServer.query.get_or_404(server_id)
@@ -150,6 +156,7 @@ def server_detail(server_id: str):
 
 
 @app.route('/servers/<server_id>/edit', methods=['GET', 'POST'])
+@login_required
 def edit_server(server_id: str):
     """Edit server configuration"""
     server = MCPServer.query.get_or_404(server_id)
@@ -194,6 +201,7 @@ def edit_server(server_id: str):
 
 
 @app.route('/servers/<server_id>/delete', methods=['POST'])
+@login_required
 def delete_server(server_id: str):
     """Delete a server"""
     server = MCPServer.query.get_or_404(server_id)
@@ -211,6 +219,7 @@ def delete_server(server_id: str):
 
 
 @app.route('/servers/<server_id>/toggle', methods=['POST'])
+@login_required
 def toggle_server(server_id: str):
     """Toggle server active status"""
     server = MCPServer.query.get_or_404(server_id)
@@ -237,6 +246,7 @@ def toggle_server(server_id: str):
 
 
 @app.route('/api/servers/<server_id>/test', methods=['POST'])
+@login_required
 def test_server(server_id: str):
     """
     Test server connection by spawning a container (htmx endpoint).
@@ -251,6 +261,7 @@ def test_server(server_id: str):
 
 
 @app.route('/config/claude-desktop')
+@login_required
 def claude_desktop_config():
     """Generate Claude Desktop configuration"""
     config = {
@@ -268,6 +279,7 @@ def claude_desktop_config():
 
 
 @app.route('/config/local-inspector')
+@login_required
 def local_inspector_config():
     """Generate a configuration file for the local MCP Inspector."""
     config = {
@@ -287,12 +299,14 @@ def local_inspector_config():
 
 
 @app.route('/mcp-control')
+@login_required
 def mcp_control():
     """MCP Server Control Panel"""
     return render_template('mcp_control.html')
 
 
 @app.route('/api/mcp/start', methods=['POST'])
+@login_required
 def start_mcp_server():
     """Start the MCP server with specified transport"""
     data = request.get_json() or {}
@@ -322,6 +336,7 @@ def start_mcp_server():
 
 
 @app.route('/api/mcp/stop', methods=['POST'])
+@login_required
 def stop_mcp_server():
     """Stop the running MCP server"""
     result = server_manager.stop_server()
@@ -333,6 +348,7 @@ def stop_mcp_server():
 
 
 @app.route('/api/mcp/status', methods=['GET'])
+@login_required
 def get_mcp_status():
     """Get current MCP server status"""
     status = server_manager.get_status()
@@ -346,6 +362,7 @@ def get_mcp_status():
 
 
 @app.route('/api/mcp/logs', methods=['GET'])
+@login_required
 def get_mcp_logs():
     """Get MCP server logs"""
     pid = request.args.get('pid', type=int)

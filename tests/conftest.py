@@ -12,6 +12,7 @@ def app():
         "TESTING": True,
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
         "WTF_CSRF_ENABLED": False,  # Disable CSRF for testing forms
+        "LOGIN_DISABLED": True,  # Disable Flask-Login for testing
     })
 
     with flask_app.app_context():

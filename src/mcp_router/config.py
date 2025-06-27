@@ -37,6 +37,9 @@ class Config:
     MCP_LOG_LEVEL = os.environ.get('MCP_LOG_LEVEL', 'info')
     MCP_API_KEY = os.environ.get('MCP_API_KEY')
     
+    # Authentication settings
+    ADMIN_PASSCODE = os.environ.get('ADMIN_PASSCODE')
+    
     # Container settings
     DOCKER_HOST = os.environ.get('DOCKER_HOST', 'unix:///var/run/docker.sock')
     MCP_PYTHON_IMAGE = os.environ.get('MCP_PYTHON_IMAGE', 'python:3.11-slim')

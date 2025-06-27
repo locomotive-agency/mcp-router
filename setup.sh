@@ -228,6 +228,7 @@ else
     echo "   - sudo systemctl start docker (if not already running)"
 fi
 echo "2. Edit .env file with your configuration:"
+echo "   - Set ADMIN_PASSCODE for web interface security (minimum 8 characters)"
 echo "   - Add your ANTHROPIC_API_KEY for Claude repository analysis"
 echo "   - Configure other settings as needed"
 echo "3. Activate the virtual environment:"

@@ -16,7 +16,7 @@ chmod +x setup.sh
 ./setup.sh
 
 # Edit configuration
-nano .env  # Add your ANTHROPIC_API_KEY
+nano .env  # Add your ANTHROPIC_API_KEY and set ADMIN_PASSCODE
 
 # Start the web interface
 source venv/bin/activate
@@ -34,6 +34,7 @@ open http://localhost:8000
 - **Intelligent Routing**: Hierarchical tool discovery prevents tool overload
 - **Language Agnostic**: Support for any programming language via sandboxed containers
 - **Built-in Python Sandbox**: Data science environment with popular libraries
+- **Authentication**: Passcode-protected admin interface for secure remote hosting
 
 ### Server Management
 - **GitHub Integration**: Automatic MCP server detection and configuration from repos
@@ -103,6 +104,9 @@ The script will:
 3. **Configure Environment**
    Edit `.env` file with your settings:
    ```bash
+   # Required for security
+   ADMIN_PASSCODE=your-secure-passcode-here
+   
    # Required for repository analysis
    ANTHROPIC_API_KEY=your-api-key-here
    
@@ -110,6 +114,32 @@ The script will:
    MCP_PYTHON_IMAGE=python:3.11-slim
    MCP_NODE_IMAGE=node:20-slim
    ```
+
+## 🔐 Authentication
+
+MCP Router includes a simple passcode-based authentication system to protect the admin interface when hosted remotely.
+
+### Setting Up Authentication
+
+1. **Set a strong passcode** in your `.env` file:
+   ```bash
+   ADMIN_PASSCODE=your-secure-passcode-here
+   ```
+   - Minimum 8 characters required
+   - Use a strong, unique passcode
+   - **Never use the default passcode in production!**
+
+2. **First-time login**:
+   - Navigate to http://localhost:8000
+   - You'll be redirected to the login page
+   - Enter your passcode
+   - You'll stay logged in until you explicitly log out
+
+3. **Security Notes**:
+   - The passcode is hashed using bcrypt
+   - Sessions persist across browser restarts
+   - Always use HTTPS in production
+   - Consider additional security measures (VPN, IP restrictions) for sensitive deployments
 
 ## 🚦 Usage
 
@@ -121,6 +151,8 @@ The script will:
    python -m mcp_router.web
    ```
    Access at: http://localhost:8000
+   
+   **First time**: You'll be prompted to log in with your passcode.
 
 2. **Add MCP Servers**
    - Click "Add Server" in the web UI
@@ -237,6 +269,9 @@ FLASK_PORT=8000
 FLASK_ENV=development
 SECRET_KEY=your-secret-key-here
 
+# Authentication (REQUIRED for security)
+ADMIN_PASSCODE=your-secure-passcode-here
+
 # Claude API (Required for GitHub analysis)
 ANTHROPIC_API_KEY=sk-ant-...
 
@@ -278,12 +313,14 @@ pytest -v
 - ✅ Database models and operations
 - ✅ Log level detection
 - ✅ Web UI routes and functionality
+- ✅ Authentication system
 
 ### Project Structure
 ```
 mcp-router/
 ├── src/mcp_router/      # Main package
 │   ├── app.py          # Flask application
+│   ├── auth.py         # Authentication system
 │   ├── server.py       # MCP server with FastMCP
 │   ├── container_manager.py  # Docker container lifecycle
 │   ├── claude_analyzer.py    # GitHub repo analysis
@@ -348,6 +385,11 @@ sudo usermod -aG docker $USER
 FLASK_PORT=8080
 MCP_PORT=8002
 ```
+
+**Login issues**
+- Ensure ADMIN_PASSCODE is set in .env
+- Minimum 8 characters required
+- Clear browser cookies if having persistent issues
 
 ## 📚 Additional Resources
 
