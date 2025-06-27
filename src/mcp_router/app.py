@@ -1,13 +1,12 @@
 """Main Flask application for MCP Router"""
 import os
 import logging
-from typing import Dict, Any, Optional
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response
 from flask_wtf.csrf import CSRFProtect
 from flask_login import login_required
 from sqlalchemy.exc import IntegrityError
 from mcp_router.config import get_config
-from mcp_router.models import db, MCPServer, init_db, get_server_status
+from mcp_router.models import db, MCPServer, init_db
 from mcp_router.forms import ServerForm, AnalyzeForm
 from mcp_router.container_manager import ContainerManager
 from mcp_router.claude_analyzer import ClaudeAnalyzer

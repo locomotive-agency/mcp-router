@@ -9,15 +9,9 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 from flask import Flask
 from collections import deque
-import queue
-import time
+
 
 logger = logging.getLogger(__name__)
-
-from mcp_router.models import get_server_status as _get_server_status, update_server_status as _update_server_status  # Backward compatibility for tests
-# Expose as module-level names so unit tests can patch them directly
-get_server_status = _get_server_status  # type: ignore
-update_server_status = _update_server_status  # type: ignore
 
 
 class MCPServerManager:

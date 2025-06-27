@@ -14,7 +14,7 @@ from llm_sandbox import SandboxSession
 from mcp_router.models import get_server_by_id, MCPServer
 from mcp_router.config import Config
 from docker import DockerClient
-from docker.errors import ImageNotFound
+
 
 logger = logging.getLogger(__name__)
 

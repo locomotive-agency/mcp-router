@@ -1,7 +1,5 @@
 """FastMCP server implementation for MCP Router using proxy pattern"""
-import asyncio
 import logging
-import json
 import os
 from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP
