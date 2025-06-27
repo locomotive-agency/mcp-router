@@ -8,7 +8,7 @@ MCP Router is a Python-based unified gateway for multiple Model Context Protocol
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/mcp-router.git
+git clone https://github.com/locomotive-agency/mcp-router.git
 cd mcp-router
 
 # Run the setup script (installs Docker and sets up the project)
@@ -84,7 +84,7 @@ The script will:
 
 2. **Clone and Install**
    ```bash
-   git clone https://github.com/yourusername/mcp-router.git
+   git clone https://github.com/locomotive-agency/mcp-router.git
    cd mcp-router
    
    # Create virtual environment
