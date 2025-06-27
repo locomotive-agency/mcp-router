@@ -98,31 +98,36 @@ Example workflow:
         """
         log.info(f"Executing Python code with libraries: {libraries}")
         
-        # Default libraries always available
-        default_libs = ["pandas", "numpy", "matplotlib", "seaborn", "scipy"]
-        
-        # Get Docker host from config
         docker_host = Config.DOCKER_HOST
-        
+        sandbox_image_template = "mcp-router-python-sandbox"
+
         try:
+            # Use the pre-built template
             with SandboxSession(
                 lang="python",
-                timeout=30,
+                template_name=sandbox_image_template,
+                timeout=60,
                 docker_host=docker_host
             ) as session:
-                # Install default + requested libraries
-                all_libs = default_libs + (libraries or [])
-                if all_libs:
-                    install_cmd = f"pip install --no-cache-dir {' '.join(all_libs)}"
-                    result = session.execute_command(install_cmd)
-                    if result.exit_code != 0:
-                        return {
-                            "status": "error",
-                            "message": "Failed to install libraries",
-                            "stderr": result.stderr
-                        }
+                # Install only the additional, non-default libraries
+                if libraries:
+                    default_libs = ["pandas", "numpy", "matplotlib", "seaborn", "scipy"]
+                    additional_libs = [lib for lib in libraries if lib not in default_libs]
+                    
+                    if additional_libs:
+                        install_cmd = f"pip install --no-cache-dir {' '.join(additional_libs)}"
+                        log.info(f"Installing additional libraries: {install_cmd}")
+                        result = session.execute_command(install_cmd)
+                        if result.exit_code != 0:
+                            log.error(f"Library installation failed: {result.stderr}")
+                            return {
+                                "status": "error",
+                                "message": "Failed to install libraries",
+                                "stderr": result.stderr
+                            }
                 
                 # Execute code
+                log.info("Executing Python code in sandbox")
                 result = session.run(code)
                 
                 return {
@@ -132,7 +137,11 @@ Example workflow:
                     "exit_code": result.exit_code
                 }
         except Exception as e:
-            log.error(f"Sandbox error: {e}")
+            # Check if the sandbox template is missing
+            if "No container template found" in str(e):
+                log.error(f"Sandbox template '{sandbox_image_template}' not found. Please restart the web server to build it.")
+                return {"status": "error", "message": f"Sandbox template '{sandbox_image_template}' not found. It should be built on web server startup."}
+            log.error(f"Sandbox error: {e}", exc_info=True)
             return {"status": "error", "message": str(e)}
     
     @router.tool()
@@ -187,6 +196,10 @@ def main():
         path = os.environ.get("MCP_PATH", "/mcp")
         log_level = os.environ.get("MCP_LOG_LEVEL", "info")
         
+        # Ensure path ends with trailing slash for FastMCP
+        if not path.endswith('/'):
+            path = path + '/'
+        
         log.info(f"Running with HTTP transport on {host}:{port}{path}")
         # Note: In FastMCP 2.x, authentication needs to be configured differently
         # The API key authentication would be handled via Bearer tokens or custom headers
@@ -204,6 +217,10 @@ def main():
         port = int(os.environ.get("MCP_PORT", "8001"))
         sse_path = os.environ.get("MCP_SSE_PATH", "/sse")
         log_level = os.environ.get("MCP_LOG_LEVEL", "info")
+        
+        # Ensure path ends with trailing slash for FastMCP
+        if not sse_path.endswith('/'):
+            sse_path = sse_path + '/'
         
         log.info(f"Running with SSE transport on {host}:{port}{sse_path}")
         log.warning("SSE transport is deprecated - consider using HTTP transport")

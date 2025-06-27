@@ -12,6 +12,14 @@
                     {% if status.pid %}
                         <span class="text-gray-600">PID: {{ status.pid }}</span>
                     {% endif %}
+                {% elif status.status == 'crashed' %}
+                    <span class="flex items-center">
+                        <span class="h-3 w-3 bg-red-500 rounded-full mr-2"></span>
+                        <span class="text-red-600 font-medium">Crashed</span>
+                    </span>
+                    {% if status.error_message %}
+                        <span class="text-red-600 text-sm">{{ status.error_message }}</span>
+                    {% endif %}
                 {% elif status.status == 'stopped' %}
                     <span class="flex items-center">
                         <span class="h-3 w-3 bg-gray-400 rounded-full mr-2"></span>

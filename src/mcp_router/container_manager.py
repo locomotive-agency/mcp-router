@@ -13,6 +13,8 @@ from flask import Flask
 from llm_sandbox import SandboxSession
 from mcp_router.models import get_server_by_id, MCPServer
 from mcp_router.config import Config
+from docker import DockerClient
+from docker.errors import ImageNotFound
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,10 @@ class ContainerManager:
         self.python_image = Config.MCP_PYTHON_IMAGE
         # Get Node.js image from config
         self.node_image = Config.MCP_NODE_IMAGE
+        # Custom sandbox image
+        self.sandbox_image_template = "mcp-router-python-sandbox"
+        # Docker client
+        self.docker_client: DockerClient = DockerClient.from_env()
     
     def _get_env_vars(self, server: MCPServer) -> Dict[str, str]:
         """Extract environment variables from server configuration"""
@@ -49,7 +55,7 @@ class ContainerManager:
                 lang="javascript",
                 runtime="node",
                 image=self.node_image,  # Use configured Node image
-                timeout=30,  # Reduced timeout
+                timeout=60,  # Increased from 30 to 60 seconds
                 env_vars=env_vars,
                 docker_host=self.docker_host,
                 keep_env=True,  # Reuse containers for performance
@@ -59,7 +65,7 @@ class ContainerManager:
             return SandboxSession(
                 lang="python",
                 image=self.python_image,
-                timeout=30,  # Reduced timeout
+                timeout=60,  # Increased from 30 to 60 seconds
                 env_vars=env_vars,
                 docker_host=self.docker_host,
                 keep_env=True,  # Reuse containers for performance
@@ -68,7 +74,7 @@ class ContainerManager:
             # Any language via Docker
             return SandboxSession(
                 image=server.start_command,
-                timeout=30,  # Reduced timeout
+                timeout=60,  # Increased from 30 to 60 seconds
                 env_vars=env_vars,
                 docker_host=self.docker_host,
                 keep_env=True,  # Reuse containers for performance
@@ -144,65 +150,65 @@ class ContainerManager:
                 "status": "error",
                 "message": str(e)
             }
-    
+
+    def build_python_sandbox_image(self, force: bool = False):
+        """Builds a custom python sandbox image with common libraries pre-installed."""
+        try:
+            # For this library, we "build" by creating a named template container
+            # that has the dependencies pre-installed.
+            logger.info("Building/Updating the Python sandbox template container...")
+
+            with SandboxSession(
+                lang="python",
+                image=self.python_image,
+                template_name=self.sandbox_image_template,
+                commit_container=True,  # This is key: saves the state after the session
+                timeout=300,  # 5 minutes for build
+                docker_host=self.docker_host,
+            ) as session:
+                logger.info("Installing common data science libraries into the template...")
+                default_libs = ["pandas", "numpy", "matplotlib", "seaborn", "scipy"]
+                install_cmd = f"pip install --no-cache-dir {' '.join(default_libs)}"
+                result = session.execute_command(install_cmd)
+
+                if result.exit_code != 0:
+                    logger.error(f"Failed to install libraries for sandbox template: {result.stderr}")
+                    return {"status": "error", "message": "Library installation failed.", "stderr": result.stderr}
+
+                logger.info("Libraries installed. The container state will be committed automatically.")
+
+            logger.info(f"Successfully built/updated sandbox template: '{self.sandbox_image_template}'")
+            return {"status": "success", "message": "Sandbox template updated successfully."}
+        except Exception as e:
+            logger.error(f"Error building custom sandbox image: {e}", exc_info=True)
+            return {"status": "error", "message": str(e)}
+
     def pull_server_image(self, server_id: str) -> Dict[str, Any]:
-        """
-        Pull Docker image for a specific server.
-        Called automatically when a server is added via the web UI.
-        
-        Args:
-            server_id: The ID of the server whose image to pull
-            
-        Returns:
-            Dict containing pull results with status and message
-        """
+        """Pulls the Docker image for a specific server."""
         if self.app:
             with self.app.app_context():
                 server = get_server_by_id(server_id)
         else:
             server = get_server_by_id(server_id)
-            
+
         if not server:
-            return {
-                "status": "error",
-                "message": f"Server {server_id} not found"
-            }
-        
-        logger.info(f"Pulling image for server: {server.name} ({server.runtime_type})")
-        
+            return {"status": "error", "message": f"Server {server_id} not found"}
+
+        image_name = ""
+        if server.runtime_type == "npx":
+            image_name = self.node_image
+        elif server.runtime_type == "uvx":
+            image_name = self.python_image
+        elif server.runtime_type == "docker":
+            image_name = server.start_command
+        else:
+            return {"status": "error", "message": f"Unsupported runtime type: {server.runtime_type}"}
+
         try:
-            # Determine which image to pull based on runtime type
-            if server.runtime_type == "npx":
-                image = self.node_image
-            elif server.runtime_type == "uvx":
-                image = self.python_image
-            elif server.runtime_type == "docker":
-                # Extract image name from start command
-                image = server.start_command
-            else:
-                return {
-                    "status": "error",
-                    "message": f"Unsupported runtime type: {server.runtime_type}"
-                }
-            
-            # Use a temporary sandbox session to pull the image
-            session = SandboxSession(
-                image=image,
-                docker_host=self.docker_host,
-                keep_env=False,  # Don't keep this session
-            )
-            
-            with session:
-                # The session initialization will pull the image
-                logger.info(f"Successfully pulled image: {image}")
-                return {
-                    "status": "success",
-                    "message": f"Image {image} pulled successfully"
-                }
-                
+            logger.info(f"Pulling image '{image_name}' for server '{server.name}'...")
+            self.docker_client.images.pull(image_name)
+            logger.info(f"Successfully pulled image: {image_name}")
+            return {"status": "success", "image": image_name}
         except Exception as e:
-            logger.error(f"Error pulling image for server {server_id}: {e}")
-            return {
-                "status": "error",
-                "message": str(e)
-            } 
+            logger.error(f"Failed to pull image '{image_name}': {e}", exc_info=True)
+            return {"status": "error", "message": str(e)} 

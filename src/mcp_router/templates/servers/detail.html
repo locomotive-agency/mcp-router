@@ -91,19 +91,6 @@
             </div>
             {% endif %}
 
-            <!-- Live Logs -->
-            <div class="bg-white rounded-lg shadow p-6" hx-ext="ws" ws-connect="/ws/logs/{{ server.id }}">
-                <h3 class="text-lg font-medium mb-4">Live Logs</h3>
-                <div id="log-container" 
-                     class="bg-gray-900 text-white font-mono text-xs rounded p-4 h-64 overflow-y-auto">
-                    <div id="log-messages" class="space-y-1">
-                        <!-- Log messages will be swapped here -->
-                        <div class="text-yellow-500">[System] Connecting to log stream...</div>
-                    </div>
-                </div>
-                <div ws-send class="hidden"></div>
-            </div>
-
         </div>
 
         <!-- Actions Sidebar -->

@@ -56,7 +56,7 @@
                         id="start-btn"
                         onclick="startServer()"
                         class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Start Server
+                    <span id="start-btn-text">Start Server</span>
                 </button>
             </div>
         </form>
@@ -79,11 +79,48 @@
             </div>
         </div>
     </div>
+    
+    <!-- Log Viewer - Only shown when server is running -->
+    <div id="log-viewer" class="hidden mt-8">
+        <div class="bg-gray-900 rounded-lg shadow-md p-4">
+            <h3 class="text-lg font-semibold text-white mb-2">Server Logs</h3>
+            <div id="log-content" class="bg-black rounded p-3 font-mono text-xs text-gray-300 h-64 overflow-y-auto">
+                <div class="text-gray-500">No logs available yet...</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
 // Store the current server status globally
 let currentServerStatus = null;
+// Store form state to prevent resets
+let formState = {
+    transport: 'stdio',
+    host: '127.0.0.1',
+    port: '8001',
+    path: '/mcp',
+    api_key: ''
+};
+
+// Save form state
+function saveFormState() {
+    formState.transport = document.getElementById('transport').value;
+    formState.host = document.getElementById('host').value;
+    formState.port = document.getElementById('port').value;
+    formState.path = document.getElementById('path').value;
+    formState.api_key = document.getElementById('api_key').value;
+}
+
+// Restore form state
+function restoreFormState() {
+    document.getElementById('transport').value = formState.transport;
+    document.getElementById('host').value = formState.host;
+    document.getElementById('port').value = formState.port;
+    document.getElementById('path').value = formState.path;
+    document.getElementById('api_key').value = formState.api_key;
+    updateTransportOptions();
+}
 
 // Update form based on transport selection
 function updateTransportOptions() {
@@ -96,12 +133,15 @@ function updateTransportOptions() {
     } else {
         networkOptions.classList.remove('hidden');
         // Update default path based on transport
-        if (transport === 'http') {
+        if (transport === 'http' && pathInput.value === '/sse') {
             pathInput.value = '/mcp';
-        } else if (transport === 'sse') {
+        } else if (transport === 'sse' && pathInput.value === '/mcp') {
             pathInput.value = '/sse';
         }
     }
+    
+    // Save state after updating
+    saveFormState();
 }
 
 // Start the server
@@ -134,6 +174,8 @@ async function startServer() {
         if (result.status === 'success') {
             // Refresh status immediately
             htmx.trigger('#server-status', 'load');
+            // Start fetching logs if server started
+            startLogFetching();
         } else {
             alert('Failed to start server: ' + result.message);
         }
@@ -157,6 +199,8 @@ async function stopServer() {
         if (result.status === 'success') {
             // Refresh status immediately
             htmx.trigger('#server-status', 'load');
+            // Stop fetching logs
+            stopLogFetching();
         } else {
             alert('Failed to stop server: ' + result.message);
         }
@@ -182,13 +226,115 @@ function showConnectionInfo(info) {
     connectionDetails.innerHTML = html;
 }
 
+// Log fetching
+let logInterval = null;
+let logLines = [];
+
+function startLogFetching() {
+    if (logInterval) return;
+    
+    // Fetch logs every 5 seconds instead of 2
+    logInterval = setInterval(async () => {
+        if (currentServerStatus && currentServerStatus.status === 'running' && currentServerStatus.pid) {
+            try {
+                const response = await fetch(`/api/mcp/logs?pid=${currentServerStatus.pid}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.logs) {
+                        updateLogDisplay(data.logs);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch logs:', error);
+            }
+        }
+    }, 5000);  // Changed from 2000 to 5000 milliseconds
+}
+
+function stopLogFetching() {
+    if (logInterval) {
+        clearInterval(logInterval);
+        logInterval = null;
+    }
+    // Clear logs
+    logLines = [];
+    const logContent = document.getElementById('log-content');
+    logContent.innerHTML = '<div class="text-gray-500">No logs available...</div>';
+}
+
+function updateLogDisplay(newLogs) {
+    const logContent = document.getElementById('log-content');
+    
+    // Add new logs to our buffer
+    logLines = logLines.concat(newLogs);
+    
+    // Keep only last 100 lines
+    if (logLines.length > 100) {
+        logLines = logLines.slice(-100);
+    }
+    
+    // Update display
+    logContent.innerHTML = logLines.map(line => {
+        // Parse log format: [timestamp] [stream] message
+        const match = line.match(/^\[([\d\-\s:]+)\]\s*\[(\w+)\]\s*(.*)$/);
+        let timestamp = '';
+        let stream = '';
+        let message = line;
+        
+        if (match) {
+            timestamp = match[1];
+            stream = match[2];
+            message = match[3];
+        }
+        
+        // Color-code based on stream and content
+        let className = 'text-gray-300';
+        if (stream === 'STDERR' || message.includes('ERROR')) {
+            className = 'text-red-400';
+        } else if (message.includes('WARNING')) {
+            className = 'text-yellow-400';
+        } else if (message.includes('INFO')) {
+            className = 'text-blue-400';
+        } else if (stream === 'SYSTEM') {
+            className = 'text-purple-400';
+        }
+        
+        // Format the line with proper spacing
+        if (match) {
+            return `<div class="${className}"><span class="text-gray-500">[${timestamp}]</span> <span class="text-gray-400">[${stream}]</span> ${escapeHtml(message)}</div>`;
+        } else {
+            return `<div class="${className}">${escapeHtml(line)}</div>`;
+        }
+    }).join('');
+    
+    // Auto-scroll to bottom
+    logContent.scrollTop = logContent.scrollHeight;
+}
+
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 // Update UI based on server status
 function updateUIFromStatus(status) {
+    // Don't update if status hasn't actually changed (to prevent form resets)
+    if (currentServerStatus && 
+        currentServerStatus.status === status.status &&
+        currentServerStatus.pid === status.pid) {
+        return;
+    }
+    
     currentServerStatus = status;
     
     const serverConfig = document.getElementById('server-config');
     const connectionInfo = document.getElementById('connection-info');
-    const transportSelect = document.getElementById('transport');
+    const logViewer = document.getElementById('log-viewer');
+    const startBtnText = document.getElementById('start-btn-text');
     
     if (status.status === 'running') {
         // Hide configuration form
@@ -197,10 +343,16 @@ function updateUIFromStatus(status) {
         // Show connection info
         connectionInfo.classList.remove('hidden');
         
+        // Show log viewer
+        logViewer.classList.remove('hidden');
+        
         // Display connection information
         if (status.connection_info) {
             showConnectionInfo(status.connection_info);
         }
+        
+        // Start fetching logs
+        startLogFetching();
     } else {
         // Show configuration form
         serverConfig.classList.remove('hidden');
@@ -208,9 +360,21 @@ function updateUIFromStatus(status) {
         // Hide connection info
         connectionInfo.classList.add('hidden');
         
-        // Reset form to defaults
-        transportSelect.value = 'stdio';
-        updateTransportOptions();
+        // Hide log viewer
+        logViewer.classList.add('hidden');
+        
+        // Stop fetching logs
+        stopLogFetching();
+        
+        // Update button text based on status
+        if (status.status === 'crashed') {
+            startBtnText.textContent = 'Restart Server';
+        } else {
+            startBtnText.textContent = 'Start Server';
+        }
+        
+        // Restore form state instead of resetting
+        restoreFormState();
     }
 }
 
@@ -230,9 +394,16 @@ document.body.addEventListener('htmx:afterSwap', function(event) {
     }
 });
 
-// Initialize on page load
+// Save form state on any input change
 document.addEventListener('DOMContentLoaded', function() {
-    // This will be handled by the initial htmx load
+    // Add event listeners to save form state
+    ['transport', 'host', 'port', 'path', 'api_key'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('change', saveFormState);
+            element.addEventListener('input', saveFormState);
+        }
+    });
 });
 </script>
 {% endblock %} 

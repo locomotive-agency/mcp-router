@@ -98,9 +98,9 @@ def add_server():
                     for key in request.form.getlist('env_keys[]'):
                         if key:
                             env_vars.append({
-                                'key': key,
-                                'value': request.form.get(f'env_value_{key}', ''),
-                                'description': request.form.get(f'env_desc_{key}', '')
+                                'key': key.strip(),
+                                'value': request.form.get(f'env_value_{key}', '').strip(),
+                                'description': request.form.get(f'env_desc_{key}', '').strip()
                             })
                     server.env_variables = env_vars
                     
@@ -170,9 +170,9 @@ def edit_server(server_id: str):
                 for key in request.form.getlist('env_keys[]'):
                     if key:
                         env_vars.append({
-                            'key': key,
-                            'value': request.form.get(f'env_value_{key}', ''),
-                            'description': request.form.get(f'env_desc_{key}', '')
+                            'key': key.strip(),
+                            'value': request.form.get(f'env_value_{key}', '').strip(),
+                            'description': request.form.get(f'env_desc_{key}', '').strip()
                         })
                 server.env_variables = env_vars
                 
@@ -343,6 +343,29 @@ def get_mcp_status():
     
     # Return JSON for API requests
     return jsonify(status)
+
+
+@app.route('/api/mcp/logs', methods=['GET'])
+def get_mcp_logs():
+    """Get MCP server logs"""
+    pid = request.args.get('pid', type=int)
+    lines = request.args.get('lines', 50, type=int)
+    
+    if not pid:
+        return jsonify({'error': 'PID parameter required'}), 400
+    
+    try:
+        logs = server_manager.get_logs(pid, lines)
+        return jsonify({'logs': logs})
+    except Exception as e:
+        logger.error(f"Error fetching logs: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/favicon.ico')
+def favicon():
+    """Return empty favicon to avoid 404 errors"""
+    return '', 204
 
 
 @app.errorhandler(404)

@@ -103,12 +103,22 @@ Here are the contents of key files:
 
 Based on the file contents, extract the following information. Be precise and concise.
 
+IMPORTANT: The servers will run in containerized environments. Keep these guidelines in mind:
+- Prefer simple commands over complex ones with custom paths
+- For Node.js packages, prefer "npx @package/name" over "npm install -g" with custom prefixes
+- Global installations with custom paths (e.g., --prefix=~/.global-node-modules) often fail in containers
+- If a package can be run directly with npx, use that instead of installing globally first
+
 1.  **Runtime type**: Determine if this is 'npx' (for Node.js), 'uvx' (for Python), or 'docker'. Prioritize `pyproject.toml` for Python projects and `package.json` for Node.js projects.
-2.  **Install command**: The command to install dependencies (e.g., "npm install" or "pip install -e ."). If not needed, respond with "none".
-3.  **Start command**: The command to run the server (e.g., "npx mcp-server" or "python -m mcp_server"). This is the most critical piece of information.
+2.  **Install command**: The command to install dependencies. For npx packages that can be run directly (e.g., npx @org/package), use "none". Avoid complex global installs.
+3.  **Start command**: The command to run the server. For npx, prefer "npx @org/package" over complex paths. This is the most critical piece of information.
 4.  **Server name**: A short, descriptive, machine-readable name for the server (e.g., "financial-data-api").
 5.  **Description**: A brief, one-sentence description of the server's purpose.
 6.  **Environment Variables**: List any required environment variables, their purpose, and if they are required.
+
+Examples of preferred commands:
+- GOOD: npx @ahrefs/mcp (simple, direct)
+- BAD: npm install --prefix=~/.global-node-modules @ahrefs/mcp -g && npx --prefix=~/.global-node-modules @ahrefs/mcp (complex, likely to fail in containers)
 
 Respond in this exact, parsable format. Do not add any conversational text or pleasantries.
 

@@ -5,11 +5,19 @@ import subprocess
 import threading
 import logging
 import secrets
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from flask import Flask
+from collections import deque
+import queue
+import time
 
 logger = logging.getLogger(__name__)
+
+from mcp_router.models import get_server_status as _get_server_status, update_server_status as _update_server_status  # Backward compatibility for tests
+# Expose as module-level names so unit tests can patch them directly
+get_server_status = _get_server_status  # type: ignore
+update_server_status = _update_server_status  # type: ignore
 
 
 class MCPServerManager:
@@ -20,6 +28,45 @@ class MCPServerManager:
         self.thread: Optional[threading.Thread] = None
         self.api_key: Optional[str] = None
         self.app = app
+        # Log storage - circular buffer of last 1000 lines
+        self.log_buffer = deque(maxlen=1000)
+        self.log_lock = threading.Lock()
+        self.stdout_thread: Optional[threading.Thread] = None
+        self.stderr_thread: Optional[threading.Thread] = None
+    
+    def _read_output_stream(self, stream, stream_name: str):
+        """Read from a stream and add to log buffer"""
+        try:
+            for line in iter(stream.readline, ''):
+                if line:
+                    timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    log_line = f"[{timestamp}] [{stream_name}] {line.rstrip()}"
+                    
+                    with self.log_lock:
+                        self.log_buffer.append(log_line)
+                    
+                    # Determine log level based on content
+                    line_upper = line.upper()
+                    line_content = line.rstrip()
+                    
+                    # Check for log level indicators in the message
+                    if any(indicator in line_upper for indicator in ['ERROR:', 'ERROR ', 'CRITICAL:', 'CRITICAL ', 'FATAL:', 'FATAL ']):
+                        logger.error(f"MCP Server: {line_content}")
+                    elif any(indicator in line_upper for indicator in ['WARN:', 'WARN ', 'WARNING:', 'WARNING ']):
+                        logger.warning(f"MCP Server: {line_content}")
+                    elif any(indicator in line_upper for indicator in ['DEBUG:', 'DEBUG ', 'TRACE:', 'TRACE ']):
+                        logger.debug(f"MCP Server: {line_content}")
+                    else:
+                        # Default to INFO for all other messages
+                        # Even if from stderr, as many programs write info to stderr
+                        logger.info(f"MCP Server: {line_content}")
+        except Exception as e:
+            logger.error(f"Error reading {stream_name}: {e}")
+        finally:
+            try:
+                stream.close()
+            except:
+                pass
     
     def start_server(self, transport: str = 'stdio', **kwargs) -> Dict[str, Any]:
         """
@@ -38,11 +85,20 @@ class MCPServerManager:
         # Check if already running
         status = get_server_status()
         if status and status.status == 'running':
-            return {
-                'status': 'error',
-                'message': 'Server is already running',
-                'current': status.to_dict()
-            }
+            # Check if process is actually running
+            if status.pid and self._is_process_running(status.pid):
+                return {
+                    'status': 'error',
+                    'message': 'Server is already running',
+                    'current': status.to_dict()
+                }
+            else:
+                # Process crashed - clean up the status
+                logger.info(f"Detected crashed server (PID {status.pid}), cleaning up status")
+                update_server_status(status.transport, 'stopped', 
+                                   pid=None, 
+                                   started_at=None,
+                                   error_message=None)
         
         try:
             # Prepare environment
@@ -71,8 +127,29 @@ class MCPServerManager:
                 env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                bufsize=1,  # Line buffered
+                universal_newlines=True
             )
+            
+            # Clear previous logs
+            with self.log_lock:
+                self.log_buffer.clear()
+            
+            # Start threads to read stdout and stderr
+            self.stdout_thread = threading.Thread(
+                target=self._read_output_stream,
+                args=(self.process.stdout, 'STDOUT')
+            )
+            self.stdout_thread.daemon = True
+            self.stdout_thread.start()
+            
+            self.stderr_thread = threading.Thread(
+                target=self._read_output_stream,
+                args=(self.process.stderr, 'STDERR')
+            )
+            self.stderr_thread.daemon = True
+            self.stderr_thread.start()
             
             # Update status in database
             status_kwargs = {
@@ -110,15 +187,23 @@ class MCPServerManager:
                     'command': 'python -m mcp_router'
                 }
             elif transport == 'http':
+                # Ensure path has trailing slash to match what FastMCP expects
+                path = env['MCP_PATH']
+                if not path.endswith('/'):
+                    path = path + '/'
                 response['connection_info'] = {
                     'type': 'http',
-                    'url': f"http://{env['MCP_HOST']}:{env['MCP_PORT']}{env['MCP_PATH']}",
+                    'url': f"http://{env['MCP_HOST']}:{env['MCP_PORT']}{path}",
                     'api_key': self.api_key
                 }
             elif transport == 'sse':
+                # Ensure path has trailing slash to match what FastMCP expects
+                path = env['MCP_SSE_PATH']
+                if not path.endswith('/'):
+                    path = path + '/'
                 response['connection_info'] = {
                     'type': 'sse',
-                    'url': f"http://{env['MCP_HOST']}:{env['MCP_PORT']}{env['MCP_SSE_PATH']}",
+                    'url': f"http://{env['MCP_HOST']}:{env['MCP_PORT']}{path}",
                     'api_key': self.api_key
                 }
             
@@ -157,6 +242,12 @@ class MCPServerManager:
                 
                 self.process = None
             
+            # Wait for output threads to finish
+            if self.stdout_thread:
+                self.stdout_thread.join(timeout=1)
+            if self.stderr_thread:
+                self.stderr_thread.join(timeout=1)
+            
             # Update status
             update_server_status(status.transport, 'stopped', 
                                pid=None, 
@@ -182,29 +273,34 @@ class MCPServerManager:
             return
         
         # Wait for process to complete
-        stdout, stderr = self.process.communicate()
+        return_code = self.process.wait()
+        
+        # Log final status
+        with self.log_lock:
+            timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            self.log_buffer.append(f"[{timestamp}] [SYSTEM] Process exited with code {return_code}")
         
         # If we have a Flask app, use its context for database access
         if self.app:
             with self.app.app_context():
-                self._update_status_on_exit(stderr)
+                self._update_status_on_exit(return_code)
         else:
             # Try to access without context (will work if called from Flask request)
             try:
-                self._update_status_on_exit(stderr)
+                self._update_status_on_exit(return_code)
             except RuntimeError:
                 # Log the error but don't crash
-                logger.error(f"MCP server process exited with code {self.process.returncode}, but couldn't update database (no app context)")
+                logger.error(f"MCP server process exited with code {return_code}, but couldn't update database (no app context)")
         
         self.process = None
     
-    def _update_status_on_exit(self, stderr: str):
+    def _update_status_on_exit(self, return_code: int):
         """Update status in database after process exit"""
         from mcp_router.models import update_server_status, get_server_status
         
         # Update status based on exit code
-        if self.process.returncode != 0:
-            error_msg = stderr or f"Process exited with code {self.process.returncode}"
+        if return_code != 0:
+            error_msg = f"Process exited with code {return_code}"
             logger.error(f"MCP server crashed: {error_msg}")
             
             status = get_server_status()
@@ -220,6 +316,15 @@ class MCPServerManager:
                                    pid=None,
                                    started_at=None)
     
+    def _is_process_running(self, pid: int) -> bool:
+        """Check if a process with given PID is running"""
+        try:
+            # Send signal 0 to check if process exists
+            os.kill(pid, 0)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
+    
     def get_status(self) -> Dict[str, Any]:
         """Get current server status"""
         from mcp_router.models import get_server_status
@@ -233,6 +338,15 @@ class MCPServerManager:
         
         result = status.to_dict()
         
+        # Check if process is actually running when database says it's running
+        if status.status == 'running' and status.pid:
+            if not self._is_process_running(status.pid):
+                # Process crashed - update status to reflect this
+                result['status'] = 'crashed'
+                result['actual_status'] = 'crashed'
+                result['error_message'] = 'Process is not running (may have crashed)'
+                logger.warning(f"MCP server PID {status.pid} is not running but database shows 'running'")
+        
         # Add connection info for running servers
         if status.status == 'running':
             if status.transport == 'stdio':
@@ -241,19 +355,50 @@ class MCPServerManager:
                     'command': 'python -m mcp_router'
                 }
             elif status.transport == 'http':
+                # Ensure path has trailing slash
+                path = status.path or '/mcp'
+                if not path.endswith('/'):
+                    path = path + '/'
                 result['connection_info'] = {
                     'type': 'http',
-                    'url': f"http://{status.host}:{status.port}{status.path}",
+                    'url': f"http://{status.host}:{status.port}{path}",
                     'api_key': status.api_key if status.api_key else None
                 }
             elif status.transport == 'sse':
+                # Ensure path has trailing slash
+                path = status.path or '/sse'
+                if not path.endswith('/'):
+                    path = path + '/'
                 result['connection_info'] = {
                     'type': 'sse',
-                    'url': f"http://{status.host}:{status.port}{status.path}",
+                    'url': f"http://{status.host}:{status.port}{path}",
                     'api_key': status.api_key if status.api_key else None
                 }
         
         return result
+
+    def get_logs(self, pid: int, lines: int = 50) -> List[str]:
+        """
+        Get the last N lines of logs from the process output.
+        
+        Args:
+            pid: Process ID to check
+            lines: Number of lines to return (default: 50)
+            
+        Returns:
+            List of log lines
+        """
+        # Check if this is our current process
+        if self.process and self.process.pid == pid:
+            with self.log_lock:
+                # Get the last N lines from the buffer
+                log_lines = list(self.log_buffer)
+                if len(log_lines) > lines:
+                    return log_lines[-lines:]
+                return log_lines
+        
+        # If process doesn't match or no process, return empty
+        return []
 
 
 # Global instance - will be initialized with app in app.py
