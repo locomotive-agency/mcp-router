@@ -11,15 +11,14 @@ MCP Router is a Python-based unified gateway for multiple Model Context Protocol
 git clone https://github.com/locomotive-agency/mcp-router.git
 cd mcp-router
 
-# Run the setup script (installs Docker and sets up the project)
-chmod +x setup.sh
-./setup.sh
+# Run the deployment setup script (assumes Docker is already installed)
+chmod +x setup-deploy.sh
+./setup-deploy.sh
 
 # Edit configuration
 nano .env  # Add your ANTHROPIC_API_KEY and set ADMIN_PASSCODE
 
 # Start the web interface
-source venv/bin/activate
 python -m mcp_router.web
 
 # Open in browser
@@ -49,22 +48,48 @@ open http://localhost:8000
 - **API Authentication**: Secure access with API keys for remote connections
 - **Auto-discovery**: Dynamic server and tool discovery without restarts
 
+### Deployment Ready
+- **Cloud-Friendly Setup**: Streamlined installation for deployment environments
+- **Environment Variable Config**: Deploy without editing files
+- **Minimal Dependencies**: Skip Docker installation when containers are managed externally
+- **SQLite Database**: No external database required for simple deployments
+
 ## 📋 Prerequisites
 
 - **Python 3.11+** - Core runtime
-- **Docker** - Required for sandboxed execution
+- **Docker** - Required for sandboxed execution (assumed installed for quick setup)
 - **Git** - For cloning repositories
 - **Anthropic API Key** - For Claude repository analysis (optional but recommended)
 
+> **Note**: The recommended quick setup (`setup-deploy.sh`) assumes Docker is already installed. If you need Docker installed automatically, use `setup-all.sh` instead.
+
 ## 🛠️ Installation
 
-### Option 1: Automated Setup (Recommended)
+### Option 1: Quick Setup (Recommended)
 
-We provide a setup script that handles Docker installation and project setup:
+We provide a streamlined setup script that assumes Docker is already installed:
 
 ```bash
-chmod +x setup.sh
-./setup.sh
+chmod +x setup-deploy.sh
+./setup-deploy.sh
+```
+
+The script will:
+- Verify Python 3.11+ is installed
+- Install project dependencies
+- Set up configuration files
+- Create necessary directories
+- Skip Docker installation (assumes already installed)
+
+**Perfect for:** Deployment environments, development with existing Docker, cloud platforms
+
+### Option 2: Full Setup with Docker Installation
+
+If you need Docker installed automatically:
+
+```bash
+chmod +x setup-all.sh
+./setup-all.sh
 ```
 
 The script will:
@@ -75,7 +100,9 @@ The script will:
 - Set up configuration files
 - Create necessary directories
 
-### Option 2: Manual Setup
+**Perfect for:** Fresh local development environments
+
+### Option 3: Manual Setup
 
 1. **Install Docker**
    - Ubuntu/Debian: Follow [Docker's official guide](https://docs.docker.com/engine/install/ubuntu/)
@@ -147,6 +174,10 @@ MCP Router includes a simple passcode-based authentication system to protect the
 
 1. **Start Web Interface**
    ```bash
+   # If using setup-deploy.sh (deployment/cloud environments)
+   python -m mcp_router.web
+   
+   # If using setup-all.sh or manual setup with venv
    source venv/bin/activate
    python -m mcp_router.web
    ```
@@ -226,24 +257,24 @@ docker-compose up --build
          │                       │
          │ stdio                 │ HTTP
          │                       │
-┌────────┴───────────────────────┴───────┐
-│           MCP Router Service           │
-│  ┌─────────────┐  ┌──────────────┐     │
-│  │ Flask Web   │  │ FastMCP      │     │
-│  │ Interface   │  │ Proxy Router │     │
-│  └─────────────┘  └──────────────┘     │
-│  ┌─────────────┐  ┌──────────────┐     │
-│  │   Claude    │  │  Container   │     │
-│  │  Analyzer   │  │  Manager     │     │
-│  └─────────────┘  └──────────────┘     │
-└────────────────────────────────────────┘
+┌────────┴───────────────────────┴────────┐
+│           MCP Router Service            │
+│    ┌─────────────┐  ┌──────────────┐    │
+│    │ Flask Web   │  │ FastMCP      │    │
+│    │ Interface   │  │ Proxy Router │    │
+│    └─────────────┘  └──────────────┘    │
+│    ┌─────────────┐  ┌──────────────┐    │
+│    │   Claude    │  │  Container   │    │
+│    │  Analyzer   │  │  Manager     │    │
+│    └─────────────┘  └──────────────┘    │
+└─────────────────────────────────────────┘
                     │
     ┌───────────────┼───────────────┐
     │               │               │
-┌───▼─────┐    ┌────▼────┐    ┌────▼────┐
-│  NPX    │    │   UVX   │    │ Docker  │
-│(Node.js)│    │(Python) │    │  (Any)  │
-└─────────┘    └─────────┘    └─────────┘
+┌───▼───-─┐    ┌────▼────┐     ┌────▼────┐
+│  NPX    │    │   UVX   │     │ Docker  │
+│(Node.js)│    │(Python) │     │  (Any)  │
+└──────-──┘    └─────────┘     └─────────┘
 ```
 
 ### Hierarchical Tool Discovery
