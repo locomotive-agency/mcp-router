@@ -10,6 +10,7 @@ fastmcp>=2.9.0
 
 # Container Management
 llm-sandbox==0.1.0
+docker
 
 # External Services
 anthropic

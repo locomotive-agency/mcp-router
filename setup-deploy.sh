@@ -12,6 +12,22 @@ print_info() {
 
 print_info "Setting up MCP Router for deployment environment..."
 
+# Check Docker availability
+print_info "Checking Docker availability..."
+if command -v docker &> /dev/null; then
+    if docker info &> /dev/null 2>&1; then
+        print_info "Docker is available and accessible"
+    else
+        print_info "WARNING: Docker command found but daemon not accessible"
+        print_info "This may cause issues with MCP server functionality"
+        print_info "Ensure Docker daemon is running and accessible"
+    fi
+else
+    print_info "WARNING: Docker not found in deployment environment"
+    print_info "MCP Router requires Docker for container-based MCP servers"
+    print_info "Consider using a deployment platform that supports Docker"
+fi
+
 # Check Python version
 print_info "Checking Python version..."
 if command -v python3 &> /dev/null; then

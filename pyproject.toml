@@ -23,7 +23,8 @@ dependencies = [
     "anthropic",
     "httpx",
     "python-dotenv>=1.0.0",
-    "flask-sock>=0.7.0"
+    "flask-sock>=0.7.0",
+    "docker"
 ]
 
 [project.optional-dependencies]
