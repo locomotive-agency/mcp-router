@@ -52,9 +52,6 @@ fi
 print_info "Installing project dependencies..."
 pip install -e .
 
-# Create data directory
-print_info "Creating data directory..."
-mkdir -p /var/data/mcp-router
 
 
 print_info "Setup complete!"
