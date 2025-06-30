@@ -47,21 +47,6 @@ else
     print_info "Python check skipped (deployment environment handles this)"
 fi
 
-# Set up Python virtual environment (if not in deployment)
-if [ -z "$RENDER" ] && [ -z "$VERCEL" ] && [ -z "$HEROKU" ]; then
-    print_info "Setting up Python virtual environment..."
-    if [ ! -d "venv" ]; then
-        python3 -m venv venv
-        print_info "Virtual environment created."
-    else
-        print_info "Virtual environment already exists."
-    fi
-    
-    # Activate virtual environment
-    source venv/bin/activate
-else
-    print_info "Skipping virtual environment setup (deployment environment)"
-fi
 
 # Install project dependencies
 print_info "Installing project dependencies..."
@@ -69,14 +54,7 @@ pip install -e .
 
 # Create data directory
 print_info "Creating data directory..."
-mkdir -p data
+mkdir -p /var/data/mcp-router
 
-# Create .env from template if it doesn't exist
-if [ ! -f ".env" ] && [ -f "env.example" ]; then
-    print_info "Creating .env from template..."
-    cp env.example .env
-    print_info "Please edit .env with your configuration values"
-fi
 
 print_info "Setup complete!"
-print_info "Note: Docker functionality for MCP servers will be limited in deployment environments" 
