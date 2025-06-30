@@ -1,0 +1,64 @@
+app = "mcp-router"
+primary_region = "ord"
+kill_signal = "SIGINT"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  FLASK_ENV = "production"
+  FLASK_APP = "mcp_router"
+  FLASK_PORT = "5001"
+  # Docker configurations
+  DOCKER_TLS_CERTDIR = ""
+  
+[experimental]
+  allowed_public_ports = []
+  auto_rollback = true
+  # Enable privileged mode for Docker-in-Docker
+  enable_consul = false
+  
+[mounts]
+  source = "docker_data"
+  destination = "/var/lib/docker"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 5001
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+  [[services.tcp_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    restart_limit = 6
+
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    restart_limit = 6
+    method = "get"
+    path = "/"
+
+[[statics]]
+  guest_path = "/app/src/mcp_router/static"
+  url_prefix = "/static/"
+
+[processes]
+  app = "" 

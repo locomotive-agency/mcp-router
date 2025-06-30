@@ -10,12 +10,13 @@ ENV PYTHONUNBUFFERED 1
 ENV FLASK_APP=mcp_router
 ENV FLASK_ENV=production
 
-# Install dependencies
+# Copy the application source code and configuration files
 COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+COPY README.md .
+COPY src/ ./src/
 
-# Copy the application source code
-COPY src/ /app/src/
+# Install dependencies
+RUN pip install --no-cache-dir .
 
 # Expose the port the app runs on
 EXPOSE 5001

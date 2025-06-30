@@ -1,0 +1,59 @@
+# Use Docker-in-Docker base image
+FROM docker:24-dind
+
+# Install Python and system dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    python3-dev \
+    gcc \
+    musl-dev \
+    linux-headers \
+    libffi-dev \
+    openssl-dev \
+    cargo \
+    bash
+
+# Set up Python environment
+RUN python3 -m pip install --upgrade pip
+
+# Set the working directory
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FLASK_APP=mcp_router \
+    FLASK_ENV=production \
+    DOCKER_HOST=unix:///var/run/docker.sock
+
+# Copy application files
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir .
+
+# Create entrypoint script
+RUN echo '#!/bin/sh' > /entrypoint.sh && \
+    echo 'set -e' >> /entrypoint.sh && \
+    echo '' >> /entrypoint.sh && \
+    echo '# Start Docker daemon in the background' >> /entrypoint.sh && \
+    echo 'dockerd-entrypoint.sh dockerd &' >> /entrypoint.sh && \
+    echo '' >> /entrypoint.sh && \
+    echo '# Wait for Docker to be ready' >> /entrypoint.sh && \
+    echo 'echo "Waiting for Docker daemon to start..."' >> /entrypoint.sh && \
+    echo 'while ! docker info >/dev/null 2>&1; do' >> /entrypoint.sh && \
+    echo '    sleep 1' >> /entrypoint.sh && \
+    echo 'done' >> /entrypoint.sh && \
+    echo 'echo "Docker daemon is ready"' >> /entrypoint.sh && \
+    echo '' >> /entrypoint.sh && \
+    echo '# Start the Flask application' >> /entrypoint.sh && \
+    echo 'exec python3 -m mcp_router.web' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
+# Expose ports
+EXPOSE 5001
+
+# Run the entrypoint script
+ENTRYPOINT ["/entrypoint.sh"] 
