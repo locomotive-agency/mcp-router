@@ -12,6 +12,7 @@ from mcp_router.container_manager import ContainerManager
 from mcp_router.claude_analyzer import ClaudeAnalyzer
 from mcp_router.auth import init_auth
 from mcp_router.server_manager import init_server_manager
+from mcp_router.mcp_oauth import create_oauth_blueprint, verify_token
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +29,13 @@ init_auth(app)  # Initialize authentication
 
 # Initialize server manager with app context
 server_manager = init_server_manager(app)
+
+# Register OAuth blueprint for MCP server authentication
+oauth_bp = create_oauth_blueprint()
+app.register_blueprint(oauth_bp)
+
+# Exempt OAuth endpoints from CSRF protection
+csrf.exempt(oauth_bp)
 
 
 @app.route('/mcp/', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
@@ -54,6 +62,23 @@ def proxy_mcp_request(subpath):
     if not internal_url:
         return jsonify({'error': 'MCP server URL not found'}), 503
     
+    # Check authentication
+    auth_type = connection_info.get('auth_type', 'api_key')
+    
+    if auth_type == 'oauth':
+        # Validate OAuth token
+        auth_header = request.headers.get('authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authorization required', 'error_description': 'Bearer token required'}), 401
+        
+        token = auth_header[7:]
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid token', 'error_description': 'Token is invalid or expired'}), 401
+        
+        # Token is valid, continue with request
+        logger.info(f"OAuth request validated for user: {payload.get('sub')}")
+    
     # Construct the full URL with the subpath
     target_url = f"{internal_url.rstrip('/')}/{subpath}"
     
@@ -64,10 +89,11 @@ def proxy_mcp_request(subpath):
         if k.lower() not in headers_to_skip
     }
     
-    # Add/update the authorization header if we have an API key
-    api_key = connection_info.get('api_key')
-    if api_key and 'authorization' not in headers:
-        headers['Authorization'] = f'Bearer {api_key}'
+    # Add/update the authorization header if we have an API key (not OAuth)
+    if auth_type == 'api_key':
+        api_key = connection_info.get('api_key')
+        if api_key and 'authorization' not in headers:
+            headers['Authorization'] = f'Bearer {api_key}'
     
     try:
         # For streaming responses (SSE/event-stream)
@@ -410,7 +436,13 @@ def start_mcp_server():
         kwargs['host'] = '127.0.0.1'
         kwargs['port'] = 8001
         kwargs['path'] = '/mcp'
-        kwargs['api_key'] = data.get('api_key')
+        
+        # Check authentication mode
+        auth_mode = data.get('auth_mode', 'api_key')
+        if auth_mode == 'oauth':
+            kwargs['enable_oauth'] = True
+        else:
+            kwargs['api_key'] = data.get('api_key')
     
     result = server_manager.start_server(transport, **kwargs)
     

@@ -101,9 +101,17 @@ class MCPServerManager:
             
             # Set transport-specific configuration
             if transport == 'http':
-                # Generate API key if not provided
-                self.api_key = kwargs.get('api_key') or secrets.token_urlsafe(32)
-                env['MCP_API_KEY'] = self.api_key
+                # Check if OAuth is enabled from kwargs
+                enable_oauth = kwargs.get('enable_oauth', False)
+                
+                if enable_oauth:
+                    # Enable OAuth authentication
+                    env['MCP_OAUTH_ENABLED'] = 'true'
+                    logger.info("OAuth authentication enabled for MCP server")
+                else:
+                    # Generate API key if not provided
+                    self.api_key = kwargs.get('api_key') or secrets.token_urlsafe(32)
+                    env['MCP_API_KEY'] = self.api_key
                 
                 # Set host/port/path
                 # The public_host is for the connection URL, but we bind to 0.0.0.0
@@ -157,7 +165,8 @@ class MCPServerManager:
                     'host': public_host,
                     'port': int(port),
                     'path': env.get('MCP_PATH'),
-                    'api_key': self.api_key
+                    'api_key': self.api_key if not enable_oauth else None,
+                    'oauth_enabled': enable_oauth
                 })
             
             update_server_status(transport, 'running', **status_kwargs)
@@ -185,8 +194,14 @@ class MCPServerManager:
                 response['connection_info'] = {
                     'type': 'http',
                     'path': env.get('MCP_PATH', '/mcp'),
-                    'api_key': self.api_key
                 }
+                
+                if enable_oauth:
+                    response['connection_info']['auth_type'] = 'oauth'
+                    response['connection_info']['oauth_metadata_url'] = '/.well-known/oauth-authorization-server'
+                else:
+                    response['connection_info']['auth_type'] = 'api_key'
+                    response['connection_info']['api_key'] = self.api_key
             
             logger.info(f"Started MCP server with {transport} transport (PID: {self.process.pid})")
             return response
@@ -347,6 +362,13 @@ class MCPServerManager:
                     # Provide the internal URL for the proxy to use
                     'internal_url': f"http://127.0.0.1:{status.port}{path}"
                 }
+                
+                # Add authentication info
+                if hasattr(status, 'oauth_enabled') and status.oauth_enabled:
+                    result['connection_info']['auth_type'] = 'oauth'
+                    result['connection_info']['oauth_metadata_url'] = '/.well-known/oauth-authorization-server'
+                else:
+                    result['connection_info']['auth_type'] = 'api_key'
         
         return result
 

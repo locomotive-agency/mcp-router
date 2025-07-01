@@ -8,6 +8,7 @@ from mcp_router.middleware import ProviderFilterMiddleware
 from mcp_router.models import get_active_servers, MCPServer
 from mcp_router.app import app
 from mcp_router.config import Config
+from mcp_router.mcp_oauth import create_bearer_auth_provider
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -53,24 +54,25 @@ def create_mcp_config(servers: List[MCPServer]) -> Dict[str, Any]:
     return config
 
 
-def create_router(servers: List[MCPServer], api_key: Optional[str] = None) -> FastMCP:
+def create_router(servers: List[MCPServer], api_key: Optional[str] = None, enable_oauth: bool = False) -> FastMCP:
     """
     Create the MCP router as a composite proxy with middleware.
     
     Args:
         servers: List of active MCP servers
-        auth: Optional authentication provider
+        api_key: Optional API key for simple authentication
+        enable_oauth: Enable OAuth authentication for Claude web
     """
     # Generate proxy configuration from active servers
     config = create_mcp_config(servers)
     
-    # Create router as a proxy that manages all sub-servers
-    # Note: In FastMCP 2.x, authentication is handled differently
-    # We'll need to configure it when running the server
-    router = FastMCP.as_proxy(
-        config,
-        name="MCP-Router",
-        instructions="""This router provides access to multiple MCP servers and a Python sandbox.
+    # Check if we have any servers to proxy
+    if config["mcpServers"]:
+        # Create router as a proxy that manages all sub-servers
+        router = FastMCP.as_proxy(
+            config,
+            name="MCP-Router",
+            instructions="""This router provides access to multiple MCP servers and a Python sandbox.
         
 Use 'list_providers' to see available servers, then use tools/list with a provider parameter.
 
@@ -79,7 +81,23 @@ Example workflow:
 2. Call tools/list with provider="server_name" to see that server's tools
 3. Call tools with provider="server_name" parameter to execute them
 """
-    )
+        )
+    else:
+        # No servers configured, create a standalone MCP server
+        router = FastMCP(
+            name="MCP-Router",
+            instructions="""This is the MCP Router. Currently no MCP servers are configured.
+            
+You can still use the Python sandbox tool to execute Python code.
+To add MCP servers, use the web interface to configure and activate servers.
+"""
+        )
+    
+    # Log authentication configuration
+    if enable_oauth:
+        log.info("OAuth authentication will be handled by the HTTP proxy layer")
+    elif api_key:
+        log.info("API key authentication will be handled by the HTTP proxy layer")
     
     # Add the built-in Python sandbox tool
     @router.tool()
@@ -153,8 +171,9 @@ Example workflow:
         # Return the list of server names from the configuration
         return list(config["mcpServers"].keys())
     
-    # Add the middleware for hierarchical discovery
-    router.add_middleware(ProviderFilterMiddleware())
+    # Add the middleware for hierarchical discovery only if we have servers
+    if config["mcpServers"]:
+        router.add_middleware(ProviderFilterMiddleware())
     
     return router
 
@@ -171,17 +190,24 @@ def main():
         active_servers = get_active_servers()
         log.info(f"Loaded {len(active_servers)} active servers from database")
     
-    # Get API key for HTTP transport authentication
+    # Get authentication configuration
     api_key = None
+    enable_oauth = False
+    
     if transport == "http":
-        api_key = os.environ.get("MCP_API_KEY")
-        if api_key:
-            log.info("API Key configured for HTTP transport authentication")
-        else:
-            log.warning("No MCP_API_KEY set - HTTP transport will be unauthenticated!")
+        # Check if OAuth is enabled
+        enable_oauth = os.environ.get("MCP_OAUTH_ENABLED", "false").lower() == "true"
+        
+        if not enable_oauth:
+            # Fall back to API key authentication
+            api_key = os.environ.get("MCP_API_KEY")
+            if api_key:
+                log.info("API Key configured for HTTP transport authentication")
+            else:
+                log.warning("No authentication configured for HTTP transport!")
     
     # Create the router with proxy configuration
-    router = create_router(active_servers, api_key=api_key)
+    router = create_router(active_servers, api_key=api_key, enable_oauth=enable_oauth)
     
     # Run with appropriate transport
     if transport == "stdio":
@@ -199,9 +225,8 @@ def main():
             path = path + '/'
         
         log.info(f"Running with HTTP transport on {host}:{port}{path}")
-        # Note: In FastMCP 2.x, authentication needs to be configured differently
-        # The API key authentication would be handled via Bearer tokens or custom headers
-        # passed by clients when connecting
+        log.info(f"Authentication: {'OAuth' if enable_oauth else 'API Key' if api_key else 'None'}")
+        
         router.run(
             transport="http",
             host=host,

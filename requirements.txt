@@ -20,3 +20,7 @@ httpx
 python-dotenv
 bcrypt==4.3.0
 Flask-Login==0.6.3
+
+# OAuth Support
+PyJWT==2.8.0
+cryptography==42.0.5

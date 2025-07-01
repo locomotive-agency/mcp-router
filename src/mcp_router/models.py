@@ -53,6 +53,7 @@ class MCPServerStatus(db.Model):
     host = db.Column(db.String(100))  # Host if HTTP
     path = db.Column(db.String(100))  # Path if HTTP
     api_key = db.Column(db.String(100))  # API key if HTTP (stored for display, not secure storage)
+    oauth_enabled = db.Column(db.Boolean, default=False)  # OAuth enabled flag
     started_at = db.Column(db.DateTime)
     error_message = db.Column(db.Text)
     
@@ -67,6 +68,7 @@ class MCPServerStatus(db.Model):
             'host': self.host,
             'path': self.path,
             'api_key': '***' if self.api_key else None,  # Don't expose full API key
+            'oauth_enabled': self.oauth_enabled,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'error_message': self.error_message
         }
