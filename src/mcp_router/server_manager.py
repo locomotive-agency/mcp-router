@@ -64,11 +64,11 @@ class MCPServerManager:
     
     def start_server(self, transport: str = 'stdio', **kwargs) -> Dict[str, Any]:
         """
-        Start the MCP server with specified transport
+        Start the MCP server with specified transport.
         
         Args:
-            transport: Transport type (stdio, http, sse)
-            **kwargs: Additional parameters (host, port, path for HTTP/SSE)
+            transport: Transport type (stdio, http)
+            **kwargs: Additional parameters (host, port, path for HTTP)
             
         Returns:
             Dict with status and connection info
@@ -100,19 +100,19 @@ class MCPServerManager:
             env['MCP_TRANSPORT'] = transport
             
             # Set transport-specific configuration
-            if transport in ['http', 'sse']:
+            if transport == 'http':
                 # Generate API key if not provided
                 self.api_key = kwargs.get('api_key') or secrets.token_urlsafe(32)
                 env['MCP_API_KEY'] = self.api_key
                 
                 # Set host/port/path
-                env['MCP_HOST'] = kwargs.get('host', '127.0.0.1')
-                env['MCP_PORT'] = str(kwargs.get('port', 8001))
-                
-                if transport == 'http':
-                    env['MCP_PATH'] = kwargs.get('path', '/mcp')
-                else:  # sse
-                    env['MCP_SSE_PATH'] = kwargs.get('path', '/sse')
+                # The public_host is for the connection URL, but we bind to 0.0.0.0
+                public_host = kwargs.get('host', '127.0.0.1')
+                port = str(kwargs.get('port', 8001))
+
+                env['MCP_HOST'] = '0.0.0.0'  # Always bind to 0.0.0.0 inside the container
+                env['MCP_PORT'] = port
+                env['MCP_PATH'] = kwargs.get('path', '/mcp')
             
             # Start the server process
             cmd = [sys.executable, '-m', 'mcp_router']
@@ -152,11 +152,11 @@ class MCPServerManager:
                 'error_message': None
             }
             
-            if transport in ['http', 'sse']:
+            if transport == 'http':
                 status_kwargs.update({
-                    'host': env['MCP_HOST'],
-                    'port': int(env['MCP_PORT']),
-                    'path': env.get('MCP_PATH') or env.get('MCP_SSE_PATH'),
+                    'host': public_host,
+                    'port': int(port),
+                    'path': env.get('MCP_PATH'),
                     'api_key': self.api_key
                 })
             
@@ -177,27 +177,14 @@ class MCPServerManager:
             
             if transport == 'stdio':
                 response['connection_info'] = {
-                    'type': 'stdio',
-                    'command': 'python -m mcp_router'
+                    'type': 'stdio'
                 }
             elif transport == 'http':
-                # Ensure path has trailing slash to match what FastMCP expects
-                path = env['MCP_PATH']
-                if not path.endswith('/'):
-                    path = path + '/'
+                # The public URL will be constructed by the frontend.
+                # The backend only needs to provide the API key.
                 response['connection_info'] = {
                     'type': 'http',
-                    'url': f"http://{env['MCP_HOST']}:{env['MCP_PORT']}{path}",
-                    'api_key': self.api_key
-                }
-            elif transport == 'sse':
-                # Ensure path has trailing slash to match what FastMCP expects
-                path = env['MCP_SSE_PATH']
-                if not path.endswith('/'):
-                    path = path + '/'
-                response['connection_info'] = {
-                    'type': 'sse',
-                    'url': f"http://{env['MCP_HOST']}:{env['MCP_PORT']}{path}",
+                    'path': env.get('MCP_PATH', '/mcp'),
                     'api_key': self.api_key
                 }
             
@@ -345,28 +332,20 @@ class MCPServerManager:
         if status.status == 'running':
             if status.transport == 'stdio':
                 result['connection_info'] = {
-                    'type': 'stdio',
-                    'command': 'python -m mcp_router'
+                    'type': 'stdio'
                 }
             elif status.transport == 'http':
                 # Ensure path has trailing slash
                 path = status.path or '/mcp'
                 if not path.endswith('/'):
                     path = path + '/'
+                
                 result['connection_info'] = {
                     'type': 'http',
-                    'url': f"http://{status.host}:{status.port}{path}",
-                    'api_key': status.api_key if status.api_key else None
-                }
-            elif status.transport == 'sse':
-                # Ensure path has trailing slash
-                path = status.path or '/sse'
-                if not path.endswith('/'):
-                    path = path + '/'
-                result['connection_info'] = {
-                    'type': 'sse',
-                    'url': f"http://{status.host}:{status.port}{path}",
-                    'api_key': status.api_key if status.api_key else None
+                    'path': path,
+                    'api_key': status.api_key if status.api_key else None,
+                    # Provide the internal URL for the proxy to use
+                    'internal_url': f"http://127.0.0.1:{status.port}{path}"
                 }
         
         return result

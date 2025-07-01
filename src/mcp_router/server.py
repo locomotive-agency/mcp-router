@@ -173,7 +173,7 @@ def main():
     
     # Get API key for HTTP transport authentication
     api_key = None
-    if transport in ["http", "streamable-http", "sse"]:
+    if transport == "http":
         api_key = os.environ.get("MCP_API_KEY")
         if api_key:
             log.info("API Key configured for HTTP transport authentication")
@@ -187,7 +187,7 @@ def main():
     if transport == "stdio":
         log.info("Running with stdio transport for Claude Desktop")
         router.run(transport="stdio")
-    elif transport in ["http", "streamable-http"]:
+    elif transport == "http":
         # HTTP transport configuration
         host = os.environ.get("MCP_HOST", "127.0.0.1")
         port = int(os.environ.get("MCP_PORT", "8001"))  # Different from Flask port
@@ -209,28 +209,8 @@ def main():
             path=path,
             log_level=log_level
         )
-    elif transport == "sse":
-        # SSE transport configuration (deprecated but still supported)
-        host = os.environ.get("MCP_HOST", "127.0.0.1")
-        port = int(os.environ.get("MCP_PORT", "8001"))
-        sse_path = os.environ.get("MCP_SSE_PATH", "/sse")
-        log_level = os.environ.get("MCP_LOG_LEVEL", "info")
-        
-        # Ensure path ends with trailing slash for FastMCP
-        if not sse_path.endswith('/'):
-            sse_path = sse_path + '/'
-        
-        log.info(f"Running with SSE transport on {host}:{port}{sse_path}")
-        log.warning("SSE transport is deprecated - consider using HTTP transport")
-        router.run(
-            transport="sse",
-            host=host,
-            port=port,
-            path=sse_path,
-            log_level=log_level
-        )
     else:
-        raise ValueError(f"Unknown transport: {transport}")
+        raise ValueError(f"Unknown transport: {transport}. Supported: stdio, http")
 
 
 if __name__ == "__main__":

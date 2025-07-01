@@ -21,32 +21,18 @@
             <!-- Transport Selection -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Transport Mode</label>
-                <select id="transport" name="transport" class="w-full rounded-md border-gray-300 shadow-sm" onchange="updateTransportOptions()">
-                    <option value="stdio">stdio (Local - Claude Desktop)</option>
-                    <option value="http">HTTP (Remote Access)</option>
-                    <option value="sse">SSE (Server-Sent Events)</option>
+                <select id="transport" name="transport" class="w-full rounded-md border-gray-300 shadow-sm">
+                    <option value="stdio" {% if current_transport == 'stdio' %}selected{% endif %}>STDIO (Local Claude Desktop)</option>
+                    <option value="http">HTTP (Proxied via this UI)</option>
                 </select>
             </div>
             
-            <!-- HTTP/SSE Options -->
-            <div id="network-options" class="hidden space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Host</label>
-                        <input type="text" id="host" name="host" value="127.0.0.1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Port</label>
-                        <input type="number" id="port" name="port" value="8001" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                    </div>
-                </div>
+            <!-- HTTP Options -->
+            <div id="httpOptions" class="mt-4 space-y-4 {% if current_transport == 'stdio' %}hidden{% endif %}">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Path</label>
-                    <input type="text" id="path" name="path" value="/mcp" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">API Key (optional - will be generated if empty)</label>
-                    <input type="text" id="api_key" name="api_key" placeholder="Leave empty to auto-generate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <label class="block text-sm font-medium text-gray-700">API Key (optional)</label>
+                    <input type="text" id="api_key" name="api_key" placeholder="Leave empty to auto-generate secure key" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <p class="mt-1 text-sm text-gray-500">A secure API key will be generated if not provided.</p>
                 </div>
             </div>
             
@@ -97,27 +83,18 @@ let currentServerStatus = null;
 // Store form state to prevent resets
 let formState = {
     transport: 'stdio',
-    host: '127.0.0.1',
-    port: '8001',
-    path: '/mcp',
     api_key: ''
 };
 
 // Save form state
 function saveFormState() {
     formState.transport = document.getElementById('transport').value;
-    formState.host = document.getElementById('host').value;
-    formState.port = document.getElementById('port').value;
-    formState.path = document.getElementById('path').value;
     formState.api_key = document.getElementById('api_key').value;
 }
 
 // Restore form state
 function restoreFormState() {
     document.getElementById('transport').value = formState.transport;
-    document.getElementById('host').value = formState.host;
-    document.getElementById('port').value = formState.port;
-    document.getElementById('path').value = formState.path;
     document.getElementById('api_key').value = formState.api_key;
     updateTransportOptions();
 }
@@ -125,23 +102,13 @@ function restoreFormState() {
 // Update form based on transport selection
 function updateTransportOptions() {
     const transport = document.getElementById('transport').value;
-    const networkOptions = document.getElementById('network-options');
-    const pathInput = document.getElementById('path');
+    const httpOptions = document.getElementById('httpOptions');
     
     if (transport === 'stdio') {
-        networkOptions.classList.add('hidden');
+        httpOptions.classList.add('hidden');
     } else {
-        networkOptions.classList.remove('hidden');
-        // Update default path based on transport
-        if (transport === 'http' && pathInput.value === '/sse') {
-            pathInput.value = '/mcp';
-        } else if (transport === 'sse' && pathInput.value === '/mcp') {
-            pathInput.value = '/sse';
-        }
+        httpOptions.classList.remove('hidden');
     }
-    
-    // Save state after updating
-    saveFormState();
 }
 
 // Start the server
@@ -149,10 +116,7 @@ async function startServer() {
     const transport = document.getElementById('transport').value;
     const data = { transport };
     
-    if (transport !== 'stdio') {
-        data.host = document.getElementById('host').value;
-        data.port = parseInt(document.getElementById('port').value);
-        data.path = document.getElementById('path').value;
+    if (transport === 'http') {
         const apiKey = document.getElementById('api_key').value;
         if (apiKey) {
             data.api_key = apiKey;
@@ -215,15 +179,112 @@ function showConnectionInfo(info) {
     
     let html = '';
     if (info.type === 'stdio') {
-        html = `<p>Command: <span class="text-blue-600">${info.command}</span></p>`;
-    } else if (info.type === 'http' || info.type === 'sse') {
+        // Get the current host from window location for dynamic instructions
+        const currentHost = window.location.hostname;
+        const isLocal = currentHost === 'localhost' || currentHost === '127.0.0.1';
+        
+        if (isLocal) {
+            html = `
+                <div class="p-4 bg-gray-50 rounded-lg space-y-4">
+                    <p class="text-sm text-gray-600 mb-2">Connect via Claude Desktop with one of these configurations:</p>
+                    
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700 mb-1">Option 1: Direct Python (Development)</p>
+                        <pre class="bg-gray-800 text-gray-100 p-3 rounded overflow-x-auto text-xs">{
+    "mcpServers": {
+        "mcp-router": {
+            "command": "python",
+            "args": ["-m", "mcp_router"],
+            "env": {
+                "MCP_TRANSPORT": "stdio"
+            }
+        }
+    }
+}</pre>
+                    </div>
+                    
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700 mb-1">Option 2: Docker (Production)</p>
+                        <pre class="bg-gray-800 text-gray-100 p-3 rounded overflow-x-auto text-xs">{
+    "mcpServers": {
+        "mcp-router": {
+            "command": "docker",
+            "args": ["run", "-i", "--rm", "-v", "/var/run/docker.sock:/var/run/docker.sock", "mcp-router"],
+            "env": {
+                "MCP_TRANSPORT": "stdio"
+            }
+        }
+    }
+}</pre>
+                    </div>
+                </div>
+            `;
+        } else {
+            html = `
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-2">STDIO mode is only available for local Claude Desktop connections.</p>
+                    <p class="text-sm text-gray-600">For remote access, please use HTTP transport mode instead.</p>
+                </div>
+            `;
+        }
+    } else if (info.type === 'http') {
+        const publicUrl = window.location.origin + (info.path || '/mcp/').replace(/\/$/, '') + '/';
         html = `
-            <p>URL: <span class="text-blue-600">${info.url}</span></p>
-            ${info.api_key ? `<p>API Key: <span class="text-blue-600">${info.api_key}</span></p>` : ''}
+            <div class="space-y-3">
+                <div>
+                    <p class="text-sm font-medium text-gray-700">MCP Endpoint URL:</p>
+                    <div class="flex items-center mt-1">
+                        <input type="text" readonly value="${publicUrl}" 
+                               class="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm font-mono"
+                               onclick="this.select()">
+                        <button onclick="copyToClipboard('${publicUrl}')" 
+                                class="ml-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                ${info.api_key ? `
+                <div>
+                    <p class="text-sm font-medium text-gray-700">API Key:</p>
+                    <div class="flex items-center mt-1">
+                        <input type="text" readonly value="${info.api_key}" 
+                               class="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm font-mono"
+                               onclick="this.select()">
+                        <button onclick="copyToClipboard('${info.api_key}')" 
+                                class="ml-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                ` : ''}
+                <div class="mt-4 p-3 bg-blue-50 rounded-md">
+                    <p class="text-sm text-blue-800">
+                        This MCP server is now accessible via HTTP. Use the URL and API key above to connect from any MCP-compatible client.
+                    </p>
+                </div>
+            </div>
         `;
     }
     
     connectionDetails.innerHTML = html;
+}
+
+// Helper function to copy text to clipboard
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        // Show a temporary success message
+        const button = event.target;
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.classList.add('bg-green-600');
+        button.classList.remove('bg-blue-600');
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.classList.remove('bg-green-600');
+            button.classList.add('bg-blue-600');
+        }, 2000);
+    });
 }
 
 // Log fetching
@@ -396,8 +457,21 @@ document.body.addEventListener('htmx:afterSwap', function(event) {
 
 // Save form state on any input change
 document.addEventListener('DOMContentLoaded', function() {
+    // Add event listener for transport change
+    const transportSelect = document.getElementById('transport');
+    const httpOptions = document.getElementById('httpOptions');
+    
+    transportSelect.addEventListener('change', function() {
+        if (this.value === 'stdio') {
+            httpOptions.classList.add('hidden');
+        } else {
+            httpOptions.classList.remove('hidden');
+        }
+        saveFormState();
+    });
+    
     // Add event listeners to save form state
-    ['transport', 'host', 'port', 'path', 'api_key'].forEach(id => {
+    ['transport', 'api_key'].forEach(id => {
         const element = document.getElementById(id);
         if (element) {
             element.addEventListener('change', saveFormState);

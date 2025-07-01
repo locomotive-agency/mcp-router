@@ -14,6 +14,7 @@ from llm_sandbox import SandboxSession
 from mcp_router.models import get_server_by_id, MCPServer
 from mcp_router.config import Config
 from docker import DockerClient
+from docker.errors import ImageNotFound
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,19 @@ class ContainerManager:
         # Docker client
         self.docker_client: DockerClient = DockerClient.from_env()
     
+    def ensure_image_exists(self, image_name: str):
+        """Checks if a Docker image exists locally and pulls it if not."""
+        try:
+            self.docker_client.images.get(image_name)
+            logger.info(f"Image '{image_name}' already exists locally.")
+        except ImageNotFound:
+            logger.info(f"Image '{image_name}' not found locally. Pulling...")
+            try:
+                self.docker_client.images.pull(image_name)
+                logger.info(f"Successfully pulled image '{image_name}'.")
+            except Exception as e:
+                logger.error(f"Failed to pull image '{image_name}': {e}")
+
     def _get_env_vars(self, server: MCPServer) -> Dict[str, str]:
         """Extract environment variables from server configuration"""
         env_vars = {}

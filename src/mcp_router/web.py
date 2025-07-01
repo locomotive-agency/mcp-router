@@ -36,28 +36,18 @@ def check_docker_availability():
 
 
 def prepare_docker_images():
-    """Pre-pull common images and build custom ones."""
-    try:
-        logger.info("Preparing Docker images in the background...")
-        manager = ContainerManager()
-
-        # Build custom Python sandbox
-        logger.info("Building custom Python sandbox image...")
-        build_result = manager.build_python_sandbox_image()
-        if build_result['status'] == 'error':
-            logger.error(f"Failed to build python sandbox image: {build_result['message']}")
-
-        # Pre-pull Node.js image
-        node_image = Config.MCP_NODE_IMAGE
-        logger.info(f"Pre-pulling Node.js image: {node_image}")
-        try:
-            manager.docker_client.images.pull(node_image)
-            logger.info(f"Successfully pre-pulled {node_image}")
-        except Exception as e:
-            logger.warning(f"Failed to pre-pull {node_image}: {e}")
-
-    except Exception as e:
-        logger.error(f"Error in image preparation task: {e}", exc_info=True)
+    """
+    Checks for and pulls the default Docker images in the background
+    to avoid delaying application startup.
+    """
+    # We need an app context to access the config and create the manager
+    with app.app_context():
+        logger.info("Starting background preparation of Docker images...")
+        manager = ContainerManager(app)
+        default_images = [Config.MCP_PYTHON_IMAGE, Config.MCP_NODE_IMAGE]
+        for image in default_images:
+            manager.ensure_image_exists(image)
+        logger.info("Background image preparation complete.")
 
 
 def main():

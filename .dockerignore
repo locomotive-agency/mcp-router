@@ -43,4 +43,32 @@ docs/
 # Docker
 Dockerfile.*
 docker-compose*.yml
-.dockerignore 
+.dockerignore
+
+# Ignore virtual environments
+venv/
+**/__pycache__/
+
+# Ignore local data and databases
+data/
+*.db
+*.db-journal
+
+# Ignore IDE and editor files
+.vscode/
+.idea/
+.project
+.classpath
+
+# Ignore git files
+.git/
+.gitignore
+.gitattributes
+
+# Ignore fly build artifacts
+fly.toml
+Dockerfile
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db 

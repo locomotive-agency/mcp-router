@@ -46,19 +46,20 @@ class MCPServerStatus(db.Model):
     __tablename__ = 'mcp_server_status'
     
     id = db.Column(db.Integer, primary_key=True)
-    transport = db.Column(db.String(20), nullable=False)  # stdio, http, sse
-    status = db.Column(db.String(20), nullable=False, default='stopped')  # running, stopped, error
+    transport = db.Column(db.String(20), nullable=False)  # stdio, http
+    status = db.Column(db.String(20), nullable=False, default='stopped')
     pid = db.Column(db.Integer)  # Process ID if running
-    port = db.Column(db.Integer)  # Port if HTTP/SSE
-    host = db.Column(db.String(100))  # Host if HTTP/SSE
-    path = db.Column(db.String(100))  # Path if HTTP/SSE
-    api_key = db.Column(db.String(100))  # API key if HTTP/SSE (stored for display, not secure storage)
+    port = db.Column(db.Integer)  # Port if HTTP
+    host = db.Column(db.String(100))  # Host if HTTP
+    path = db.Column(db.String(100))  # Path if HTTP
+    api_key = db.Column(db.String(100))  # API key if HTTP (stored for display, not secure storage)
     started_at = db.Column(db.DateTime)
     error_message = db.Column(db.Text)
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary representation"""
+        """Convert status to dictionary for API responses"""
         return {
+            'id': self.id,
             'transport': self.transport,
             'status': self.status,
             'pid': self.pid,

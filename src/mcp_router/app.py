@@ -1,7 +1,7 @@
 """Main Flask application for MCP Router"""
 import os
 import logging
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response, Response, stream_with_context
 from flask_wtf.csrf import CSRFProtect
 from flask_login import login_required
 from sqlalchemy.exc import IntegrityError
@@ -11,6 +11,7 @@ from mcp_router.forms import ServerForm, AnalyzeForm
 from mcp_router.container_manager import ContainerManager
 from mcp_router.claude_analyzer import ClaudeAnalyzer
 from mcp_router.auth import init_auth
+from mcp_router.server_manager import init_server_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,9 +27,106 @@ init_db(app)
 init_auth(app)  # Initialize authentication
 
 # Initialize server manager with app context
-from mcp_router.server_manager import init_server_manager
 server_manager = init_server_manager(app)
 
+
+@app.route('/mcp/', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
+@app.route('/mcp/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
+def proxy_mcp_request(subpath):
+    """
+    Proxy MCP requests to the actual MCP server running on port 8001.
+    This allows us to serve MCP through the main Flask app port.
+    """
+    import httpx
+    
+    # Get the current MCP server status
+    status = server_manager.get_status()
+    
+    # Check if server is running and is HTTP transport
+    if not status or status['status'] != 'running' or status.get('transport') != 'http':
+        return jsonify({
+            'error': 'MCP server is not running in HTTP mode'
+        }), 503
+    
+    # Get the internal URL for the MCP server
+    connection_info = status.get('connection_info', {})
+    internal_url = connection_info.get('internal_url')
+    if not internal_url:
+        return jsonify({'error': 'MCP server URL not found'}), 503
+    
+    # Construct the full URL with the subpath
+    target_url = f"{internal_url.rstrip('/')}/{subpath}"
+    
+    # Forward headers, filtering out some that shouldn't be forwarded
+    headers_to_skip = {'host', 'content-length', 'connection', 'upgrade', 'x-forwarded-for', 'x-real-ip'}
+    headers = {
+        k: v for k, v in request.headers.items() 
+        if k.lower() not in headers_to_skip
+    }
+    
+    # Add/update the authorization header if we have an API key
+    api_key = connection_info.get('api_key')
+    if api_key and 'authorization' not in headers:
+        headers['Authorization'] = f'Bearer {api_key}'
+    
+    try:
+        # For streaming responses (SSE/event-stream)
+        if request.headers.get('accept', '').find('text/event-stream') != -1:
+            def generate():
+                with httpx.stream(
+                    request.method,
+                    target_url,
+                    headers=headers,
+                    content=request.get_data(),
+                    timeout=None
+                ) as response:
+                    for chunk in response.iter_bytes():
+                        yield chunk
+            
+            return Response(
+                stream_with_context(generate()),
+                content_type='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'X-Accel-Buffering': 'no'
+                }
+            )
+        else:
+            # For regular requests
+            response = httpx.request(
+                request.method,
+                target_url,
+                headers=headers,
+                content=request.get_data(),
+                timeout=30.0
+            )
+            
+            # Create Flask response with the proxied content
+            excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+            headers = {
+                k: v for k, v in response.headers.items()
+                if k.lower() not in excluded_headers
+            }
+            
+            return Response(
+                response.content,
+                response.status_code,
+                headers
+            )
+            
+    except httpx.TimeoutException:
+        return jsonify({'error': 'Request to MCP server timed out'}), 504
+    except Exception as e:
+        logger.error(f"Error proxying MCP request: {e}")
+        return jsonify({'error': 'Failed to proxy request to MCP server'}), 502
+
+# Exempt the MCP proxy route from CSRF protection
+csrf.exempt(proxy_mcp_request)
+
+
+# +----------------------+
+# | Main UI Routes       |
+# +----------------------+
 
 @app.route('/')
 @login_required
@@ -110,20 +208,6 @@ def add_server():
                     
                     db.session.add(server)
                     db.session.commit()
-                    
-                    # Pull Docker image in the background
-                    try:
-                        logger.info(f"Pulling Docker image for {server.name}")
-                        manager = ContainerManager()
-                        pull_result = manager.pull_server_image(server.id)
-                        if pull_result["status"] == "success":
-                            logger.info(f"Successfully pulled image for {server.name}: {pull_result['image']}")
-                        else:
-                            logger.warning(f"Failed to pull image for {server.name}: {pull_result['message']}")
-                            # Don't fail the server addition, just warn
-                    except Exception as e:
-                        logger.error(f"Error pulling image for {server.name}: {e}")
-                        # Don't fail the server addition if image pull fails
                     
                     flash(f'Server "{server.name}" added successfully!', 'success')
                     
@@ -312,19 +396,21 @@ def start_mcp_server():
     transport = data.get('transport', 'stdio')
     
     # Validate transport
-    if transport not in ['stdio', 'http', 'sse']:
+    if transport not in ['stdio', 'http']:
         return jsonify({
             'status': 'error',
-            'message': 'Invalid transport. Must be stdio, http, or sse'
+            'message': 'Invalid transport. Must be stdio or http'
         }), 400
     
-    # Start server with appropriate settings
+    # Set transport-specific parameters
     kwargs = {}
-    if transport in ['http', 'sse']:
-        kwargs['host'] = data.get('host', '127.0.0.1')
-        kwargs['port'] = data.get('port', 8001)
-        kwargs['path'] = data.get('path', '/mcp' if transport == 'http' else '/sse')
-        kwargs['api_key'] = data.get('api_key')  # Optional, will be generated if not provided
+    if transport == 'http':
+        # For HTTP, we no longer need host/port/path from the client.
+        # We use standard defaults for the internal server.
+        kwargs['host'] = '127.0.0.1'
+        kwargs['port'] = 8001
+        kwargs['path'] = '/mcp'
+        kwargs['api_key'] = data.get('api_key')
     
     result = server_manager.start_server(transport, **kwargs)
     

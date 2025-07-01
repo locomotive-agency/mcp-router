@@ -1,64 +1,55 @@
-app = "mcp-router"
-primary_region = "ord"
-kill_signal = "SIGINT"
-kill_timeout = "30s"
+# fly.toml app configuration file generated for mcp-router-withered-resonance-1726 on 2025-06-30T16:54:32-04:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'mcp-router-withered-resonance-1726'
+primary_region = 'iad'
+kill_signal = 'SIGINT'
+kill_timeout = '5s'
 
 [build]
-  dockerfile = "Dockerfile.fly"
+  dockerfile = 'Dockerfile'
 
 [env]
-  FLASK_ENV = "production"
-  FLASK_APP = "mcp_router"
-  FLASK_PORT = "5001"
-  # Docker configurations
-  DOCKER_TLS_CERTDIR = ""
-  
-[experimental]
-  allowed_public_ports = []
-  auto_rollback = true
-  # Enable privileged mode for Docker-in-Docker
-  enable_consul = false
-  
-[mounts]
-  source = "docker_data"
-  destination = "/var/lib/docker"
+  DATABASE_URL = 'sqlite:////data/mcp_router.db'
+  DOCKER_HOST = 'unix:///var/run/docker.sock'
+  FLASK_PORT = '8000'
+
+[[mounts]]
+  source = 'mcp_router_data'
+  destination = '/data'
 
 [[services]]
-  protocol = "tcp"
-  internal_port = 5001
-  processes = ["app"]
+  protocol = 'tcp'
+  internal_port = 8000
+  processes = ['app']
 
   [[services.ports]]
     port = 80
-    handlers = ["http"]
+    handlers = ['http']
     force_https = true
 
   [[services.ports]]
     port = 443
-    handlers = ["tls", "http"]
+    handlers = ['tls', 'http']
 
   [services.concurrency]
-    type = "connections"
+    type = 'connections'
     hard_limit = 25
     soft_limit = 20
 
-  [[services.tcp_checks]]
-    interval = "30s"
-    timeout = "5s"
-    grace_period = "10s"
-    restart_limit = 6
+# This service exposes the MCP server on port 8001
+[[services]]
+  protocol = "tcp"
+  internal_port = 8001
+  processes = ["app"]
 
-  [[services.http_checks]]
-    interval = "30s"
-    timeout = "5s"
-    grace_period = "10s"
-    restart_limit = 6
-    method = "get"
-    path = "/"
+  [[services.ports]]
+    port = 8001
+    handlers = ["tls", "http"]
 
-[[statics]]
-  guest_path = "/app/src/mcp_router/static"
-  url_prefix = "/static/"
-
-[processes]
-  app = "" 
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
