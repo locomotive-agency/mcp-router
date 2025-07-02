@@ -6,8 +6,8 @@ Supports:
 - uvx: Python servers
 - docker: Any language via Docker images
 """
+
 import logging
-import os
 from typing import Dict, Any, Optional
 from flask import Flask
 from llm_sandbox import SandboxSession
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class ContainerManager:
     """Manages container lifecycle with language-agnostic sandbox support"""
-    
+
     def __init__(self, app: Optional[Flask] = None):
         """Initialize with optional Flask app for database access"""
         self.app = app
@@ -37,9 +37,13 @@ class ContainerManager:
         self.sandbox_image_template = "mcp-router-python-sandbox"
         # Docker client
         self.docker_client: DockerClient = DockerClient.from_env()
-    
-    def ensure_image_exists(self, image_name: str):
-        """Checks if a Docker image exists locally and pulls it if not."""
+
+    def ensure_image_exists(self, image_name: str) -> None:
+        """Checks if a Docker image exists locally and pulls it if not.
+
+        Args:
+            image_name: Docker image name to check/pull
+        """
         try:
             self.docker_client.images.get(image_name)
             logger.info(f"Image '{image_name}' already exists locally.")
@@ -58,11 +62,11 @@ class ContainerManager:
             if env_var.get("value"):
                 env_vars[env_var["key"]] = env_var["value"]
         return env_vars
-    
+
     def _create_sandbox_session(self, server: MCPServer) -> SandboxSession:
         """Create a sandbox session based on server runtime type"""
         env_vars = self._get_env_vars(server)
-        
+
         if server.runtime_type == "npx":
             # Node.js/JavaScript servers
             return SandboxSession(
@@ -95,14 +99,14 @@ class ContainerManager:
             )
         else:
             raise ValueError(f"Unsupported runtime type: {server.runtime_type}")
-    
+
     def test_server(self, server_id: str) -> Dict[str, Any]:
         """
         Test a specific MCP server by running its start command.
-        
+
         Args:
             server_id: The ID of the server to test
-            
+
         Returns:
             Dict containing test results with status, output, and error details
         """
@@ -111,19 +115,16 @@ class ContainerManager:
                 server = get_server_by_id(server_id)
         else:
             server = get_server_by_id(server_id)
-            
+
         if not server:
-            return {
-                "status": "error",
-                "message": f"Server {server_id} not found"
-            }
-        
+            return {"status": "error", "message": f"Server {server_id} not found"}
+
         logger.info(f"Testing server: {server.name} ({server.runtime_type})")
-        
+
         try:
             # Create sandbox session
             session = self._create_sandbox_session(server)
-            
+
             with session:
                 # Run installation command if needed
                 if server.install_command:
@@ -133,7 +134,7 @@ class ContainerManager:
                         cache_clean_result = session.execute_command("npm cache clean --force")
                         if cache_clean_result.exit_code != 0:
                             logger.warning(f"npm cache clean failed: {cache_clean_result.stderr}")
-                    
+
                     logger.info(f"Running install command: {server.install_command}")
                     result = session.execute_command(server.install_command)
                     if result.exit_code != 0:
@@ -141,32 +142,32 @@ class ContainerManager:
                         error_msg = "Installation failed"
                         if "idealTree" in result.stderr:
                             error_msg += " (npm error: Tracker 'idealTree' already exists - this is typically a transient npm issue)"
-                        return {
-                            "status": "error",
-                            "message": error_msg,
-                            "stderr": result.stderr
-                        }
-                
+                        return {"status": "error", "message": error_msg, "stderr": result.stderr}
+
                 # Run the start command
                 logger.info(f"Running start command: {server.start_command}")
                 result = session.execute_command(server.start_command)
-                
+
                 return {
                     "status": "success" if result.exit_code == 0 else "error",
                     "stdout": result.stdout,
                     "stderr": result.stderr,
-                    "exit_code": result.exit_code
+                    "exit_code": result.exit_code,
                 }
-                
+
         except Exception as e:
             logger.error(f"Error testing server {server_id}: {e}")
-            return {
-                "status": "error",
-                "message": str(e)
-            }
+            return {"status": "error", "message": str(e)}
 
-    def build_python_sandbox_image(self, force: bool = False):
-        """Builds a custom python sandbox image with common libraries pre-installed."""
+    def build_python_sandbox_image(self, force: bool = False) -> Dict[str, Any]:
+        """Builds a custom python sandbox image with common libraries pre-installed.
+
+        Args:
+            force: Whether to force rebuild even if image exists
+
+        Returns:
+            Dictionary with status and message of the build operation
+        """
         try:
             # For this library, we "build" by creating a named template container
             # that has the dependencies pre-installed.
@@ -186,19 +187,36 @@ class ContainerManager:
                 result = session.execute_command(install_cmd)
 
                 if result.exit_code != 0:
-                    logger.error(f"Failed to install libraries for sandbox template: {result.stderr}")
-                    return {"status": "error", "message": "Library installation failed.", "stderr": result.stderr}
+                    logger.error(
+                        f"Failed to install libraries for sandbox template: {result.stderr}"
+                    )
+                    return {
+                        "status": "error",
+                        "message": "Library installation failed.",
+                        "stderr": result.stderr,
+                    }
 
-                logger.info("Libraries installed. The container state will be committed automatically.")
+                logger.info(
+                    "Libraries installed. The container state will be committed automatically."
+                )
 
-            logger.info(f"Successfully built/updated sandbox template: '{self.sandbox_image_template}'")
+            logger.info(
+                f"Successfully built/updated sandbox template: '{self.sandbox_image_template}'"
+            )
             return {"status": "success", "message": "Sandbox template updated successfully."}
         except Exception as e:
             logger.error(f"Error building custom sandbox image: {e}", exc_info=True)
             return {"status": "error", "message": str(e)}
 
     def pull_server_image(self, server_id: str) -> Dict[str, Any]:
-        """Pulls the Docker image for a specific server."""
+        """Pulls the Docker image for a specific server.
+
+        Args:
+            server_id: ID of the server to pull image for
+
+        Returns:
+            Dictionary with status and image information
+        """
         if self.app:
             with self.app.app_context():
                 server = get_server_by_id(server_id)
@@ -216,7 +234,10 @@ class ContainerManager:
         elif server.runtime_type == "docker":
             image_name = server.start_command
         else:
-            return {"status": "error", "message": f"Unsupported runtime type: {server.runtime_type}"}
+            return {
+                "status": "error",
+                "message": f"Unsupported runtime type: {server.runtime_type}",
+            }
 
         try:
             logger.info(f"Pulling image '{image_name}' for server '{server.name}'...")
@@ -225,4 +246,4 @@ class ContainerManager:
             return {"status": "success", "image": image_name}
         except Exception as e:
             logger.error(f"Failed to pull image '{image_name}': {e}", exc_info=True)
-            return {"status": "error", "message": str(e)} 
+            return {"status": "error", "message": str(e)}

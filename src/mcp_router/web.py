@@ -1,7 +1,6 @@
 """Web server entry point"""
 
 import logging
-import os
 import sys
 import threading
 from mcp_router.app import app
@@ -12,16 +11,23 @@ from mcp_router.config import Config
 logger = logging.getLogger(__name__)
 
 
-def check_docker_availability():
-    """Check if Docker is available and accessible."""
+def check_docker_availability() -> bool:
+    """Check if Docker is available and accessible.
+
+    Returns:
+        True if Docker is available, False otherwise
+    """
     try:
         import docker
+
         client = docker.from_env()
         client.ping()
         logger.info("Docker is available and accessible")
         return True
     except ImportError:
-        logger.error("Docker Python library is not installed. Please install it with: pip install docker")
+        logger.error(
+            "Docker Python library is not installed. Please install it with: pip install docker"
+        )
         return False
     except Exception as e:
         if "permission denied" in str(e).lower():
@@ -35,7 +41,7 @@ def check_docker_availability():
         return False
 
 
-def prepare_docker_images():
+def prepare_docker_images() -> None:
     """
     Checks for and pulls the default Docker images in the background
     to avoid delaying application startup.
@@ -50,7 +56,7 @@ def prepare_docker_images():
         logger.info("Background image preparation complete.")
 
 
-def main():
+def main() -> None:
     """Run the Flask web server"""
     # Check Docker availability early
     if not check_docker_availability():
@@ -63,23 +69,20 @@ def main():
         logger.error("  - Or install Docker in your deployment environment")
         logger.error("=" * 60)
         sys.exit(1)
-    
+
     # Ensure database is created
     with app.app_context():
         db.create_all()
         logger.info("Database initialized")
-    
+
     # Start image preparation in background thread
     prepare_thread = threading.Thread(target=prepare_docker_images, daemon=True)
     prepare_thread.start()
-    
-    port = int(os.environ.get('FLASK_PORT', 8000))
+
+    port = Config.FLASK_PORT
     # Run the development server
-    app.run(
-        host='0.0.0.0',
-        port=port,
-        debug=app.config['DEBUG']
-    )
+    app.run(host="0.0.0.0", port=port, debug=app.config["DEBUG"])
+
 
 if __name__ == "__main__":
-    main() 
+    main()

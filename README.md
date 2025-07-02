@@ -1,450 +1,201 @@
 # MCP Router
 
+A unified gateway for Model Context Protocol (MCP) servers with web management, intelligent routing, and sandboxed execution.
+
 ![MCP Router Demo](assets/intro.gif)
 
-MCP Router is a Python-based unified gateway for multiple Model Context Protocol (MCP) servers. It provides a web interface for managing servers, intelligent routing with hierarchical tool discovery, and sandboxed execution environments for any programming language.
+## What It Does
 
-## 🚀 Quick Start
+MCP Router provides:
+- **Single gateway** for multiple MCP servers (no more juggling configs)
+- **Web UI** for server management with real-time control
+- **Smart routing** with hierarchical tool discovery (prevents LLM overload)
+- **Sandboxed execution** via Docker for any language
+- **Remote access** with HTTP transport and OAuth/API key authentication
+
+## Quick Deploy to Fly.io
 
 ```bash
-# Clone the repository
+# Install Fly CLI if you haven't already
+brew install flyctl  # or see https://fly.io/docs/getting-started/
+
+# Clone and deploy
+git clone https://github.com/locomotive-agency/mcp-router.git
+cd mcp-router
+fly launch  # Follow prompts to create app
+fly deploy
+
+# Access your deployment
+# Web UI: https://your-app-name.fly.dev
+# MCP endpoint: https://your-app-name.fly.dev/mcp/
+```
+
+## Local Development
+
+```bash
+# Clone repository
 git clone https://github.com/locomotive-agency/mcp-router.git
 cd mcp-router
 
-# Run the deployment setup script (assumes Docker is already installed)
+# Quick setup (assumes Docker installed)
 chmod +x setup-deploy.sh
 ./setup-deploy.sh
 
-# Edit configuration
-nano .env  # Add your ANTHROPIC_API_KEY and set ADMIN_PASSCODE
+# Configure environment
+cp env.example .env
+nano .env  # Add ANTHROPIC_API_KEY and ADMIN_PASSCODE
 
-# Start the web interface
+# Run locally
 python -m mcp_router.web
 
-# Open in browser
-open http://localhost:8000
+# Access at http://localhost:8000
 ```
 
-## 🎯 Key Features
+## Configuration
 
-### Core Functionality
-- **Unified MCP Gateway**: Single interface for multiple MCP servers
-- **Web Management UI**: Flask-based interface with real-time updates via htmx
-- **Intelligent Routing**: Hierarchical tool discovery prevents tool overload
-- **Language Agnostic**: Support for any programming language via sandboxed containers
-- **Built-in Python Sandbox**: Data science environment with popular libraries
-- **Authentication**: Passcode-protected admin interface for secure remote hosting
-
-### Server Management
-- **GitHub Integration**: Automatic MCP server detection and configuration from repos
-- **Claude Analysis**: AI-powered extraction of server requirements
-- **Container Sandboxing**: Secure isolation using Docker (npx, uvx, or custom images)
-- **Real-time Control**: Start/stop servers with live log streaming
-- **Persistent Storage**: SQLite database for configurations
-
-### Transport & Integration
-- **Multiple Transports**: stdio (local) and HTTP (remote) with authentication
-- **Claude Desktop Ready**: Direct integration with Anthropic's desktop app
-- **API Authentication**: Secure access with API keys for remote connections
-- **Auto-discovery**: Dynamic server and tool discovery without restarts
-
-### Deployment Ready
-- **Cloud-Friendly Setup**: Streamlined installation for deployment environments
-- **Environment Variable Config**: Deploy without editing files
-- **Minimal Dependencies**: Skip Docker installation when containers are managed externally
-- **SQLite Database**: No external database required for simple deployments
-
-## 📋 Prerequisites
-
-- **Python 3.11+** - Core runtime
-- **Docker** - Required for sandboxed execution (assumed installed for quick setup)
-- **Git** - For cloning repositories
-- **Anthropic API Key** - For Claude repository analysis (optional but recommended)
-
-> **Note**: The recommended quick setup (`setup-deploy.sh`) assumes Docker is already installed. If you need Docker installed automatically, use `setup-all.sh` instead.
-
-## 🛠️ Installation
-
-### Option 1: Quick Setup (Recommended)
-
-We provide a streamlined setup script that assumes Docker is already installed:
+### Essential Environment Variables
 
 ```bash
-chmod +x setup-deploy.sh
-./setup-deploy.sh
+# Required
+ADMIN_PASSCODE=your-secure-passcode    # Web UI authentication
+ANTHROPIC_API_KEY=sk-ant-...          # For GitHub repo analysis
+
+# Transport (configured via UI)
+MCP_TRANSPORT=http                     # stdio or http
+MCP_API_KEY=auto-generated             # For HTTP auth
+MCP_OAUTH_ENABLED=true                 # Enable OAuth support
 ```
 
-The script will:
-- Verify Python 3.11+ is installed
-- Install project dependencies
-- Set up configuration files
-- Create necessary directories
-- Skip Docker installation (assumes already installed)
+### Fly.io Specific
 
-**Perfect for:** Deployment environments, development with existing Docker, cloud platforms
+Your `fly.toml` configures:
+- Web UI on port 443 (HTTPS)
+- MCP server on port 8001
+- Persistent volume at `/data` for SQLite
+- Auto-generated environment variables
 
-### Option 2: Full Setup with Docker Installation
+## Usage
 
-If you need Docker installed automatically:
+### 1. Add MCP Servers
 
-```bash
-chmod +x setup-all.sh
-./setup-all.sh
+Via Web UI:
+1. Navigate to "Add Server"
+2. Paste GitHub repository URL
+3. Claude analyzes and configures automatically
+4. Review and save
+
+### 2. Connect Your Client
+
+**Claude Desktop (stdio mode):**
+```json
+{
+  "mcpServers": {
+    "mcp-router": {
+      "command": "python",
+      "args": ["-m", "mcp_router.server"]
+    }
+  }
+}
 ```
 
-The script will:
-- Install Docker (Ubuntu/Debian, Fedora, macOS)
-- Verify Python 3.11+ is installed
-- Create a virtual environment
-- Install project dependencies
-- Set up configuration files
-- Create necessary directories
-
-**Perfect for:** Fresh local development environments
-
-### Option 3: Manual Setup
-
-1. **Install Docker**
-   - Ubuntu/Debian: Follow [Docker's official guide](https://docs.docker.com/engine/install/ubuntu/)
-   - macOS: Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-   - Other: See [Docker installation docs](https://docs.docker.com/get-docker/)
-
-2. **Clone and Install**
-   ```bash
-   git clone https://github.com/locomotive-agency/mcp-router.git
-   cd mcp-router
-   
-   # Create virtual environment
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   
-   # Install package
-   pip install -e .
-   
-   # Create data directory
-   mkdir -p data
-   
-   # Copy environment template
-   cp env.example .env
-   ```
-
-3. **Configure Environment**
-   Edit `.env` file with your settings:
-   ```bash
-   # Required for security
-   ADMIN_PASSCODE=your-secure-passcode-here
-   
-   # Required for repository analysis
-   ANTHROPIC_API_KEY=your-api-key-here
-   
-   # Optional customizations
-   MCP_PYTHON_IMAGE=python:3.11-slim
-   MCP_NODE_IMAGE=node:20-slim
-   ```
-
-## 🔐 Authentication
-
-MCP Router includes a simple passcode-based authentication system to protect the admin interface when hosted remotely.
-
-### Setting Up Authentication
-
-1. **Set a strong passcode** in your `.env` file:
-   ```bash
-   ADMIN_PASSCODE=your-secure-passcode-here
-   ```
-   - Minimum 8 characters required
-   - Use a strong, unique passcode
-   - **Never use the default passcode in production!**
-
-2. **First-time login**:
-   - Navigate to http://localhost:8000
-   - You'll be redirected to the login page
-   - Enter your passcode
-   - You'll stay logged in until you explicitly log out
-
-3. **Security Notes**:
-   - The passcode is hashed using bcrypt
-   - Sessions persist across browser restarts
-   - Always use HTTPS in production
-   - Consider additional security measures (VPN, IP restrictions) for sensitive deployments
-
-## 🚦 Usage
-
-### Starting the Application
-
-1. **Start Web Interface**
-   ```bash
-   # If using setup-deploy.sh (deployment/cloud environments)
-   python -m mcp_router.web
-   
-   # If using setup-all.sh or manual setup with venv
-   source venv/bin/activate
-   python -m mcp_router.web
-   ```
-   Access at: http://localhost:8000
-   
-   **First time**: You'll be prompted to log in with your passcode.
-
-2. **Add MCP Servers**
-   - Click "Add Server" in the web UI
-   - Enter a GitHub repository URL
-   - Claude will analyze and configure automatically
-   - Review and save the configuration
-
-3. **Control MCP Server**
-   - Navigate to "MCP Control" in the navigation bar
-   - Select transport mode (stdio for Claude Desktop, HTTP for remote)
-   - Click "Start Server" to launch
-   - Copy connection details for your client
-
-### Integration Examples
-
-#### Claude Desktop Integration
-1. Start MCP server in stdio mode via Control Panel
-2. Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-   ```json
-   {
-     "mcpServers": {
-       "mcp-router": {
-         "command": "/path/to/venv/bin/python",
-         "args": ["-m", "mcp_router.server"]
-       }
-     }
-   }
-   ```
-3. Restart Claude Desktop
-
-#### Remote HTTP Access
+**Remote Access (HTTP mode):**
 ```python
 from fastmcp import Client
 from fastmcp.client.auth import BearerAuth
 
-# Connect to HTTP transport
+# For deployed instance
 async with Client(
-    "http://localhost:8001/mcp/",
+    "https://your-app.fly.dev/mcp/",
     auth=BearerAuth(token="your-api-key")
 ) as client:
-    # List available providers
+    # List available servers
     providers = await client.call_tool("list_providers")
-    print(f"Available servers: {providers}")
     
-    # List tools from a specific provider
-    tools = await client.list_tools(provider="github-mcp-server")
-    
-    # Call a tool
+    # Use a specific server's tools
     result = await client.call_tool(
-        "search_repositories",
+        "search_code",
         provider="github-mcp-server",
-        query="mcp servers"
+        query="authentication"
     )
 ```
 
-### Docker Compose Deployment
-```bash
-docker-compose up --build
-```
-- Web UI: http://localhost:8000
-- MCP Server: http://localhost:8001/mcp/
+### 3. OAuth Support
 
-## 🏗️ Architecture
+For OAuth-enabled providers:
+1. Configure OAuth credentials in server settings
+2. Users authenticate via standard OAuth flow
+3. Tokens managed automatically per session
 
-### System Design
+## Architecture
+
 ```
-┌─────────────────┐     ┌─────────────────┐
-│  Claude Desktop │     │   Web Browser   │
-│   (stdio)       │     │   (Admin UI)    │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         │ stdio                 │ HTTP
-         │                       │
-┌────────┴───────────────────────┴────────┐
-│           MCP Router Service            │
-│    ┌─────────────┐  ┌──────────────┐    │
-│    │ Flask Web   │  │ FastMCP      │    │
-│    │ Interface   │  │ Proxy Router │    │
-│    └─────────────┘  └──────────────┘    │
-│    ┌─────────────┐  ┌──────────────┐    │
-│    │   Claude    │  │  Container   │    │
-│    │  Analyzer   │  │  Manager     │    │
-│    └─────────────┘  └──────────────┘    │
-└─────────────────────────────────────────┘
-                    │
-    ┌───────────────┼───────────────┐
-    │               │               │
-┌───▼───-─┐    ┌────▼────┐     ┌────▼────┐
-│  NPX    │    │   UVX   │     │ Docker  │
-│(Node.js)│    │(Python) │     │  (Any)  │
-└──────-──┘    └─────────┘     └─────────┘
+┌─────────────┐     ┌─────────────┐
+│   Claude    │     │  Your App   │
+│  (stdio)    │     │   (HTTP)    │
+└──────┬──────┘     └──────┬──────┘
+       │                   │
+       └────────┬──────────┘
+                │
+         MCP Router
+                │
+    ┌───────────┼───────────┐
+    │           │           │
+┌───▼────┐  ┌───▼────┐ ┌────▼────┐
+│  NPX   │  │  UVX   │ │ Docker  │
+│Servers │  │Servers │ │ Custom  │
+└────────┘  └────────┘ └─────────┘
 ```
 
 ### Hierarchical Tool Discovery
 
-The router implements a two-step discovery pattern to prevent overwhelming LLMs:
+1. **Initial**: Only `list_providers` and `python_sandbox` visible
+2. **Discovery**: `list_providers()` returns available servers
+3. **Server Tools**: Access via `provider` parameter
+4. **Execution**: Routed to appropriate sandboxed container
 
-1. **Initial Tools**: Only `python_sandbox` and `list_providers` visible
-2. **Provider Discovery**: `list_providers()` returns available servers
-3. **Server Tools**: `tools/list(provider="server_name")` shows server-specific tools
-4. **Tool Execution**: Tools called with `provider` parameter for routing
-
-This design maintains a clean, stateless architecture while providing intuitive navigation.
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-Create a `.env` file with:
-
-```bash
-# Flask Configuration
-FLASK_PORT=8000
-FLASK_ENV=development
-SECRET_KEY=your-secret-key-here
-
-# Authentication (REQUIRED for security)
-ADMIN_PASSCODE=your-secure-passcode-here
-
-# Claude API (Required for GitHub analysis)
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Docker Configuration
-DOCKER_HOST=unix:///var/run/docker.sock  # Linux/Mac
-# DOCKER_HOST=tcp://localhost:2375       # Windows
-
-# Container Images (Optional)
-MCP_PYTHON_IMAGE=python:3.11-slim  # For Python servers
-MCP_NODE_IMAGE=node:20-slim        # For Node.js servers
-
-# MCP Server Configuration (Set via UI)
-MCP_TRANSPORT=http      # stdio, http, or sse
-MCP_HOST=127.0.0.1
-MCP_PORT=8001
-MCP_PATH=/mcp
-MCP_API_KEY=auto-generated-if-not-set
-```
-
-### Supported Runtimes
-
-| Runtime | Command | Use Case | Base Image |
-|---------|---------|----------|------------|
-| npx | `npx @org/package` | Node.js/TypeScript servers | `node:20-slim` |
-| uvx | `uvx package` | Python servers | `python:3.11-slim` |
-| docker | `docker run ...` | Any language/custom setup | User specified |
-
-## 🧪 Development
+## Development
 
 ### Running Tests
 ```bash
-source venv/bin/activate
 pytest -v
 ```
 
-### Test Coverage
-- ✅ Claude repository analyzer
-- ✅ Middleware provider filtering  
-- ✅ Database models and operations
-- ✅ Log level detection
-- ✅ Web UI routes and functionality
-- ✅ Authentication system
+### Key Components
+- `src/mcp_router/server.py` - FastMCP server implementation
+- `src/mcp_router/web.py` - Flask web interface
+- `src/mcp_router/container_manager.py` - Docker orchestration
+- `src/mcp_router/mcp_oauth.py` - OAuth provider support
 
-### Project Structure
-```
-mcp-router/
-├── src/mcp_router/      # Main package
-│   ├── app.py          # Flask application
-│   ├── auth.py         # Authentication system
-│   ├── server.py       # MCP server with FastMCP
-│   ├── container_manager.py  # Docker container lifecycle
-│   ├── claude_analyzer.py    # GitHub repo analysis
-│   ├── middleware.py   # Provider filter middleware
-│   ├── models.py       # SQLAlchemy models
-│   ├── server_manager.py     # MCP server processes
-│   ├── templates/      # Jinja2 templates
-│   └── static/         # CSS, JS assets
-├── tests/              # Test suite
-├── data/               # SQLite database
-├── docker-compose.yml  # Container orchestration
-├── setup.sh           # Automated setup script
-└── .env.example       # Environment template
-```
+## Troubleshooting
 
-## 🚀 Performance
-
-### Optimization Strategies
-
-1. **Smart Image Management**
-   - Common base images pre-pulled on startup
-   - Shared layers between containers
-   - Configurable slim images for minimal size
-
-2. **Container Lifecycle**
-   - Containers reused between operations
-   - First run: ~5 seconds (after image pull)
-   - Subsequent runs: <2 seconds
-
-3. **Efficient Routing**
-   - Stateless design with no session overhead
-   - Direct stdio communication for local clients
-   - Minimal middleware processing
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Docker not running**
+**Port conflicts:**
 ```bash
-# Linux
-sudo systemctl start docker
-
-# macOS
-# Start Docker Desktop from Applications
-```
-
-**Permission denied errors**
-```bash
-# Add user to docker group (Linux)
-sudo usermod -aG docker $USER
-# Log out and back in
-```
-
-**NPM idealTree errors**
-- The system automatically cleans npm cache
-- If persists, manually clear: `docker system prune`
-
-**Port already in use**
-```bash
-# Change port in .env file
+# Change in .env
 FLASK_PORT=8080
 MCP_PORT=8002
 ```
 
-**Login issues**
-- Ensure ADMIN_PASSCODE is set in .env
-- Minimum 8 characters required
-- Clear browser cookies if having persistent issues
+**Docker issues:**
+```bash
+# Verify Docker running
+docker ps
 
-## 📚 Additional Resources
+# Clear containers
+docker system prune -a
+```
 
-- [Model Context Protocol Specification](https://modelcontextprotocol.io)
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
-- [Project Planning Document](project.md)
-- [Docker Documentation](https://docs.docker.com)
+**Authentication failures:**
+- Ensure `ADMIN_PASSCODE` is set (min 8 chars)
+- Check API key in MCP Control panel
+- Verify OAuth credentials if using OAuth
 
-## 🤝 Contributing
+## Contributing
 
-This is an MVP project with a focused 4-week timeline. Contributions should align with the roadmap in `project.md`.
+Focus areas:
+1. Additional OAuth provider support
+2. Performance optimizations
+3. Enhanced security features
 
-### Development Priorities
-1. Core functionality and stability
-2. Test coverage and documentation
-3. Performance optimizations
-4. Additional transport implementations
 
-## 📄 License
-
-[License information to be added]
-
-## 🙏 Acknowledgments
-
-- Built with [FastMCP](https://github.com/jlowin/fastmcp) for MCP protocol implementation
-- UI powered by [htmx](https://htmx.org) for seamless interactions
-- Container sandboxing via [llm-sandbox](https://github.com/coleam00/llm-sandbox) 
+## License
+See LICENSE

@@ -74,7 +74,11 @@
                 <button type="button" 
                         id="start-btn"
                         onclick="startServer()"
-                        class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                    <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
                     <span id="start-btn-text">Start Server</span>
                 </button>
             </div>
@@ -92,8 +96,12 @@
                 <button type="button" 
                         id="stop-btn"
                         onclick="stopServer()"
-                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Stop Server
+                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                    <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
+                    </svg>
+                    <span id="stop-btn-text">Stop Server</span>
                 </button>
             </div>
         </div>
@@ -161,6 +169,19 @@ function updateAuthOptions() {
 
 // Start the server
 async function startServer() {
+    const startBtn = document.getElementById('start-btn');
+    const originalContent = startBtn.innerHTML;
+    
+    // Show loading state
+    startBtn.disabled = true;
+    startBtn.innerHTML = `
+        <svg class="inline w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Starting Server...</span>
+    `;
+    
     const transport = document.getElementById('transport').value;
     const data = { transport };
     
@@ -195,14 +216,33 @@ async function startServer() {
             startLogFetching();
         } else {
             alert('Failed to start server: ' + result.message);
+            // Restore button
+            startBtn.innerHTML = originalContent;
+            startBtn.disabled = false;
         }
     } catch (error) {
         alert('Error starting server: ' + error.message);
+        // Restore button
+        startBtn.innerHTML = originalContent;
+        startBtn.disabled = false;
     }
 }
 
 // Stop the server
 async function stopServer() {
+    const stopBtn = document.getElementById('stop-btn');
+    const originalContent = stopBtn.innerHTML;
+    
+    // Show loading state
+    stopBtn.disabled = true;
+    stopBtn.innerHTML = `
+        <svg class="inline w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Stopping Server...</span>
+    `;
+    
     try {
         const response = await fetch('/api/mcp/stop', {
             method: 'POST',
@@ -220,9 +260,15 @@ async function stopServer() {
             stopLogFetching();
         } else {
             alert('Failed to stop server: ' + result.message);
+            // Restore button
+            stopBtn.innerHTML = originalContent;
+            stopBtn.disabled = false;
         }
     } catch (error) {
         alert('Error stopping server: ' + error.message);
+        // Restore button
+        stopBtn.innerHTML = originalContent;
+        stopBtn.disabled = false;
     }
 }
 
@@ -386,26 +432,58 @@ function copyToClipboard(text) {
 // Log fetching
 let logInterval = null;
 let logLines = [];
+let hasInitiallyFetchedLogs = false;
 
 function startLogFetching() {
     if (logInterval) return;
     
-    // Fetch logs every 5 seconds instead of 2
-    logInterval = setInterval(async () => {
-        if (currentServerStatus && currentServerStatus.status === 'running' && currentServerStatus.pid) {
-            try {
-                const response = await fetch(`/api/mcp/logs?pid=${currentServerStatus.pid}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.logs) {
-                        updateLogDisplay(data.logs);
+    // Fetch initial logs immediately
+    fetchLogsOnce();
+    
+    // Then fetch logs every 5 seconds
+    logInterval = setInterval(() => {
+        fetchLogsOnce();
+    }, 5000);
+}
+
+async function fetchLogsOnce() {
+    if (currentServerStatus && currentServerStatus.status === 'running' && currentServerStatus.pid) {
+        try {
+            const response = await fetch(`/api/mcp/logs?pid=${currentServerStatus.pid}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.logs) {
+                    // On first fetch, replace all logs
+                    if (!hasInitiallyFetchedLogs) {
+                        logLines = data.logs;
+                        hasInitiallyFetchedLogs = true;
+                        displayLogs();
+                    } else {
+                        // On subsequent fetches, only add new logs
+                        const existingCount = logLines.length;
+                        const newLogsCount = data.logs.length;
+                        
+                        // If server restarted or logs cleared
+                        if (newLogsCount < existingCount) {
+                            logLines = data.logs;
+                        } else if (newLogsCount > existingCount) {
+                            // Add only the new logs
+                            const newLogs = data.logs.slice(existingCount);
+                            logLines = logLines.concat(newLogs);
+                            
+                            // Keep only last 100 lines
+                            if (logLines.length > 100) {
+                                logLines = logLines.slice(-100);
+                            }
+                        }
+                        displayLogs();
                     }
                 }
-            } catch (error) {
-                console.error('Failed to fetch logs:', error);
             }
+        } catch (error) {
+            console.error('Failed to fetch logs:', error);
         }
-    }, 5000);  // Changed from 2000 to 5000 milliseconds
+    }
 }
 
 function stopLogFetching() {
@@ -415,20 +493,13 @@ function stopLogFetching() {
     }
     // Clear logs
     logLines = [];
+    hasInitiallyFetchedLogs = false;
     const logContent = document.getElementById('log-content');
     logContent.innerHTML = '<div class="text-gray-500">No logs available...</div>';
 }
 
-function updateLogDisplay(newLogs) {
+function displayLogs() {
     const logContent = document.getElementById('log-content');
-    
-    // Add new logs to our buffer
-    logLines = logLines.concat(newLogs);
-    
-    // Keep only last 100 lines
-    if (logLines.length > 100) {
-        logLines = logLines.slice(-100);
-    }
     
     // Update display
     logContent.innerHTML = logLines.map(line => {
@@ -503,6 +574,17 @@ function updateUIFromStatus(status) {
         // Show log viewer
         logViewer.classList.remove('hidden');
         
+        // Reset the stop button to its normal state
+        const stopBtn = document.getElementById('stop-btn');
+        stopBtn.disabled = false;
+        stopBtn.innerHTML = `
+            <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
+            </svg>
+            <span id="stop-btn-text">Stop Server</span>
+        `;
+        
         // Display connection information
         if (status.connection_info) {
             showConnectionInfo(status.connection_info);
@@ -523,11 +605,26 @@ function updateUIFromStatus(status) {
         // Stop fetching logs
         stopLogFetching();
         
-        // Update button text based on status
+        // Reset the start button to its original state
+        const startBtn = document.getElementById('start-btn');
+        startBtn.disabled = false;
+        
         if (status.status === 'crashed') {
-            startBtnText.textContent = 'Restart Server';
+            startBtn.innerHTML = `
+                <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span id="start-btn-text">Restart Server</span>
+            `;
         } else {
-            startBtnText.textContent = 'Start Server';
+            startBtn.innerHTML = `
+                <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span id="start-btn-text">Start Server</span>
+            `;
         }
         
         // Restore form state instead of resetting

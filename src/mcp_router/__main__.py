@@ -2,5 +2,5 @@
 
 from mcp_router import server
 
-if __name__ == '__main__':
-    server.main() 
+if __name__ == "__main__":
+    server.main()

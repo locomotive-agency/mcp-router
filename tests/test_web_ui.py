@@ -34,7 +34,7 @@ def test_analyze_flow(client, mocker):
     """Test the 'Analyze with Claude' flow."""
     # Mock the analyzer
     mocker.patch(
-        'mcp_router.app.ClaudeAnalyzer.analyze_repository', 
+        'mcp_router.routes.servers.ClaudeAnalyzer.analyze_repository',
         return_value=ANALYZER_SUCCESS_DATA
     )
     
@@ -52,7 +52,7 @@ def test_add_server_save_flow(client, mocker):
     """Test the full flow of adding and saving a server."""
     # Mock the analyzer for the first step
     mocker.patch(
-        'mcp_router.app.ClaudeAnalyzer.analyze_repository', 
+        'mcp_router.routes.servers.ClaudeAnalyzer.analyze_repository',
         return_value=ANALYZER_SUCCESS_DATA
     )
     

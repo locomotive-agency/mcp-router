@@ -2,4 +2,4 @@
 
 __version__ = "0.1.0"
 __author__ = "MCP Router Team"
-__license__ = "MIT" 
+__license__ = "MIT"

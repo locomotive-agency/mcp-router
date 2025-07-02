@@ -39,7 +39,7 @@
         
         <div class="flex items-center justify-between">
             <div class="space-x-2">
-                <button hx-post="{{ url_for('test_server', server_id=server.id) }}"
+                <button hx-post="{{ url_for('servers.test_server', server_id=server.id) }}"
                         hx-target="#test-{{ server.id }}"
                         hx-indicator="#test-indicator-{{ server.id }}"
                         class="text-sm text-blue-500 hover:text-blue-600 font-medium">
@@ -51,12 +51,12 @@
                         </svg>
                     </span>
                 </button>
-                <a href="{{ url_for('server_detail', server_id=server.id) }}" 
+                <a href="{{ url_for('servers.server_detail', server_id=server.id) }}" 
                    class="text-sm text-blue-500 hover:text-blue-600 font-medium">
                     Details
                 </a>
             </div>
-            <button hx-post="{{ url_for('toggle_server', server_id=server.id) }}"
+            <button hx-post="{{ url_for('servers.toggle_server', server_id=server.id) }}"
                     hx-swap="outerHTML"
                     hx-target="#server-{{ server.id }}"
                     class="text-sm {% if server.is_active %}text-green-600 hover:text-green-700{% else %}text-gray-400 hover:text-gray-500{% endif %}">
@@ -82,7 +82,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
     </svg>
     <p class="text-gray-500 mb-4">No servers configured yet.</p>
-    <a href="{{ url_for('add_server') }}" class="text-blue-500 hover:text-blue-600 font-medium">
+    <a href="{{ url_for('servers.add_server') }}" class="text-blue-500 hover:text-blue-600 font-medium">
         Add your first server →
     </a>
 </div>
@@ -95,7 +95,7 @@
     </p>
     <div class="bg-white rounded border border-blue-200 p-3">
         <code class="text-xs">
-            <a href="{{ url_for('claude_desktop_config') }}" 
+            <a href="{{ url_for('config.claude_desktop_config') }}" 
                class="text-blue-600 hover:text-blue-700 underline">
                 Download Claude Desktop configuration
             </a>
