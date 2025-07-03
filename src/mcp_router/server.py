@@ -1,6 +1,7 @@
 """FastMCP server implementation for MCP Router using proxy pattern"""
 
 import logging
+import os
 from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP
 from llm_sandbox import SandboxSession
@@ -8,6 +9,7 @@ from mcp_router.middleware import ProviderFilterMiddleware
 from mcp_router.models import get_active_servers, MCPServer
 from mcp_router.app import app
 from mcp_router.config import Config
+from mcp_router.mcp_oauth import PUBLIC_KEY
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -75,12 +77,23 @@ def create_router(
     # Generate proxy configuration from active servers
     config = create_mcp_config(servers)
 
+    # Prepare authentication
+    auth = None
+    if enable_oauth:
+        # Proxy layer validates OAuth; FastMCP doesn't need to re-validate
+        log.info("OAuth validated at proxy layer; FastMCP running without additional auth provider")
+    elif api_key:
+        # For API key auth, FastMCP expects the key to be validated at the transport layer
+        # The Flask proxy handles this validation
+        log.info("API key authentication will be handled by the HTTP proxy layer")
+
     # Check if we have any servers to proxy
     if config["mcpServers"]:
         # Create router as a proxy that manages all sub-servers
         router = FastMCP.as_proxy(
             config,
             name="MCP-Router",
+            auth=auth,
             instructions="""This router provides access to multiple MCP servers and a Python sandbox.
         
 Use 'list_providers' to see available servers, then use tools/list with a provider parameter.
@@ -95,18 +108,13 @@ Example workflow:
         # No servers configured, create a standalone MCP server
         router = FastMCP(
             name="MCP-Router",
+            auth=auth,
             instructions="""This is the MCP Router. Currently no MCP servers are configured.
             
 You can still use the Python sandbox tool to execute Python code.
 To add MCP servers, use the web interface to configure and activate servers.
 """,
         )
-
-    # Log authentication configuration
-    if enable_oauth:
-        log.info("OAuth authentication will be handled by the HTTP proxy layer")
-    elif api_key:
-        log.info("API key authentication will be handled by the HTTP proxy layer")
 
     # Add the built-in Python sandbox tool
     @router.tool()

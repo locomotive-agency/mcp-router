@@ -1,5 +1,21 @@
 {
   "mcpServers": {
+    "mcp-router-dev": {
+      "args": [
+        "-m",
+        "mcp_router.server"
+      ],
+      "command": "python",
+      "env": {
+        "PYTHONPATH": "/Users/jroakes/Projects/MCPRouter"
+      }
+    }
+  }
+}
+
+
+{
+  "mcpServers": {
       "default-server": {
           "type": "streamable-http",
           "url": "https://mcp-router-withered-resonance-1726.fly.dev/mcp",

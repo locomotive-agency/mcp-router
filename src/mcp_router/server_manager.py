@@ -143,17 +143,21 @@ class MCPServerManager:
                 env["MCP_PORT"] = port
                 env["MCP_PATH"] = kwargs.get("path", "/mcp")
 
+            # Configure subprocess pipes based on transport
+            popen_kwargs = {
+                "env": env,
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "text": True,
+                "bufsize": 1,  # Line buffered
+                "universal_newlines": True,
+            }
+            if transport == "stdio":
+                popen_kwargs["stdin"] = subprocess.PIPE
+
             # Start the server process
             cmd = [sys.executable, "-m", "mcp_router"]
-            self.process = subprocess.Popen(
-                cmd,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,  # Line buffered
-                universal_newlines=True,
-            )
+            self.process = subprocess.Popen(cmd, **popen_kwargs)
 
             # Clear previous logs
             with self.log_lock:

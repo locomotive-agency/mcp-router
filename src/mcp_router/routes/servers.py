@@ -278,12 +278,31 @@ def test_server(server_id: str) -> str:
     Returns:
         HTML string with test result
     """
-
+    # Get the server object
+    server = MCPServer.query.get_or_404(server_id)
 
     manager = ContainerManager(current_app)
-    result = manager.test_server(server_id)
+    result = manager.test_server(server)
 
-    if result.get("status") == "success":
-        return f'<div class="text-green-600">✓ Server test successful! Exit code: {result["exit_code"]}</div>'
+    status = result.get("status", "error")
+    message = result.get("message", "Unknown error")
+    
+    if status == "success":
+        extra_info = []
+        if "npx_available" in result:
+            extra_info.append("NPX: ✓")
+        if "uvx_available" in result:
+            extra_info.append("UVX: ✓")
+        if "package_version" in result:
+            extra_info.append(f"Version: {result['package_version']}")
+        
+        extra = f" ({', '.join(extra_info)})" if extra_info else ""
+        return f'<div class="text-green-600">✓ {message}{extra}</div>'
+    elif status == "warning":
+        return f'<div class="text-yellow-600">⚠ {message}</div>'
     else:
-        return f'<div class="text-red-600">✗ {result["message"]} ({result.get("stderr", "No details")})</div>'
+        error_detail = result.get("stderr", result.get("package_check", ""))
+        if error_detail:
+            return f'<div class="text-red-600">✗ {message}: {error_detail}</div>'
+        else:
+            return f'<div class="text-red-600">✗ {message}</div>'

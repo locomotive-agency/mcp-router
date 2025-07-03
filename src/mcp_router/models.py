@@ -3,9 +3,11 @@
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import JSON
+from sqlalchemy import JSON, text
+import logging
 
 db = SQLAlchemy()
+logger = logging.getLogger(__name__)
 
 
 class MCPServer(db.Model):
@@ -85,14 +87,45 @@ def generate_id() -> str:
 
 
 def init_db(app) -> None:
-    """Initialize database with app context
+    """Initialize database with app context and handle migrations
 
     Args:
         app: Flask application instance
     """
     db.init_app(app)
     with app.app_context():
+        # Create all tables
         db.create_all()
+        
+        # Handle migrations - check for missing columns and add them
+        try:
+            # Check if oauth_enabled column exists in mcp_server_status
+            result = db.session.execute(
+                text("PRAGMA table_info(mcp_server_status)")
+            ).fetchall()
+            
+            column_names = [row[1] for row in result]
+            
+            # Add oauth_enabled column if it doesn't exist
+            if 'oauth_enabled' not in column_names:
+                logger.info("Adding oauth_enabled column to mcp_server_status table")
+                db.session.execute(
+                    text("ALTER TABLE mcp_server_status ADD COLUMN oauth_enabled BOOLEAN DEFAULT 0")
+                )
+                db.session.commit()
+                logger.info("Successfully added oauth_enabled column")
+                
+        except Exception as e:
+            logger.error(f"Error during database migration: {e}")
+            # If there's an error, try to recreate the table
+            # This is safe because MCPServerStatus is ephemeral runtime data
+            try:
+                db.session.execute(text("DROP TABLE IF EXISTS mcp_server_status"))
+                db.session.commit()
+                db.create_all()
+                logger.info("Recreated mcp_server_status table with new schema")
+            except Exception as e2:
+                logger.error(f"Failed to recreate table: {e2}")
 
 
 def get_server_by_id(server_id: str) -> Optional[MCPServer]:

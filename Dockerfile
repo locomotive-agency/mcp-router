@@ -2,9 +2,12 @@
 # This image includes the Docker daemon and all its dependencies.
 FROM docker:25.0-dind
 
-# Install Python, pip, and git.
-# The 'dind' image is based on Alpine Linux, so we use 'apk'.
-RUN apk add --no-cache python3 py3-pip git
+# Install system dependencies:
+# - python3 and pip for the application
+# - git for dependency installation if needed from git repos
+# - fuse-overlayfs for a more performant Docker storage driver on Fly.io
+# - tini as an init process to properly manage subprocesses
+RUN apk add --no-cache python3 py3-pip git fuse-overlayfs tini
 
 # Set up the working directory
 WORKDIR /app
@@ -33,4 +36,7 @@ EXPOSE 8000
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # The command to run the application using Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "mcp_router.web:app"] 
+# Increased timeout to 120 seconds to handle slow Docker operations
+# Prepended with 'tini -g --' to ensure proper process reaping
+# as recommended for Docker-in-Docker setups.
+CMD ["tini", "-g", "--", "gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "120", "mcp_router.web:app"] 

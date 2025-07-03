@@ -3,6 +3,7 @@
 import logging
 from typing import Dict, Any
 from flask import Flask
+from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
 from mcp_router.config import get_config
 from mcp_router.routes import servers_bp, mcp_bp, config_bp, register_error_handlers
@@ -11,6 +12,7 @@ from mcp_router.models import init_db
 from mcp_router.auth import init_auth
 from mcp_router.server_manager import init_server_manager
 from mcp_router.mcp_oauth import create_oauth_blueprint
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 
@@ -21,6 +23,35 @@ logger = logging.getLogger(__name__)
 # Create Flask app
 app = Flask(__name__)
 app.config.from_object(get_config())
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
+# Initialize CORS
+CORS(app, resources={
+    r"/mcp": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "mcp-protocol-version"],
+        "expose_headers": ["Content-Type", "Authorization"]
+    },
+    r"/mcp/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "mcp-protocol-version"],
+        "expose_headers": ["Content-Type", "Authorization"]
+    },
+    r"/.well-known/*": {
+        "origins": "*",
+        "methods": ["GET", "OPTIONS"],
+        "allow_headers": ["Content-Type", "mcp-protocol-version"],
+        "expose_headers": ["Content-Type"]
+    },
+    r"/oauth/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "mcp-protocol-version"],
+        "expose_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 # Initialize extensions
 csrf = CSRFProtect(app)

@@ -103,6 +103,25 @@ def create_oauth_blueprint() -> Blueprint:
             }
         )
 
+    @oauth_bp.route("/.well-known/oauth-protected-resource")
+    def oauth_protected_resource():
+        """OAuth 2.1 protected resource metadata endpoint"""
+        base_url = request.url_root.rstrip("/")
+        # Return both URLs as valid resources (with and without trailing slash)
+        return jsonify(
+            {
+                "resource": [
+                    f"{base_url}/mcp",
+                    f"{base_url}/mcp/"
+                ],
+                "authorization_servers": [base_url],
+                "bearer_methods_supported": ["header"],
+                "resource_signing_alg_values_supported": ["RS256"],
+                "resource_documentation": f"{base_url}/docs/oauth",
+                "resource_policy_uri": f"{base_url}/policy"
+            }
+        )
+
     @oauth_bp.route("/.well-known/jwks.json")
     def jwks():
         """JSON Web Key Set endpoint"""

@@ -3,10 +3,13 @@
 import logging
 import sys
 import threading
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from werkzeug.middleware.proxy_fix import ProxyFix
 from mcp_router.app import app
 from mcp_router.models import db
 from mcp_router.container_manager import ContainerManager
 from mcp_router.config import Config
+from mcp_router.mcp_oauth import create_oauth_blueprint, verify_token
 
 logger = logging.getLogger(__name__)
 
@@ -44,15 +47,27 @@ def check_docker_availability() -> bool:
 def prepare_docker_images() -> None:
     """
     Checks for and pulls the default Docker images in the background
-    to avoid delaying application startup.
+    and initializes template containers to speed up operations.
     """
     # We need an app context to access the config and create the manager
     with app.app_context():
         logger.info("Starting background preparation of Docker images...")
         manager = ContainerManager(app)
+        
+        # First, ensure images are available
         default_images = [Config.MCP_PYTHON_IMAGE, Config.MCP_NODE_IMAGE]
         for image in default_images:
             manager.ensure_image_exists(image)
+        
+        # Then, initialize template containers for faster operations
+        # try:
+        #     manager.initialize_templates()
+        #     logger.info("Template containers initialized successfully")
+        # except Exception as e:
+        #     logger.error(f"Failed to initialize template containers: {e}")
+        #     # Don't fail startup if templates can't be created
+        #     # They'll be created on first use instead
+        
         logger.info("Background image preparation complete.")
 
 

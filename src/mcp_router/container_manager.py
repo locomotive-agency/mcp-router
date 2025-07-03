@@ -15,6 +15,9 @@ from mcp_router.models import get_server_by_id, MCPServer
 from mcp_router.config import Config
 from docker import DockerClient
 from docker.errors import ImageNotFound
+import time
+import json
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 
 logger = logging.getLogger(__name__)
@@ -63,100 +66,235 @@ class ContainerManager:
                 env_vars[env_var["key"]] = env_var["value"]
         return env_vars
 
-    def _create_sandbox_session(self, server: MCPServer) -> SandboxSession:
-        """Create a sandbox session based on server runtime type"""
+    def _create_sandbox_session(self, server: MCPServer, use_template: bool = True) -> SandboxSession:
+        """Create a sandbox session based on server runtime type
+        
+        Args:
+            server: MCPServer instance
+            use_template: Whether to use/create a template container for reuse
+            
+        Returns:
+            SandboxSession configured for the server
+        """
+        # Get environment variables for the server
         env_vars = self._get_env_vars(server)
-
+        
+        # Common runtime configuration for resource limits and environment
+        runtime_config = {
+            "mem_limit": "512m",  # 512MB memory limit
+            "cpu_period": 100000,
+            "cpu_quota": 50000,   # 50% of one CPU
+            "pids_limit": 100,    # Process limit
+            "environment": env_vars,  # Pass environment variables at container level
+        }
+        
+        # Base configuration
+        base_config = {
+            "docker_host": self.docker_host,
+            "backend": "docker",
+            "runtime_config": runtime_config,
+            "default_timeout": 60.0,  # 60 second timeout
+            "verbose": True,
+        }
+        
+        # For tests, we don't want to commit containers
+        if use_template:
+            base_config["keep_template"] = True
+            # Use template names for reuse across sessions
+            if server.runtime_type == "npx":
+                base_config["template_name"] = "mcp-router-node-template"
+            elif server.runtime_type == "uvx":
+                base_config["template_name"] = "mcp-router-python-template"
+        else:
+            # For tests, don't keep templates or commit
+            base_config["keep_template"] = False
+            base_config["commit_container"] = False
+        
         if server.runtime_type == "npx":
             # Node.js/JavaScript servers
             return SandboxSession(
                 lang="javascript",
-                runtime="node",
-                image=self.node_image,  # Use configured Node image
-                timeout=60,  # Increased from 30 to 60 seconds
-                env_vars=env_vars,
-                docker_host=self.docker_host,
-                keep_env=True,  # Reuse containers for performance
+                image=self.node_image,
+                **base_config
             )
         elif server.runtime_type == "uvx":
-            # Python servers
+            # Python servers  
             return SandboxSession(
                 lang="python",
                 image=self.python_image,
-                timeout=60,  # Increased from 30 to 60 seconds
-                env_vars=env_vars,
-                docker_host=self.docker_host,
-                keep_env=True,  # Reuse containers for performance
+                **base_config
             )
-        elif server.runtime_type == "docker":
-            # Any language via Docker
+        else:
+            # Custom Docker image - we need to determine the language
+            # Default to python for custom images, but this could be configured
             return SandboxSession(
-                image=server.start_command,
-                timeout=60,  # Increased from 30 to 60 seconds
-                env_vars=env_vars,
-                docker_host=self.docker_host,
-                keep_env=True,  # Reuse containers for performance
+                lang="python",  # Required parameter, defaulting to python
+                image=server.start_command,  # Custom image
+                **base_config
             )
-        else:
-            raise ValueError(f"Unsupported runtime type: {server.runtime_type}")
 
-    def test_server(self, server_id: str) -> Dict[str, Any]:
-        """
-        Test a specific MCP server by running its start command.
-
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(Exception),
+        reraise=True
+    )
+    def test_server(self, server: MCPServer) -> Dict[str, Any]:
+        """Test server connection with retry logic
+        
         Args:
-            server_id: The ID of the server to test
-
+            server: MCPServer instance to test
+            
         Returns:
-            Dict containing test results with status, output, and error details
+            Dict containing test results
+            
+        Note:
+            Will retry up to 3 times with exponential backoff
         """
-        if self.app:
-            with self.app.app_context():
-                server = get_server_by_id(server_id)
-        else:
-            server = get_server_by_id(server_id)
-
-        if not server:
-            return {"status": "error", "message": f"Server {server_id} not found"}
-
         logger.info(f"Testing server: {server.name} ({server.runtime_type})")
-
         try:
-            # Create sandbox session
-            session = self._create_sandbox_session(server)
+            start_time = time.time()
+            
+            # Create sandbox session WITHOUT template for tests (faster, no commit)
+            with self._create_sandbox_session(server, use_template=False) as sandbox:
+                if server.runtime_type == "npx":
+                    # Simplified test - just check if npx is available and package info
+                    code = f"""
+const {{ exec }} = require('child_process');
 
-            with session:
-                # Run installation command if needed
-                if server.install_command:
-                    # For npm installations, clean cache first to avoid idealTree errors
-                    if server.runtime_type == "npx" and "npm install" in server.install_command:
-                        logger.info("Cleaning npm cache to avoid conflicts")
-                        cache_clean_result = session.execute_command("npm cache clean --force")
-                        if cache_clean_result.exit_code != 0:
-                            logger.warning(f"npm cache clean failed: {cache_clean_result.stderr}")
+// First check if npx is available
+exec('npx --version', (err, stdout, stderr) => {{
+    if (err) {{
+        console.error('npx not available:', stderr);
+        process.exit(1);
+    }}
+    console.log('npx version:', stdout.trim());
+    
+    // Quick check for package info without installing
+    exec('npm view {server.start_command} version', {{timeout: 10000}}, (err, stdout, stderr) => {{
+        if (err) {{
+            console.log(JSON.stringify({{
+                status: 'warning',
+                message: 'Package check failed - may need installation',
+                npx_available: true,
+                package_check: stderr || err.message
+            }}));
+        }} else {{
+            console.log(JSON.stringify({{
+                status: 'success',
+                message: 'Package exists in registry',
+                npx_available: true,
+                package_version: stdout.trim()
+            }}));
+        }}
+    }});
+}});
+"""
+                    # Run the code with reasonable timeout
+                    result = sandbox.run(code, timeout=60.0)
+                    
+                elif server.runtime_type == "uvx":
+                    # Simplified Python/uvx test
+                    code = f"""
+import subprocess
+import json
+import sys
 
-                    logger.info(f"Running install command: {server.install_command}")
-                    result = session.execute_command(server.install_command)
-                    if result.exit_code != 0:
-                        # For npm errors, provide more detailed error message
-                        error_msg = "Installation failed"
-                        if "idealTree" in result.stderr:
-                            error_msg += " (npm error: Tracker 'idealTree' already exists - this is typically a transient npm issue)"
-                        return {"status": "error", "message": error_msg, "stderr": result.stderr}
+# Check if uvx is available
+try:
+    result = subprocess.run(['which', 'uvx'], capture_output=True, text=True, timeout=5)
+    if result.returncode != 0:
+        print(json.dumps({{
+            'status': 'error',
+            'message': 'uvx not found in PATH'
+        }}))
+        sys.exit(1)
+    
+    # Quick check if package exists without running it
+    cmd = ['pip', 'index', 'versions', '{server.start_command}']
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    
+    if result.returncode == 0 and result.stdout:
+        print(json.dumps({{
+            'status': 'success',
+            'message': 'Package exists in PyPI',
+            'uvx_available': True,
+            'package_info': result.stdout.strip()[:200]  # First 200 chars
+        }}))
+    else:
+        print(json.dumps({{
+            'status': 'warning',
+            'message': 'Package check inconclusive',
+            'uvx_available': True
+        }}))
+except subprocess.TimeoutExpired:
+    print(json.dumps({{
+        'status': 'error',
+        'message': 'Check timed out'
+    }}))
+except Exception as e:
+    print(json.dumps({{
+        'status': 'error',
+        'message': str(e)
+    }}))
+"""
+                    # Run the code with reasonable timeout
+                    result = sandbox.run(code, timeout=60.0)
+                    
+                else:
+                    # Custom Docker - just check if container can run
+                    code = "echo '{\"status\": \"success\", \"message\": \"Container is functional\"}'"
+                    # Run the code with reasonable timeout (even simple commands might need time for container startup)
+                    result = sandbox.run(code, timeout=30.0)
 
-                # Run the start command
-                logger.info(f"Running start command: {server.start_command}")
-                result = session.execute_command(server.start_command)
+                elapsed_time = time.time() - start_time
 
-                return {
-                    "status": "success" if result.exit_code == 0 else "error",
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                    "exit_code": result.exit_code,
-                }
+                # Parse output
+                if result.exit_code == 0:
+                    output = result.stdout.strip()
+                    
+                    # Try to parse JSON output
+                    try:
+                        # Get the last line that looks like JSON
+                        lines = output.split('\n')
+                        json_line = None
+                        for line in reversed(lines):
+                            if line.strip().startswith('{'):
+                                json_line = line
+                                break
+                        
+                        if json_line:
+                            data = json.loads(json_line)
+                            return {
+                                "status": data.get("status", "success"),
+                                "message": data.get("message", "Test completed"),
+                                "exit_code": result.exit_code,
+                                "output": output,
+                                "elapsed_time": elapsed_time,
+                                **{k: v for k, v in data.items() if k not in ["status", "message"]}
+                            }
+                    except json.JSONDecodeError:
+                        pass
+                    
+                    return {
+                        "status": "success",
+                        "message": "Container test successful",
+                        "exit_code": result.exit_code,
+                        "output": output,
+                        "elapsed_time": elapsed_time
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "exit_code": result.exit_code,
+                        "message": f"Test failed with exit code {result.exit_code}",
+                        "stderr": result.stderr,
+                        "stdout": result.stdout,
+                        "elapsed_time": elapsed_time
+                    }
 
         except Exception as e:
-            logger.error(f"Error testing server {server_id}: {e}")
+            logger.error(f"Error testing server {server.name}: {e}", exc_info=True)
             return {"status": "error", "message": str(e)}
 
     def build_python_sandbox_image(self, force: bool = False) -> Dict[str, Any]:
@@ -178,7 +316,6 @@ class ContainerManager:
                 image=self.python_image,
                 template_name=self.sandbox_image_template,
                 commit_container=True,  # This is key: saves the state after the session
-                timeout=300,  # 5 minutes for build
                 docker_host=self.docker_host,
             ) as session:
                 logger.info("Installing common data science libraries into the template...")
@@ -208,14 +345,23 @@ class ContainerManager:
             logger.error(f"Error building custom sandbox image: {e}", exc_info=True)
             return {"status": "error", "message": str(e)}
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(Exception),
+        reraise=True
+    )
     def pull_server_image(self, server_id: str) -> Dict[str, Any]:
-        """Pulls the Docker image for a specific server.
+        """Pulls the Docker image for a specific server with retry logic.
 
         Args:
             server_id: ID of the server to pull image for
 
         Returns:
             Dictionary with status and image information
+            
+        Note:
+            Will retry up to 3 times with exponential backoff
         """
         if self.app:
             with self.app.app_context():
@@ -247,3 +393,108 @@ class ContainerManager:
         except Exception as e:
             logger.error(f"Failed to pull image '{image_name}': {e}", exc_info=True)
             return {"status": "error", "message": str(e)}
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(Exception),
+        reraise=True
+    )
+    def run_server_in_sandbox(self, server: MCPServer) -> Dict[str, Any]:
+        """Run an MCP server inside a sandbox container with retry logic
+        
+        Args:
+            server: MCPServer instance to run
+            
+        Returns:
+            Dict containing execution results
+            
+        Note:
+            Will retry up to 3 times with exponential backoff
+        """
+        logger.info(f"Starting server {server.name} in sandbox")
+        try:
+            # Create sandbox session with template for actual server runs
+            with self._create_sandbox_session(server, use_template=True) as sandbox:
+                # Build the command based on runtime type
+                if server.runtime_type == "npx":
+                    # For npx servers, we run them directly
+                    command = f"npx -y {server.start_command}"
+                    # Add stdio transport args if needed
+                    if "--stdio" not in command:
+                        command += " stdio"
+                        
+                elif server.runtime_type == "uvx":
+                    # For Python/uvx servers
+                    command = f"uvx {server.start_command}"
+                    if "--stdio" not in command:
+                        command += " stdio"
+                        
+                else:
+                    # Custom command
+                    command = server.start_command
+
+                # Create the runner script
+                if server.runtime_type in ["npx", "uvx"]:
+                    # Use shell command directly for npx/uvx
+                    runner_code = command
+                else:
+                    # For custom Docker, use the command as-is
+                    runner_code = command
+
+                # Run in sandbox (env vars already in container)
+                # Note: For long-running servers, we might want to use a different approach
+                # This is primarily for testing/short runs
+                result = sandbox.run(
+                    runner_code, 
+                    timeout=300.0  # 5 minute timeout for server operations
+                )
+                
+                return {
+                    "success": result.exit_code == 0,
+                    "output": result.stdout,
+                    "error": result.stderr if result.exit_code != 0 else None,
+                    "exit_code": result.exit_code
+                }
+
+        except Exception as e:
+            logger.error(f"Error running server {server.name} in sandbox: {e}", exc_info=True)
+            return {"status": "error", "message": str(e)}
+
+    def initialize_templates(self) -> None:
+        """Pre-create template containers for faster startup
+        
+        This should be called once at startup to create template containers
+        that can be reused for all operations, significantly speeding up
+        container creation.
+        """
+        logger.info("Initializing template containers...")
+        
+        # Create a dummy server for each runtime type
+        dummy_servers = [
+            MCPServer(
+                name="template-npx",
+                runtime_type="npx",
+                start_command="dummy",
+                env_variables=[]
+            ),
+            MCPServer(
+                name="template-uvx", 
+                runtime_type="uvx",
+                start_command="dummy",
+                env_variables=[]
+            )
+        ]
+        
+        for server in dummy_servers:
+            try:
+                # Create session with template to establish the template container
+                with self._create_sandbox_session(server, use_template=True) as sandbox:
+                    # Run a simple command to ensure container is ready
+                    if server.runtime_type == "npx":
+                        sandbox.run("node --version", timeout=10.0)
+                    else:
+                        sandbox.run("python --version", timeout=10.0)
+                logger.info(f"Template container created for {server.runtime_type}")
+            except Exception as e:
+                logger.error(f"Failed to create template for {server.runtime_type}: {e}")

@@ -47,7 +47,8 @@ class Config:
 
     # OAuth settings
     MCP_OAUTH_ENABLED = os.environ.get("MCP_OAUTH_ENABLED", "false").lower() == "true"
-    OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "https://mcp-router.localhost")
+    # The issuer will be dynamically set based on the request URL
+    OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "")  # Empty by default, will use request URL
     OAUTH_AUDIENCE = os.environ.get("OAUTH_AUDIENCE", "mcp-server")
     OAUTH_TOKEN_EXPIRY = int(os.environ.get("OAUTH_TOKEN_EXPIRY", "3600"))  # 1 hour default
 
