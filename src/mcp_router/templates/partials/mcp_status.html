@@ -9,7 +9,9 @@
                         <span class="text-green-600 font-medium">Running</span>
                     </span>
                     <span class="text-gray-600">Transport: {{ status.transport }}</span>
-                    {% if status.pid %}
+                    {% if status.pid == -1 %}
+                        <span class="text-blue-600">Mode: Mounted</span>
+                    {% elif status.pid %}
                         <span class="text-gray-600">PID: {{ status.pid }}</span>
                     {% endif %}
                 {% elif status.status == 'crashed' %}

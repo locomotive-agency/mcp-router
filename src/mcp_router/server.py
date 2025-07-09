@@ -1,7 +1,6 @@
 """FastMCP server implementation for MCP Router using proxy pattern"""
 
 import logging
-import os
 from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP
 from llm_sandbox import SandboxSession
@@ -9,7 +8,6 @@ from mcp_router.middleware import ProviderFilterMiddleware
 from mcp_router.models import get_active_servers, MCPServer
 from mcp_router.app import app
 from mcp_router.config import Config
-from mcp_router.mcp_oauth import PUBLIC_KEY
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -200,7 +198,7 @@ To add MCP servers, use the web interface to configure and activate servers.
     return router
 
 
-def main():
+def run_stdio_server():
     """Main function to run the MCP server."""
     log.info("Starting MCP Router server...")
 
@@ -238,7 +236,7 @@ def main():
     elif transport == "http":
         # HTTP transport configuration
         host = Config.MCP_HOST
-        port = Config.MCP_PORT
+        port = 8001  # Fixed port for subprocess mode
         path = Config.MCP_PATH
         log_level = Config.MCP_LOG_LEVEL
 
@@ -252,7 +250,3 @@ def main():
         router.run(transport="http", host=host, port=port, path=path, log_level=log_level)
     else:
         raise ValueError(f"Unknown transport: {transport}. Supported: stdio, http")
-
-
-if __name__ == "__main__":
-    main()

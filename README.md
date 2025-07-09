@@ -4,6 +4,9 @@ A unified gateway for Model Context Protocol (MCP) servers with web management, 
 
 ![MCP Router Demo](assets/intro.gif)
 
+## Ahrefs Key
+YkMTiZt0k5Yy0GVKthqV4aW5jhtxNvdkWOEmHmT6
+
 ## What It Does
 
 MCP Router provides:

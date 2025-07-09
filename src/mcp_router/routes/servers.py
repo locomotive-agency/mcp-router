@@ -286,7 +286,7 @@ def test_server(server_id: str) -> str:
 
     status = result.get("status", "error")
     message = result.get("message", "Unknown error")
-    
+
     if status == "success":
         extra_info = []
         if "npx_available" in result:
@@ -295,7 +295,7 @@ def test_server(server_id: str) -> str:
             extra_info.append("UVX: ✓")
         if "package_version" in result:
             extra_info.append(f"Version: {result['package_version']}")
-        
+
         extra = f" ({', '.join(extra_info)})" if extra_info else ""
         return f'<div class="text-green-600">✓ {message}{extra}</div>'
     elif status == "warning":

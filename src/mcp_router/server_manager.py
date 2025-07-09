@@ -81,8 +81,8 @@ class MCPServerManager:
         finally:
             try:
                 stream.close()
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Error closing stream {stream_name}: {e}")
 
     def start_server(self, transport: str = "stdio", **kwargs) -> Dict[str, Any]:
         """
@@ -435,4 +435,15 @@ def init_server_manager(app: Flask) -> MCPServerManager:
     """
     global server_manager
     server_manager = MCPServerManager(app)
+    return server_manager
+
+
+def get_server_manager() -> MCPServerManager:
+    """Get the global server manager instance
+
+    Returns:
+        The MCPServerManager instance
+    """
+    if server_manager is None:
+        raise RuntimeError("Server manager has not been initialized.")
     return server_manager

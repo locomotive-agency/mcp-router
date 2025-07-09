@@ -66,28 +66,30 @@ class ContainerManager:
                 env_vars[env_var["key"]] = env_var["value"]
         return env_vars
 
-    def _create_sandbox_session(self, server: MCPServer, use_template: bool = True) -> SandboxSession:
+    def _create_sandbox_session(
+        self, server: MCPServer, use_template: bool = True
+    ) -> SandboxSession:
         """Create a sandbox session based on server runtime type
-        
+
         Args:
             server: MCPServer instance
             use_template: Whether to use/create a template container for reuse
-            
+
         Returns:
             SandboxSession configured for the server
         """
         # Get environment variables for the server
         env_vars = self._get_env_vars(server)
-        
+
         # Common runtime configuration for resource limits and environment
         runtime_config = {
             "mem_limit": "512m",  # 512MB memory limit
             "cpu_period": 100000,
-            "cpu_quota": 50000,   # 50% of one CPU
-            "pids_limit": 100,    # Process limit
+            "cpu_quota": 50000,  # 50% of one CPU
+            "pids_limit": 100,  # Process limit
             "environment": env_vars,  # Pass environment variables at container level
         }
-        
+
         # Base configuration
         base_config = {
             "docker_host": self.docker_host,
@@ -96,7 +98,7 @@ class ContainerManager:
             "default_timeout": 60.0,  # 60 second timeout
             "verbose": True,
         }
-        
+
         # For tests, we don't want to commit containers
         if use_template:
             base_config["keep_template"] = True
@@ -109,52 +111,44 @@ class ContainerManager:
             # For tests, don't keep templates or commit
             base_config["keep_template"] = False
             base_config["commit_container"] = False
-        
+
         if server.runtime_type == "npx":
             # Node.js/JavaScript servers
-            return SandboxSession(
-                lang="javascript",
-                image=self.node_image,
-                **base_config
-            )
+            return SandboxSession(lang="javascript", image=self.node_image, **base_config)
         elif server.runtime_type == "uvx":
-            # Python servers  
-            return SandboxSession(
-                lang="python",
-                image=self.python_image,
-                **base_config
-            )
+            # Python servers
+            return SandboxSession(lang="python", image=self.python_image, **base_config)
         else:
             # Custom Docker image - we need to determine the language
             # Default to python for custom images, but this could be configured
             return SandboxSession(
                 lang="python",  # Required parameter, defaulting to python
                 image=server.start_command,  # Custom image
-                **base_config
+                **base_config,
             )
 
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type(Exception),
-        reraise=True
+        reraise=True,
     )
     def test_server(self, server: MCPServer) -> Dict[str, Any]:
         """Test server connection with retry logic
-        
+
         Args:
             server: MCPServer instance to test
-            
+
         Returns:
             Dict containing test results
-            
+
         Note:
             Will retry up to 3 times with exponential backoff
         """
         logger.info(f"Testing server: {server.name} ({server.runtime_type})")
         try:
             start_time = time.time()
-            
+
             # Create sandbox session WITHOUT template for tests (faster, no commit)
             with self._create_sandbox_session(server, use_template=False) as sandbox:
                 if server.runtime_type == "npx":
@@ -192,7 +186,7 @@ exec('npx --version', (err, stdout, stderr) => {{
 """
                     # Run the code with reasonable timeout
                     result = sandbox.run(code, timeout=60.0)
-                    
+
                 elif server.runtime_type == "uvx":
                     # Simplified Python/uvx test
                     code = f"""
@@ -240,10 +234,10 @@ except Exception as e:
 """
                     # Run the code with reasonable timeout
                     result = sandbox.run(code, timeout=60.0)
-                    
+
                 else:
                     # Custom Docker - just check if container can run
-                    code = "echo '{\"status\": \"success\", \"message\": \"Container is functional\"}'"
+                    code = 'echo \'{"status": "success", "message": "Container is functional"}\''
                     # Run the code with reasonable timeout (even simple commands might need time for container startup)
                     result = sandbox.run(code, timeout=30.0)
 
@@ -252,17 +246,17 @@ except Exception as e:
                 # Parse output
                 if result.exit_code == 0:
                     output = result.stdout.strip()
-                    
+
                     # Try to parse JSON output
                     try:
                         # Get the last line that looks like JSON
-                        lines = output.split('\n')
+                        lines = output.split("\n")
                         json_line = None
                         for line in reversed(lines):
-                            if line.strip().startswith('{'):
+                            if line.strip().startswith("{"):
                                 json_line = line
                                 break
-                        
+
                         if json_line:
                             data = json.loads(json_line)
                             return {
@@ -271,17 +265,17 @@ except Exception as e:
                                 "exit_code": result.exit_code,
                                 "output": output,
                                 "elapsed_time": elapsed_time,
-                                **{k: v for k, v in data.items() if k not in ["status", "message"]}
+                                **{k: v for k, v in data.items() if k not in ["status", "message"]},
                             }
                     except json.JSONDecodeError:
                         pass
-                    
+
                     return {
                         "status": "success",
                         "message": "Container test successful",
                         "exit_code": result.exit_code,
                         "output": output,
-                        "elapsed_time": elapsed_time
+                        "elapsed_time": elapsed_time,
                     }
                 else:
                     return {
@@ -290,7 +284,7 @@ except Exception as e:
                         "message": f"Test failed with exit code {result.exit_code}",
                         "stderr": result.stderr,
                         "stdout": result.stdout,
-                        "elapsed_time": elapsed_time
+                        "elapsed_time": elapsed_time,
                     }
 
         except Exception as e:
@@ -349,7 +343,7 @@ except Exception as e:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type(Exception),
-        reraise=True
+        reraise=True,
     )
     def pull_server_image(self, server_id: str) -> Dict[str, Any]:
         """Pulls the Docker image for a specific server with retry logic.
@@ -359,7 +353,7 @@ except Exception as e:
 
         Returns:
             Dictionary with status and image information
-            
+
         Note:
             Will retry up to 3 times with exponential backoff
         """
@@ -398,17 +392,17 @@ except Exception as e:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type(Exception),
-        reraise=True
+        reraise=True,
     )
     def run_server_in_sandbox(self, server: MCPServer) -> Dict[str, Any]:
         """Run an MCP server inside a sandbox container with retry logic
-        
+
         Args:
             server: MCPServer instance to run
-            
+
         Returns:
             Dict containing execution results
-            
+
         Note:
             Will retry up to 3 times with exponential backoff
         """
@@ -423,13 +417,13 @@ except Exception as e:
                     # Add stdio transport args if needed
                     if "--stdio" not in command:
                         command += " stdio"
-                        
+
                 elif server.runtime_type == "uvx":
                     # For Python/uvx servers
                     command = f"uvx {server.start_command}"
                     if "--stdio" not in command:
                         command += " stdio"
-                        
+
                 else:
                     # Custom command
                     command = server.start_command
@@ -446,15 +440,14 @@ except Exception as e:
                 # Note: For long-running servers, we might want to use a different approach
                 # This is primarily for testing/short runs
                 result = sandbox.run(
-                    runner_code, 
-                    timeout=300.0  # 5 minute timeout for server operations
+                    runner_code, timeout=300.0  # 5 minute timeout for server operations
                 )
-                
+
                 return {
                     "success": result.exit_code == 0,
                     "output": result.stdout,
                     "error": result.stderr if result.exit_code != 0 else None,
-                    "exit_code": result.exit_code
+                    "exit_code": result.exit_code,
                 }
 
         except Exception as e:
@@ -463,29 +456,23 @@ except Exception as e:
 
     def initialize_templates(self) -> None:
         """Pre-create template containers for faster startup
-        
+
         This should be called once at startup to create template containers
         that can be reused for all operations, significantly speeding up
         container creation.
         """
         logger.info("Initializing template containers...")
-        
+
         # Create a dummy server for each runtime type
         dummy_servers = [
             MCPServer(
-                name="template-npx",
-                runtime_type="npx",
-                start_command="dummy",
-                env_variables=[]
+                name="template-npx", runtime_type="npx", start_command="dummy", env_variables=[]
             ),
             MCPServer(
-                name="template-uvx", 
-                runtime_type="uvx",
-                start_command="dummy",
-                env_variables=[]
-            )
+                name="template-uvx", runtime_type="uvx", start_command="dummy", env_variables=[]
+            ),
         ]
-        
+
         for server in dummy_servers:
             try:
                 # Create session with template to establish the template container

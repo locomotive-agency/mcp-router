@@ -9,6 +9,9 @@ flask-cors==4.0.0
 # MCP
 fastmcp>=2.9.0
 
+# ASGI Support
+uvicorn==0.30.1
+
 # Container Management
 llm-sandbox>=0.3.0
 docker

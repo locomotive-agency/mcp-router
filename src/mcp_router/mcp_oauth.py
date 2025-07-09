@@ -110,15 +110,12 @@ def create_oauth_blueprint() -> Blueprint:
         # Return both URLs as valid resources (with and without trailing slash)
         return jsonify(
             {
-                "resource": [
-                    f"{base_url}/mcp",
-                    f"{base_url}/mcp/"
-                ],
+                "resource": [f"{base_url}/mcp", f"{base_url}/mcp/"],
                 "authorization_servers": [base_url],
                 "bearer_methods_supported": ["header"],
                 "resource_signing_alg_values_supported": ["RS256"],
                 "resource_documentation": f"{base_url}/docs/oauth",
-                "resource_policy_uri": f"{base_url}/policy"
+                "resource_policy_uri": f"{base_url}/policy",
             }
         )
 

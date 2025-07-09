@@ -11,9 +11,11 @@ from mcp_router.routes.mcp import register_csrf_exemptions
 from mcp_router.models import init_db
 from mcp_router.auth import init_auth
 from mcp_router.server_manager import init_server_manager
+from threading import Thread
+from mcp_router.container_manager import ContainerManager
+from mcp_router.config import Config
 from mcp_router.mcp_oauth import create_oauth_blueprint
 from werkzeug.middleware.proxy_fix import ProxyFix
-
 
 
 # Configure logging
@@ -26,32 +28,35 @@ app.config.from_object(get_config())
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
 # Initialize CORS
-CORS(app, resources={
-    r"/mcp": {
-        "origins": "*",
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "mcp-protocol-version"],
-        "expose_headers": ["Content-Type", "Authorization"]
+CORS(
+    app,
+    resources={
+        r"/mcp": {
+            "origins": "*",
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "mcp-protocol-version"],
+            "expose_headers": ["Content-Type", "Authorization"],
+        },
+        r"/mcp/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "mcp-protocol-version"],
+            "expose_headers": ["Content-Type", "Authorization"],
+        },
+        r"/.well-known/*": {
+            "origins": "*",
+            "methods": ["GET", "OPTIONS"],
+            "allow_headers": ["Content-Type", "mcp-protocol-version"],
+            "expose_headers": ["Content-Type"],
+        },
+        r"/oauth/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "mcp-protocol-version"],
+            "expose_headers": ["Content-Type", "Authorization"],
+        },
     },
-    r"/mcp/*": {
-        "origins": "*",
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "mcp-protocol-version"],
-        "expose_headers": ["Content-Type", "Authorization"]
-    },
-    r"/.well-known/*": {
-        "origins": "*",
-        "methods": ["GET", "OPTIONS"],
-        "allow_headers": ["Content-Type", "mcp-protocol-version"],
-        "expose_headers": ["Content-Type"]
-    },
-    r"/oauth/*": {
-        "origins": "*",
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "mcp-protocol-version"],
-        "expose_headers": ["Content-Type", "Authorization"]
-    }
-})
+)
 
 # Initialize extensions
 csrf = CSRFProtect(app)
@@ -78,6 +83,24 @@ register_csrf_exemptions(csrf)
 
 # Register error handlers
 register_error_handlers(app)
+
+
+# Background Docker image preparation
+def _prepare_images() -> None:
+    with app.app_context():
+        logger.info("Starting background preparation of Docker images...")
+        manager = ContainerManager(app)
+        default_images = [Config.MCP_PYTHON_IMAGE, Config.MCP_NODE_IMAGE]
+        for image in default_images:
+            try:
+                manager.ensure_image_exists(image)
+            except Exception as e:
+                logger.warning(f"Failed to pre-pull Docker image {image}: {e}")
+        logger.info("Background image preparation complete.")
+
+
+# Kick off background preparation thread immediately
+Thread(target=_prepare_images, daemon=True).start()
 
 
 # Register context processor

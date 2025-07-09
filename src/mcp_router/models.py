@@ -96,25 +96,23 @@ def init_db(app) -> None:
     with app.app_context():
         # Create all tables
         db.create_all()
-        
+
         # Handle migrations - check for missing columns and add them
         try:
             # Check if oauth_enabled column exists in mcp_server_status
-            result = db.session.execute(
-                text("PRAGMA table_info(mcp_server_status)")
-            ).fetchall()
-            
+            result = db.session.execute(text("PRAGMA table_info(mcp_server_status)")).fetchall()
+
             column_names = [row[1] for row in result]
-            
+
             # Add oauth_enabled column if it doesn't exist
-            if 'oauth_enabled' not in column_names:
+            if "oauth_enabled" not in column_names:
                 logger.info("Adding oauth_enabled column to mcp_server_status table")
                 db.session.execute(
                     text("ALTER TABLE mcp_server_status ADD COLUMN oauth_enabled BOOLEAN DEFAULT 0")
                 )
                 db.session.commit()
                 logger.info("Successfully added oauth_enabled column")
-                
+
         except Exception as e:
             logger.error(f"Error during database migration: {e}")
             # If there's an error, try to recreate the table

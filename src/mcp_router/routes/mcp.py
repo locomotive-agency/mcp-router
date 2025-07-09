@@ -5,9 +5,9 @@ from typing import Union, Tuple
 from flask import Blueprint, render_template, request, jsonify, Response, stream_with_context
 from flask_login import login_required
 from flask_wtf.csrf import CSRFProtect
-from mcp_router.mcp_oauth import verify_token
-from mcp_router.server_manager import MCPServerManager
 import httpx
+from mcp_router.mcp_oauth import verify_token
+from mcp_router.server_manager import get_server_manager
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +16,7 @@ mcp_bp = Blueprint("mcp", __name__)
 
 
 # We'll need to get server_manager from the app context
-def get_server_manager() -> MCPServerManager:
-    """Get server manager from app context
-
-    Returns:
-        MCPServerManager instance from Flask app
-    """
-    from flask import current_app
-
-    return current_app.server_manager
+# This function is now defined in server_manager.py
 
 
 # Helper to register CSRF exemptions after app creation
@@ -44,7 +36,7 @@ def register_csrf_exemptions(csrf: CSRFProtect) -> None:
 @mcp_bp.route("/mcp/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 def proxy_mcp_request(subpath: str) -> Union[Response, Tuple[Response, int]]:
     """
-    Proxy MCP requests to the actual MCP server running on port 8001.
+    Proxy MCP requests to either ASGI-mounted FastMCP app or external MCP server.
     This allows us to serve MCP through the main Flask app port.
 
     Args:
@@ -53,14 +45,13 @@ def proxy_mcp_request(subpath: str) -> Union[Response, Tuple[Response, int]]:
     Returns:
         Proxied response from the MCP server
     """
-
     server_manager = get_server_manager()
 
     # Get the current MCP server status
     status = server_manager.get_status()
 
     # Check if server is running and is HTTP transport
-    if not status or status["status"] != "running" or status.get("transport") != "http":
+    if not status or status.get("status") != "running" or status.get("transport") != "http":
         return jsonify({"error": "MCP server is not running in HTTP mode"}), 503
 
     # Get the internal URL for the MCP server
@@ -110,8 +101,11 @@ def proxy_mcp_request(subpath: str) -> Union[Response, Tuple[Response, int]]:
         "upgrade",
         "x-forwarded-for",
         "x-real-ip",
+        "authorization",
+        "content-encoding",
     }
     headers = {k: v for k, v in request.headers.items() if k.lower() not in headers_to_skip}
+    logger.info(f"Forwarding headers to internal MCP server: {headers}")
 
     # Add/update the authorization header if we have an API key (not OAuth)
     if auth_type == "api_key":
@@ -145,7 +139,7 @@ def proxy_mcp_request(subpath: str) -> Union[Response, Tuple[Response, int]]:
                 request.method,
                 target_url,
                 headers=headers,
-                content=request.get_data(),
+                content=request.data,
                 timeout=30.0,
             )
 
@@ -164,8 +158,11 @@ def proxy_mcp_request(subpath: str) -> Union[Response, Tuple[Response, int]]:
 
     except httpx.TimeoutException:
         return jsonify({"error": "Request to MCP server timed out"}), 504
+    except httpx.ConnectError as e:
+        logger.error(f"Error connecting to MCP server: {e}")
+        return jsonify({"error": f"Could not connect to MCP server at {internal_url}"}), 502
     except Exception as e:
-        logger.error(f"Error proxying MCP request: {e}")
+        logger.error(f"Error proxying MCP request: {e}", exc_info=True)
         return jsonify({"error": "Failed to proxy request to MCP server"}), 502
 
 
