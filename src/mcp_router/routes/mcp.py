@@ -114,36 +114,14 @@ def proxy_mcp_request(subpath: str) -> Union[Response, Tuple[Response, int]]:
             headers["Authorization"] = f"Bearer {api_key}"
 
     try:
-        # For streaming responses (SSE/event-stream)
-        if request.headers.get("accept", "").find("text/event-stream") != -1:
-
-            def generate():
-                with httpx.stream(
-                    request.method,
-                    target_url,
-                    headers=headers,
-                    content=request.get_data(),
-                    timeout=None,
-                ) as response:
-                    for chunk in response.iter_bytes():
-                        yield chunk
-
-            return Response(
-                stream_with_context(generate()),
-                content_type="text/event-stream",
-                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-            )
-        else:
-            # For regular requests
-            response = httpx.request(
-                request.method,
-                target_url,
-                headers=headers,
-                content=request.data,
-                timeout=30.0,
-            )
-
-            # Create Flask response with the proxied content
+        # For all requests, we will use a streaming connection.
+        with httpx.stream(
+            request.method,
+            target_url,
+            headers=headers,
+            content=request.get_data(),
+            timeout=30.0,
+        ) as response:
             excluded_headers = [
                 "content-encoding",
                 "content-length",
@@ -153,8 +131,7 @@ def proxy_mcp_request(subpath: str) -> Union[Response, Tuple[Response, int]]:
             headers = {
                 k: v for k, v in response.headers.items() if k.lower() not in excluded_headers
             }
-
-            return Response(response.content, response.status_code, headers)
+            return Response(stream_with_context(response.iter_bytes()), response.status_code, headers)
 
     except httpx.TimeoutException:
         return jsonify({"error": "Request to MCP server timed out"}), 504
