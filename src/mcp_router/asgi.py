@@ -55,10 +55,16 @@ def create_asgi_app():
     """Create the ASGI application with proper authentication middleware"""
     from starlette.middleware import Middleware
 
-    # Create the Starlette application with middleware properly configured
+    # Create a WSGIMiddleware-wrapped Flask app
+    wsgi_app = WSGIMiddleware(flask_app)
+    
+    # Create the Starlette application with authentication middleware
     app = Starlette(
-        middleware=[Middleware(MCPAuthMiddleware), Middleware(WSGIMiddleware, app=flask_app)]
+        middleware=[Middleware(MCPAuthMiddleware)]
     )
+
+    # Mount the Flask WSGI app at root
+    app.mount("/", wsgi_app)
 
     # Mount the FastMCP ASGI app (without authentication since middleware handles it)
     with flask_app.app_context():
