@@ -16,7 +16,14 @@ def claude_desktop_config() -> Response:
     Returns:
         JSON response with Claude Desktop configuration
     """
-    config = {"mcpServers": {"mcp-router": {"command": "mcp-router"}}}
+    config = {
+        "mcpServers": {
+            "mcp-router": {
+                "command": "python",
+                "args": ["-m", "mcp_router", "--transport", "stdio"]
+            }
+        }
+    }
 
     # Return as downloadable JSON
     response = jsonify(config)
@@ -36,7 +43,7 @@ def local_inspector_config() -> Response:
         "mcpServers": {
             "mcp-router-dev": {
                 "command": "python",
-                "args": ["-m", "mcp_router.server"],
+                "args": ["-m", "mcp_router", "--transport", "stdio"],
                 "env": {"PYTHONPATH": os.getcwd()},
             }
         }

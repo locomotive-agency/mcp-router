@@ -108,7 +108,7 @@ def login() -> Union[str, Response]:
             # Redirect to next page or index
             next_page = request.args.get("next")
             if not next_page or not next_page.startswith("/"):
-                next_page = url_for("index")
+                next_page = url_for("servers.index")
 
             flash("Logged in successfully!", "success")
             return redirect(next_page)
