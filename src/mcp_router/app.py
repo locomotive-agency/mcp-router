@@ -117,4 +117,26 @@ def utility_processor() -> Dict[str, Any]:
     }
 
 
+def run_web_ui_in_background():
+    """
+    Run the Flask web UI in a background thread.
+    This is used in STDIO mode to provide a web interface for managing
+    servers while the main thread handles the stdio transport.
+    """
+
+    def run():
+        # The database is already initialized by the main application context
+        # No need to re-initialize here
+        app.run(
+            host="0.0.0.0",  # Always bind to all interfaces in background mode
+            port=Config.FLASK_PORT,
+            debug=False,
+            use_reloader=False,
+        )
+
+    thread = Thread(target=run, daemon=True)
+    thread.start()
+    logger.info(f"Web UI is running in the background on http://127.0.0.1:{Config.FLASK_PORT}")
+
+
 # Application is run from web.py

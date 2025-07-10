@@ -1,1 +1,1 @@
-"""Tests for MCP Router""" 
+"""Tests for MCP Router"""

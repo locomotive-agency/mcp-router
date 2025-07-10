@@ -1,49 +1,98 @@
 <div class="bg-white rounded-lg shadow-md p-4">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between mb-4">
         <div>
             <h3 class="text-lg font-semibold">MCP Server Status</h3>
             <div class="mt-2 flex items-center space-x-4">
-                {% if status.status == 'running' %}
-                    <span class="flex items-center">
-                        <span class="h-3 w-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                        <span class="text-green-600 font-medium">Running</span>
-                    </span>
-                    <span class="text-gray-600">Transport: {{ status.transport }}</span>
-                    {% if status.pid == -1 %}
-                        <span class="text-blue-600">Mode: Mounted</span>
-                    {% elif status.pid %}
-                        <span class="text-gray-600">PID: {{ status.pid }}</span>
-                    {% endif %}
-                {% elif status.status == 'crashed' %}
-                    <span class="flex items-center">
-                        <span class="h-3 w-3 bg-red-500 rounded-full mr-2"></span>
-                        <span class="text-red-600 font-medium">Crashed</span>
-                    </span>
-                    {% if status.error_message %}
-                        <span class="text-red-600 text-sm">{{ status.error_message }}</span>
-                    {% endif %}
-                {% elif status.status == 'stopped' %}
-                    <span class="flex items-center">
-                        <span class="h-3 w-3 bg-gray-400 rounded-full mr-2"></span>
-                        <span class="text-gray-600 font-medium">Stopped</span>
-                    </span>
-                {% elif status.status == 'error' %}
-                    <span class="flex items-center">
-                        <span class="h-3 w-3 bg-red-500 rounded-full mr-2"></span>
-                        <span class="text-red-600 font-medium">Error</span>
-                    </span>
-                    {% if status.error_message %}
-                        <span class="text-red-600 text-sm">{{ status.error_message }}</span>
-                    {% endif %}
-                {% endif %}
+                <span class="flex items-center">
+                    <span class="h-3 w-3 bg-green-500 rounded-full mr-2"></span>
+                    <span class="text-green-600 font-medium">Running</span>
+                </span>
+                <span class="text-gray-600">Transport: {{ status.transport|upper }}</span>
             </div>
         </div>
-        {% if status.started_at %}
-            <div class="text-sm text-gray-500">
-                Started: {{ status.started_at }}
-            </div>
-        {% endif %}
     </div>
+    
+    <!-- Connection Information -->
+    {% if status.connection_info %}
+        <div class="border-t pt-4">
+            <h4 class="text-sm font-semibold text-gray-700 mb-3">Connection Information</h4>
+            
+            {% if status.connection_info.type == 'stdio' %}
+                <!-- STDIO Mode Information -->
+                <div class="space-y-3">
+                    <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <p class="text-sm text-green-800 mb-2">
+                            <strong>STDIO Mode Active</strong> - Ready for Claude Desktop integration
+                        </p>
+                        <div class="text-xs text-green-700">
+                            <strong>Command:</strong> <code class="bg-green-100 px-1 rounded">{{ status.connection_info.command }}</code>
+                        </div>
+                    </div>
+                    
+                    {% if status.web_ui_url %}
+                    <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800">
+                            <strong>Web UI:</strong> Available at 
+                            <a href="{{ status.web_ui_url }}" target="_blank" class="underline hover:text-blue-600">{{ status.web_ui_url }}</a>
+                        </p>
+                        <p class="text-xs text-blue-700 mt-1">{{ status.web_ui_description }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                
+            {% elif status.connection_info.type == 'http' %}
+                <!-- HTTP Mode Information -->
+                <div class="space-y-3">
+                    <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800 mb-2">
+                            <strong>HTTP Mode Active</strong> - Ready for remote access
+                        </p>
+                        <div class="text-xs text-blue-700 space-y-1">
+                            <div><strong>MCP Endpoint:</strong> 
+                                <span class="font-mono">{{ status.connection_info.mcp_endpoint }}</span>
+                                <button onclick="copyToClipboard('{{ status.connection_info.mcp_endpoint }}')" 
+                                        class="ml-2 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
+                                    Copy
+                                </button>
+                            </div>
+                            <div><strong>Web UI:</strong> 
+                                <a href="{{ status.connection_info.web_ui_url }}" target="_blank" 
+                                   class="underline hover:text-blue-600">{{ status.connection_info.web_ui_url }}</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Authentication Information -->
+                    <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                        <p class="text-sm text-gray-700 mb-2">
+                            <strong>Authentication:</strong> {{ status.connection_info.auth_type|title }}
+                        </p>
+                        
+                        {% if status.connection_info.auth_type == 'oauth' %}
+                            <div class="text-xs text-gray-600 space-y-1">
+                                <div>OAuth 2.1 with PKCE enabled</div>
+                                <div><strong>Discovery:</strong> <span class="font-mono">{{ status.connection_info.oauth_metadata_url }}</span></div>
+                            </div>
+                        {% elif status.connection_info.auth_type == 'api_key' %}
+                            <div class="text-xs text-gray-600">
+                                {% if status.connection_info.api_key and status.connection_info.api_key != 'auto-generated' %}
+                                    <div><strong>API Key:</strong> 
+                                        <span class="font-mono">{{ status.connection_info.api_key[:8] }}...{{ status.connection_info.api_key[-4:] }}</span>
+                                        <button onclick="copyToClipboard('{{ status.connection_info.api_key }}')" 
+                                                class="ml-2 px-2 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700">
+                                            Copy Full Key
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <div>API Key: Auto-generated on startup</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
 </div>
 
 <!-- Include status data for JavaScript to parse -->

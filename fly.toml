@@ -39,15 +39,8 @@ kill_timeout = '5s'
     hard_limit = 25
     soft_limit = 20
 
-# This service exposes the MCP server on port 8001
-[[services]]
-  protocol = "tcp"
-  internal_port = 8001
-  processes = ["app"]
-
-  [[services.ports]]
-    port = 8001
-    handlers = ["tls", "http"]
+# Note: MCP server is now mounted at /mcp on the main service (port 8000)
+# No separate service needed due to the new dual transport architecture
 
 [[vm]]
   memory = '2gb'

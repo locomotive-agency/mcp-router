@@ -46,8 +46,7 @@ test = [
 ]
 
 [project.scripts]
-mcp-router = "mcp_router.web:main"
-mcp-router-web = "mcp_router.web:main"
+mcp-router = "mcp_router.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

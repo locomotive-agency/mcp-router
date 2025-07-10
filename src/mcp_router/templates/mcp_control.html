@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}MCP Server Control{% endblock %}
+{% block title %}MCP Server Status{% endblock %}
 
 {% block content %}
 <div class="container mx-auto py-8">
-    <h1 class="text-3xl font-bold mb-8">MCP Server Control</h1>
+    <h1 class="text-3xl font-bold mb-8">MCP Server Status</h1>
     
     <!-- Status Display -->
     <div id="server-status" class="mb-8" hx-get="/api/mcp/status" hx-trigger="load, every 5s">
@@ -13,403 +13,79 @@
         </div>
     </div>
     
-    <!-- Control Panel - Only shown when server is stopped -->
-    <div id="server-config" class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-xl font-semibold mb-4">Server Configuration</h2>
+    <!-- Information Panel -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-xl font-semibold mb-4">About Transport Modes</h2>
         
-        <form id="server-control-form" class="space-y-4">
-            <!-- Transport Selection -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Transport Mode</label>
-                <select id="transport" name="transport" class="w-full rounded-md border-gray-300 shadow-sm">
-                    <option value="stdio" {% if current_transport == 'stdio' %}selected{% endif %}>STDIO (Local Claude Desktop)</option>
-                    <option value="http">HTTP (Proxied via this UI)</option>
-                </select>
-            </div>
-            
-            <!-- HTTP Options -->
-            <div id="httpOptions" class="mt-4 space-y-4 {% if current_transport == 'stdio' %}hidden{% endif %}">
-                <!-- Authentication Mode -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Authentication Mode</label>
-                    <div class="space-y-2">
-                        <label class="flex items-center">
-                            <input type="radio" name="auth_mode" value="api_key" checked class="mr-2" onchange="updateAuthOptions()">
-                            <span>API Key (Simple authentication)</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="radio" name="auth_mode" value="oauth" class="mr-2" onchange="updateAuthOptions()">
-                            <span>OAuth 2.1 (For Claude web integration)</span>
-                        </label>
-                    </div>
-                </div>
-                
-                <!-- API Key Option -->
-                <div id="apiKeyOption" class="mt-3">
-                    <label class="block text-sm font-medium text-gray-700">API Key (optional)</label>
-                    <input type="text" id="api_key" name="api_key" placeholder="Leave empty to auto-generate secure key" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                    <p class="mt-1 text-sm text-gray-500">A secure API key will be generated if not provided.</p>
-                </div>
-                
-                <!-- OAuth Information -->
-                <div id="oauthInfo" class="mt-3 hidden">
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h4 class="text-sm font-semibold text-blue-900 mb-2">OAuth 2.1 Authentication</h4>
-                        <p class="text-sm text-blue-800">
-                            When enabled, the server will provide OAuth 2.1 endpoints compatible with Claude web.
-                            Claude will handle the authentication flow automatically when you add this as a custom integration.
-                        </p>
-                        <ul class="mt-2 text-sm text-blue-700 list-disc list-inside">
-                            <li>Authorization endpoint: /oauth/authorize</li>
-                            <li>Token endpoint: /oauth/token</li>
-                            <li>JWKS endpoint: /.well-known/jwks.json</li>
-                            <li>Supports PKCE for enhanced security</li>
-                        </ul>
-                    </div>
+        <div class="grid md:grid-cols-2 gap-6">
+            <!-- STDIO Mode Information -->
+            <div class="p-4 border border-gray-200 rounded-lg">
+                <h3 class="text-lg font-semibold text-green-600 mb-2">
+                    <svg class="inline w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    STDIO Mode
+                </h3>
+                <p class="text-sm text-gray-600 mb-3">
+                    Optimized for local development with Claude Desktop. The MCP server runs via stdio transport 
+                    while this web UI operates in the background for server management.
+                </p>
+                <div class="text-xs text-gray-500">
+                    <strong>Best for:</strong> Local development, Claude Desktop integration<br>
+                    <strong>Command:</strong> <code class="bg-gray-100 px-1 rounded">python -m mcp_router --transport stdio</code>
                 </div>
             </div>
             
-            <!-- Start Button - Only shown when stopped -->
-            <div id="start-button-container" class="pt-4">
-                <button type="button" 
-                        id="start-btn"
-                        onclick="startServer()"
-                        class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
-                    <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+            <!-- HTTP Mode Information -->
+            <div class="p-4 border border-gray-200 rounded-lg">
+                <h3 class="text-lg font-semibold text-blue-600 mb-2">
+                    <svg class="inline w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                     </svg>
-                    <span id="start-btn-text">Start Server</span>
-                </button>
-            </div>
-        </form>
-    </div>
-    
-    <!-- Connection Info - Only shown when server is running -->
-    <div id="connection-info" class="hidden">
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 class="text-lg font-semibold mb-2">Connection Information</h3>
-            <div id="connection-details" class="font-mono text-sm">
-                <!-- Populated by JavaScript -->
-            </div>
-            <div class="mt-4">
-                <button type="button" 
-                        id="stop-btn"
-                        onclick="stopServer()"
-                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
-                    <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
-                    </svg>
-                    <span id="stop-btn-text">Stop Server</span>
-                </button>
+                    HTTP Mode
+                </h3>
+                <p class="text-sm text-gray-600 mb-3">
+                    Production-ready mode for remote access. Provides a unified HTTP server with both 
+                    the MCP endpoint and web UI on a single port with OAuth 2.1 or API key authentication.
+                </p>
+                <div class="text-xs text-gray-500">
+                    <strong>Best for:</strong> Production deployment, remote access, Claude Web<br>
+                    <strong>Command:</strong> <code class="bg-gray-100 px-1 rounded">python -m mcp_router --transport http</code>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <!-- Log Viewer - Only shown when server is running -->
-    <div id="log-viewer" class="hidden mt-8">
-        <div class="bg-gray-900 rounded-lg shadow-md p-4">
-            <h3 class="text-lg font-semibold text-white mb-2">Server Logs</h3>
-            <div id="log-content" class="bg-black rounded p-3 font-mono text-xs text-gray-300 h-64 overflow-y-auto">
-                <div class="text-gray-500">No logs available yet...</div>
-            </div>
+        
+        <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 class="text-sm font-semibold text-blue-900 mb-2">Transport Selection</h4>
+            <p class="text-sm text-blue-800">
+                The transport mode is determined at startup via the <code>--transport</code> flag or 
+                <code>MCP_TRANSPORT</code> environment variable. This provides a clean separation between 
+                local development and production deployment modes.
+            </p>
         </div>
     </div>
 </div>
 
 <script>
-// Store the current server status globally
+// Store current status for comparison
 let currentServerStatus = null;
-// Store form state to prevent resets
-let formState = {
-    transport: 'stdio',
-    api_key: ''
-};
 
-// Save form state
-function saveFormState() {
-    formState.transport = document.getElementById('transport').value;
-    formState.api_key = document.getElementById('api_key').value;
-}
-
-// Restore form state
-function restoreFormState() {
-    document.getElementById('transport').value = formState.transport;
-    document.getElementById('api_key').value = formState.api_key;
-    updateTransportOptions();
-}
-
-// Update form based on transport selection
-function updateTransportOptions() {
-    const transport = document.getElementById('transport').value;
-    const httpOptions = document.getElementById('httpOptions');
-    
-    if (transport === 'stdio') {
-        httpOptions.classList.add('hidden');
-    } else {
-        httpOptions.classList.remove('hidden');
-    }
-}
-
-// Update authentication options based on selection
-function updateAuthOptions() {
-    const authMode = document.querySelector('input[name="auth_mode"]:checked').value;
-    const apiKeyOption = document.getElementById('apiKeyOption');
-    const oauthInfo = document.getElementById('oauthInfo');
-    
-    if (authMode === 'oauth') {
-        apiKeyOption.classList.add('hidden');
-        oauthInfo.classList.remove('hidden');
-    } else {
-        apiKeyOption.classList.remove('hidden');
-        oauthInfo.classList.add('hidden');
-    }
-}
-
-// Start the server
-async function startServer() {
-    const startBtn = document.getElementById('start-btn');
-    const originalContent = startBtn.innerHTML;
-    
-    // Show loading state
-    startBtn.disabled = true;
-    startBtn.innerHTML = `
-        <svg class="inline w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <span>Starting Server...</span>
-    `;
-    
-    const transport = document.getElementById('transport').value;
-    const data = { transport };
-    
-    if (transport === 'http') {
-        const authMode = document.querySelector('input[name="auth_mode"]:checked').value;
-        data.auth_mode = authMode;
-        
-        if (authMode === 'api_key') {
-            const apiKey = document.getElementById('api_key').value;
-            if (apiKey) {
-                data.api_key = apiKey;
+// Handle status updates via htmx
+document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.id === 'server-status') {
+        // Extract status data from the response
+        const scriptTag = event.detail.target.querySelector('script[type="application/json"]');
+        if (scriptTag) {
+            try {
+                const status = JSON.parse(scriptTag.textContent);
+                currentServerStatus = status;
+            } catch (e) {
+                console.error('Failed to parse status data:', e);
             }
         }
     }
-    
-    try {
-        const response = await fetch('/api/mcp/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        
-        if (result.status === 'success') {
-            // Refresh status immediately
-            htmx.trigger('#server-status', 'load');
-            // Start fetching logs if server started
-            startLogFetching();
-        } else {
-            alert('Failed to start server: ' + result.message);
-            // Restore button
-            startBtn.innerHTML = originalContent;
-            startBtn.disabled = false;
-        }
-    } catch (error) {
-        alert('Error starting server: ' + error.message);
-        // Restore button
-        startBtn.innerHTML = originalContent;
-        startBtn.disabled = false;
-    }
-}
-
-// Stop the server
-async function stopServer() {
-    const stopBtn = document.getElementById('stop-btn');
-    const originalContent = stopBtn.innerHTML;
-    
-    // Show loading state
-    stopBtn.disabled = true;
-    stopBtn.innerHTML = `
-        <svg class="inline w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <span>Stopping Server...</span>
-    `;
-    
-    try {
-        const response = await fetch('/api/mcp/stop', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token() }}'
-            }
-        });
-        
-        const result = await response.json();
-        
-        if (result.status === 'success') {
-            // Refresh status immediately
-            htmx.trigger('#server-status', 'load');
-            // Stop fetching logs
-            stopLogFetching();
-        } else {
-            alert('Failed to stop server: ' + result.message);
-            // Restore button
-            stopBtn.innerHTML = originalContent;
-            stopBtn.disabled = false;
-        }
-    } catch (error) {
-        alert('Error stopping server: ' + error.message);
-        // Restore button
-        stopBtn.innerHTML = originalContent;
-        stopBtn.disabled = false;
-    }
-}
-
-// Show connection information
-function showConnectionInfo(info) {
-    const connectionDetails = document.getElementById('connection-details');
-    
-    let html = '';
-    if (info.type === 'stdio') {
-        // Get the current host from window location for dynamic instructions
-        const currentHost = window.location.hostname;
-        const isLocal = currentHost === 'localhost' || currentHost === '127.0.0.1';
-        
-        if (isLocal) {
-            html = `
-                <div class="p-4 bg-gray-50 rounded-lg space-y-4">
-                    <p class="text-sm text-gray-600 mb-2">Connect via Claude Desktop with one of these configurations:</p>
-                    
-                    <div>
-                        <p class="text-sm font-semibold text-gray-700 mb-1">Option 1: Direct Python (Development)</p>
-                        <pre class="bg-gray-800 text-gray-100 p-3 rounded overflow-x-auto text-xs">{
-    "mcpServers": {
-        "mcp-router": {
-            "command": "python",
-            "args": ["-m", "mcp_router"],
-            "env": {
-                "MCP_TRANSPORT": "stdio"
-            }
-        }
-    }
-}</pre>
-                    </div>
-                    
-                    <div>
-                        <p class="text-sm font-semibold text-gray-700 mb-1">Option 2: Docker (Production)</p>
-                        <pre class="bg-gray-800 text-gray-100 p-3 rounded overflow-x-auto text-xs">{
-    "mcpServers": {
-        "mcp-router": {
-            "command": "docker",
-            "args": ["run", "-i", "--rm", "-v", "/var/run/docker.sock:/var/run/docker.sock", "mcp-router"],
-            "env": {
-                "MCP_TRANSPORT": "stdio"
-            }
-        }
-    }
-}</pre>
-                    </div>
-                </div>
-            `;
-        } else {
-            html = `
-                <div class="p-4 bg-gray-50 rounded-lg">
-                    <p class="text-sm text-gray-600 mb-2">STDIO mode is only available for local Claude Desktop connections.</p>
-                    <p class="text-sm text-gray-600">For remote access, please use HTTP transport mode instead.</p>
-                </div>
-            `;
-        }
-    } else if (info.type === 'http') {
-        const publicUrl = window.location.origin + (info.path || '/mcp/').replace(/\/$/, '') + '/';
-        
-        if (info.auth_type === 'oauth') {
-            // OAuth mode display
-            html = `
-                <div class="space-y-4">
-                    <div>
-                        <p class="text-sm font-medium text-gray-700">MCP Server URL (For Claude Web Integration):</p>
-                        <div class="flex items-center mt-1">
-                            <input type="text" readonly value="${publicUrl}" 
-                                   class="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm font-mono"
-                                   onclick="this.select()">
-                            <button onclick="copyToClipboard('${publicUrl}')" 
-                                    class="ml-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
-                                Copy
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="p-4 bg-blue-50 rounded-lg">
-                        <h4 class="text-sm font-semibold text-blue-900 mb-2">Claude Web Integration Instructions:</h4>
-                        <ol class="text-sm text-blue-800 list-decimal list-inside space-y-1">
-                            <li>Go to Claude Web Settings > Integrations</li>
-                            <li>Click "Add custom integration"</li>
-                            <li>Paste the URL above</li>
-                            <li>Claude will automatically discover OAuth endpoints</li>
-                            <li>Click "Connect" and complete the authorization</li>
-                        </ol>
-                    </div>
-                    
-                    <div class="p-3 bg-gray-50 rounded-md">
-                        <p class="text-xs text-gray-600">
-                            <strong>OAuth Endpoints:</strong><br>
-                            • Discovery: ${window.location.origin}/.well-known/oauth-authorization-server<br>
-                            • Authorization: ${window.location.origin}/oauth/authorize<br>
-                            • Token: ${window.location.origin}/oauth/token<br>
-                            • JWKS: ${window.location.origin}/.well-known/jwks.json
-                        </p>
-                    </div>
-                </div>
-            `;
-        } else {
-            // API key mode display
-            html = `
-                <div class="space-y-3">
-                    <div>
-                        <p class="text-sm font-medium text-gray-700">MCP Endpoint URL:</p>
-                        <div class="flex items-center mt-1">
-                            <input type="text" readonly value="${publicUrl}" 
-                                   class="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm font-mono"
-                                   onclick="this.select()">
-                            <button onclick="copyToClipboard('${publicUrl}')" 
-                                    class="ml-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
-                                Copy
-                            </button>
-                        </div>
-                    </div>
-                    ${info.api_key ? `
-                    <div>
-                        <p class="text-sm font-medium text-gray-700">API Key:</p>
-                        <div class="flex items-center mt-1">
-                            <input type="text" readonly value="${info.api_key}" 
-                                   class="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm font-mono"
-                                   onclick="this.select()">
-                            <button onclick="copyToClipboard('${info.api_key}')" 
-                                    class="ml-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
-                                Copy
-                            </button>
-                        </div>
-                    </div>
-                    ` : ''}
-                    <div class="mt-4 p-3 bg-blue-50 rounded-md">
-                        <p class="text-sm text-blue-800">
-                            This MCP server is now accessible via HTTP. Use the URL and API key above to connect from any MCP-compatible client.
-                        </p>
-                    </div>
-                </div>
-            `;
-        }
-    }
-    
-    connectionDetails.innerHTML = html;
-}
+});
 
 // Helper function to copy text to clipboard
 function copyToClipboard(text) {
@@ -428,249 +104,5 @@ function copyToClipboard(text) {
         }, 2000);
     });
 }
-
-// Log fetching
-let logInterval = null;
-let logLines = [];
-let hasInitiallyFetchedLogs = false;
-
-function startLogFetching() {
-    if (logInterval) return;
-    
-    // Fetch initial logs immediately
-    fetchLogsOnce();
-    
-    // Then fetch logs every 5 seconds
-    logInterval = setInterval(() => {
-        fetchLogsOnce();
-    }, 5000);
-}
-
-async function fetchLogsOnce() {
-    if (currentServerStatus && currentServerStatus.status === 'running' && currentServerStatus.pid) {
-        try {
-            const response = await fetch(`/api/mcp/logs?pid=${currentServerStatus.pid}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.logs) {
-                    // On first fetch, replace all logs
-                    if (!hasInitiallyFetchedLogs) {
-                        logLines = data.logs;
-                        hasInitiallyFetchedLogs = true;
-                        displayLogs();
-                    } else {
-                        // On subsequent fetches, only add new logs
-                        const existingCount = logLines.length;
-                        const newLogsCount = data.logs.length;
-                        
-                        // If server restarted or logs cleared
-                        if (newLogsCount < existingCount) {
-                            logLines = data.logs;
-                        } else if (newLogsCount > existingCount) {
-                            // Add only the new logs
-                            const newLogs = data.logs.slice(existingCount);
-                            logLines = logLines.concat(newLogs);
-                            
-                            // Keep only last 100 lines
-                            if (logLines.length > 100) {
-                                logLines = logLines.slice(-100);
-                            }
-                        }
-                        displayLogs();
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Failed to fetch logs:', error);
-        }
-    }
-}
-
-function stopLogFetching() {
-    if (logInterval) {
-        clearInterval(logInterval);
-        logInterval = null;
-    }
-    // Clear logs
-    logLines = [];
-    hasInitiallyFetchedLogs = false;
-    const logContent = document.getElementById('log-content');
-    logContent.innerHTML = '<div class="text-gray-500">No logs available...</div>';
-}
-
-function displayLogs() {
-    const logContent = document.getElementById('log-content');
-    
-    // Update display
-    logContent.innerHTML = logLines.map(line => {
-        // Parse log format: [timestamp] [stream] message
-        const match = line.match(/^\[([\d\-\s:]+)\]\s*\[(\w+)\]\s*(.*)$/);
-        let timestamp = '';
-        let stream = '';
-        let message = line;
-        
-        if (match) {
-            timestamp = match[1];
-            stream = match[2];
-            message = match[3];
-        }
-        
-        // Color-code based on stream and content
-        let className = 'text-gray-300';
-        if (stream === 'STDERR' || message.includes('ERROR')) {
-            className = 'text-red-400';
-        } else if (message.includes('WARNING')) {
-            className = 'text-yellow-400';
-        } else if (message.includes('INFO')) {
-            className = 'text-blue-400';
-        } else if (stream === 'SYSTEM') {
-            className = 'text-purple-400';
-        }
-        
-        // Format the line with proper spacing
-        if (match) {
-            return `<div class="${className}"><span class="text-gray-500">[${timestamp}]</span> <span class="text-gray-400">[${stream}]</span> ${escapeHtml(message)}</div>`;
-        } else {
-            return `<div class="${className}">${escapeHtml(line)}</div>`;
-        }
-    }).join('');
-    
-    // Auto-scroll to bottom
-    logContent.scrollTop = logContent.scrollHeight;
-}
-
-function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-// Update UI based on server status
-function updateUIFromStatus(status) {
-    // Don't update if status hasn't actually changed (to prevent form resets)
-    if (currentServerStatus && 
-        currentServerStatus.status === status.status &&
-        currentServerStatus.pid === status.pid) {
-        return;
-    }
-    
-    currentServerStatus = status;
-    
-    const serverConfig = document.getElementById('server-config');
-    const connectionInfo = document.getElementById('connection-info');
-    const logViewer = document.getElementById('log-viewer');
-    const startBtnText = document.getElementById('start-btn-text');
-    
-    if (status.status === 'running') {
-        // Hide configuration form
-        serverConfig.classList.add('hidden');
-        
-        // Show connection info
-        connectionInfo.classList.remove('hidden');
-        
-        // Show log viewer
-        logViewer.classList.remove('hidden');
-        
-        // Reset the stop button to its normal state
-        const stopBtn = document.getElementById('stop-btn');
-        stopBtn.disabled = false;
-        stopBtn.innerHTML = `
-            <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
-            </svg>
-            <span id="stop-btn-text">Stop Server</span>
-        `;
-        
-        // Display connection information
-        if (status.connection_info) {
-            showConnectionInfo(status.connection_info);
-        }
-        
-        // Start fetching logs
-        startLogFetching();
-    } else {
-        // Show configuration form
-        serverConfig.classList.remove('hidden');
-        
-        // Hide connection info
-        connectionInfo.classList.add('hidden');
-        
-        // Hide log viewer
-        logViewer.classList.add('hidden');
-        
-        // Stop fetching logs
-        stopLogFetching();
-        
-        // Reset the start button to its original state
-        const startBtn = document.getElementById('start-btn');
-        startBtn.disabled = false;
-        
-        if (status.status === 'crashed') {
-            startBtn.innerHTML = `
-                <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <span id="start-btn-text">Restart Server</span>
-            `;
-        } else {
-            startBtn.innerHTML = `
-                <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <span id="start-btn-text">Start Server</span>
-            `;
-        }
-        
-        // Restore form state instead of resetting
-        restoreFormState();
-    }
-}
-
-// Handle status updates via htmx
-document.body.addEventListener('htmx:afterSwap', function(event) {
-    if (event.detail.target.id === 'server-status') {
-        // Extract status data from the response
-        const scriptTag = event.detail.target.querySelector('script[type="application/json"]');
-        if (scriptTag) {
-            try {
-                const status = JSON.parse(scriptTag.textContent);
-                updateUIFromStatus(status);
-            } catch (e) {
-                console.error('Failed to parse status data:', e);
-            }
-        }
-    }
-});
-
-// Save form state on any input change
-document.addEventListener('DOMContentLoaded', function() {
-    // Add event listener for transport change
-    const transportSelect = document.getElementById('transport');
-    const httpOptions = document.getElementById('httpOptions');
-    
-    transportSelect.addEventListener('change', function() {
-        if (this.value === 'stdio') {
-            httpOptions.classList.add('hidden');
-        } else {
-            httpOptions.classList.remove('hidden');
-        }
-        saveFormState();
-    });
-    
-    // Add event listeners to save form state
-    ['transport', 'api_key'].forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.addEventListener('change', saveFormState);
-            element.addEventListener('input', saveFormState);
-        }
-    });
-});
 </script>
 {% endblock %} 

@@ -1,18 +1,18 @@
 # MCP Router
 
-A unified gateway for Model Context Protocol (MCP) servers with web management, intelligent routing, and sandboxed execution.
+A unified gateway for Model Context Protocol (MCP) servers with dual transport support, web management, intelligent routing, and sandboxed execution.
 
 ![MCP Router Demo](assets/intro.gif)
-
 
 ## What It Does
 
 MCP Router provides:
-- **Single gateway** for multiple MCP servers (no more juggling configs)
-- **Web UI** for server management with real-time control
-- **Smart routing** with hierarchical tool discovery (prevents LLM overload)
-- **Sandboxed execution** via Docker for any language
-- **Remote access** with HTTP transport and OAuth/API key authentication
+- **Dual Transport Architecture**: Both HTTP (remote/production) and STDIO (local development) modes from a single application
+- **Single Gateway**: Unified access to multiple MCP servers (no more juggling configs)
+- **Web UI**: Server management with real-time status and configuration
+- **Smart Routing**: Hierarchical tool discovery (prevents LLM tool overload)
+- **Sandboxed Execution**: Docker-based Python sandbox and containerized MCP servers
+- **Production Ready**: OAuth 2.1 and API key authentication for remote access
 
 ## Quick Deploy to Fly.io
 
@@ -38,18 +38,22 @@ fly deploy
 git clone https://github.com/locomotive-agency/mcp-router.git
 cd mcp-router
 
-# Quick setup (assumes Docker installed)
-chmod +x setup-deploy.sh
-./setup-deploy.sh
+# Install dependencies
+pip install -r requirements.txt
 
 # Configure environment
 cp env.example .env
 nano .env  # Add ANTHROPIC_API_KEY and ADMIN_PASSCODE
 
-# Run locally
-python -m mcp_router.web
+# HTTP Mode (Production-like, single port)
+python -m mcp_router --transport http
+# Access web UI: http://localhost:8000
+# MCP endpoint: http://localhost:8000/mcp/
 
-# Access at http://localhost:8000
+# STDIO Mode (Local development, background web UI)
+python -m mcp_router --transport stdio
+# Access web UI: http://localhost:8000 (background)
+# Connect via Claude Desktop (stdio)
 ```
 
 ## Configuration
@@ -61,19 +65,30 @@ python -m mcp_router.web
 ADMIN_PASSCODE=your-secure-passcode    # Web UI authentication
 ANTHROPIC_API_KEY=sk-ant-...          # For GitHub repo analysis
 
-# Transport (configured via UI)
-MCP_TRANSPORT=http                     # stdio or http
-MCP_API_KEY=auto-generated             # For HTTP auth
-MCP_OAUTH_ENABLED=true                 # Enable OAuth support
+# Transport Mode (can be overridden with --transport flag)
+MCP_TRANSPORT=http                     # "stdio" or "http" (default: http)
+
+# Authentication (HTTP Mode)
+MCP_API_KEY=auto-generated             # API key for HTTP mode authentication
+MCP_OAUTH_ENABLED=true                 # Enable OAuth 2.1 support
+
+# OAuth Settings (when enabled)
+OAUTH_ISSUER=""                        # JWT issuer (auto-detected if blank)
+OAUTH_AUDIENCE=mcp-server              # OAuth audience identifier
+OAUTH_TOKEN_EXPIRY=3600                # Token lifetime in seconds
+
+# Server Configuration
+FLASK_PORT=8000                        # Application port
+MCP_PATH=/mcp                          # MCP endpoint path (HTTP mode)
 ```
 
-### Fly.io Specific
+### Fly.io Deployment
 
 Your `fly.toml` configures:
-- Web UI on port 443 (HTTPS)
-- MCP server on port 8001
-- Persistent volume at `/data` for SQLite
-- Auto-generated environment variables
+- Single service on port 8000 serving both Web UI and MCP endpoints
+- HTTPS termination at the edge
+- Persistent volume at `/data` for SQLite database
+- Automatic HTTP mode startup via `python -m mcp_router`
 
 ## Usage
 
@@ -87,24 +102,32 @@ Via Web UI:
 
 ### 2. Connect Your Client
 
-**Claude Desktop (stdio mode):**
+**STDIO Mode (Local Development):**
+
+First, start MCP Router in STDIO mode:
+```bash
+python -m mcp_router --transport stdio
+# Web UI available at http://localhost:8000 for management
+```
+
+Then configure Claude Desktop:
 ```json
 {
   "mcpServers": {
-    "mcp-router": {
+    "mcp-router-local": {
       "command": "python",
-      "args": ["-m", "mcp_router.server"]
+      "args": ["-m", "mcp_router", "--transport", "stdio"]
     }
   }
 }
 ```
 
-**Remote Access (HTTP mode):**
+**HTTP Mode (Remote/Production):**
 ```python
 from fastmcp import Client
 from fastmcp.client.auth import BearerAuth
 
-# For deployed instance
+# For deployed instance with API key
 async with Client(
     "https://your-app.fly.dev/mcp/",
     auth=BearerAuth(token="your-api-key")
@@ -112,7 +135,7 @@ async with Client(
     # List available servers
     providers = await client.call_tool("list_providers")
     
-    # Use a specific server's tools
+    # Use hierarchical tool discovery
     result = await client.call_tool(
         "search_code",
         provider="github-mcp-server",
@@ -129,22 +152,33 @@ For OAuth-enabled providers:
 
 ## Architecture
 
+### Dual Transport Design
+
 ```
-┌─────────────┐     ┌─────────────┐
-│   Claude    │     │  Your App   │
-│  (stdio)    │     │   (HTTP)    │
-└──────┬──────┘     └──────┬──────┘
-       │                   │
-       └────────┬──────────┘
-                │
-         MCP Router
-                │
-    ┌───────────┼───────────┐
-    │           │           │
-┌───▼────┐  ┌───▼────┐ ┌────▼────┐
-│  NPX   │  │  UVX   │ │ Docker  │
-│Servers │  │Servers │ │ Custom  │
-└────────┘  └────────┘ └─────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    MCP Router Core Logic                        │
+│  ┌─────────────┐ ┌──────────────┐ ┌──────────────────────────┐  │
+│  │ SQLite DB   │ │ Router       │ │ Container Manager        │  │
+│  │ (Servers)   │ │ Factory      │ │ (Docker)                 │  │
+│  └─────────────┘ └──────────────┘ └──────────────────────────┘  │
+└──────────────────────┬──────────────────────┬───────────────────┘
+                       │                      │
+        ┌──────────────▼──────────────┐      ┌▼──────────────────────┐
+        │    HTTP Mode (Production)   │      │ STDIO Mode (Local Dev)│
+        │                             │      │                       │
+        │ ┌─────────────────────────┐ │      │ ┌───────────────────┐ │
+        │ │ Starlette ASGI:         │ │      │ │ FastMCP stdio     │ │
+        │ │ - Flask UI at /         │ │      │ │ (Main Thread)     │ │
+        │ │ - FastMCP at /mcp       │ │      │ └───────────────────┘ │
+        │ │ - Single Port 8000      │ │      │ ┌───────────────────┐ │
+        │ └─────────────────────────┘ │      │ │ Flask UI          │ │
+        │                             │      │ │ (Background)      │ │
+        └─────────────┬───────────────┘      └───────┬───────────────┘
+                      │                              │
+        ┌─────────────▼───────────────┐    ┌─────────▼─────────────┐
+        │   Web Browser/Claude Web    │    │    Claude Desktop     │
+        │   (OAuth/API Key Auth)      │    │    (No Auth)          │
+        └─────────────────────────────┘    └───────────────────────┘
 ```
 
 ### Hierarchical Tool Discovery
