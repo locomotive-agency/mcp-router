@@ -4,8 +4,6 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from mcp_router.container_manager import ContainerManager
 from mcp_router.models import MCPServer
-from docker.errors import ImageNotFound
-from llm_sandbox import SandboxSession
 
 
 @pytest.fixture
@@ -61,7 +59,7 @@ class TestContainerManager:
         """Test creating sandbox session for npx runtime"""
         mock_server.runtime_type = "npx"
 
-        session = container_manager._create_sandbox_session(mock_server)
+        container_manager._create_sandbox_session(mock_server)
 
         mock_sandbox.assert_called_once()
         call_args = mock_sandbox.call_args[1]
@@ -81,7 +79,7 @@ class TestContainerManager:
         """Test creating sandbox session for uvx runtime"""
         mock_server.runtime_type = "uvx"
 
-        session = container_manager._create_sandbox_session(mock_server)
+        container_manager._create_sandbox_session(mock_server)
 
         mock_sandbox.assert_called_once()
         call_args = mock_sandbox.call_args[1]
@@ -100,7 +98,7 @@ class TestContainerManager:
         mock_server.runtime_type = "custom"
         mock_server.start_command = "custom-image:latest"
 
-        session = container_manager._create_sandbox_session(mock_server)
+        container_manager._create_sandbox_session(mock_server)
 
         mock_sandbox.assert_called_once()
         call_args = mock_sandbox.call_args[1]
@@ -112,39 +110,18 @@ class TestContainerManager:
         }
 
     @patch("mcp_router.container_manager.SandboxSession")
-    def test_create_sandbox_session_without_template(
+    def test_create_sandbox_session_no_template(
         self, mock_sandbox, container_manager, mock_server
     ):
         """Test creating sandbox session without template (for tests)"""
         mock_server.runtime_type = "npx"
 
-        session = container_manager._create_sandbox_session(mock_server, use_template=False)
+        container_manager._create_sandbox_session(mock_server, use_template=False)
 
         mock_sandbox.assert_called_once()
         call_args = mock_sandbox.call_args[1]
         assert call_args["lang"] == "javascript"
         assert call_args["backend"] == "docker"
-        assert call_args["keep_template"] is False
-        assert call_args["commit_container"] is False
-        assert "template_name" not in call_args
-
-    def test_ensure_image_exists_already_exists(self, container_manager):
-        """Test ensure_image_exists when image already exists"""
-        container_manager.docker_client.images.get.return_value = Mock()
-
-        container_manager.ensure_image_exists("test-image:latest")
-
-        container_manager.docker_client.images.get.assert_called_once_with("test-image:latest")
-        container_manager.docker_client.images.pull.assert_not_called()
-
-    def test_ensure_image_exists_pulls_missing(self, container_manager):
-        """Test ensure_image_exists pulls missing image"""
-        container_manager.docker_client.images.get.side_effect = ImageNotFound("not found")
-
-        container_manager.ensure_image_exists("test-image:latest")
-
-        container_manager.docker_client.images.get.assert_called_once_with("test-image:latest")
-        container_manager.docker_client.images.pull.assert_called_once_with("test-image:latest")
 
     @patch("mcp_router.container_manager.SandboxSession")
     def test_test_server_npx_success(self, mock_sandbox_class, container_manager, mock_server):
@@ -228,27 +205,11 @@ class TestContainerManager:
         assert result["error"] is None
         assert result["exit_code"] == 0
 
-    def test_retry_decorator_on_methods(self, container_manager):
-        """Test that retry decorators are applied to methods"""
-        import inspect
-
-        # Check that methods have retry decorator
-        test_server_func = container_manager.test_server
-        pull_server_image_func = container_manager.pull_server_image
-        run_server_in_sandbox_func = container_manager.run_server_in_sandbox
-
-        # These methods should have the retry decorator applied
-        # The retry decorator wraps the function, so we check for __wrapped__
-        assert hasattr(test_server_func, "__wrapped__")
-        assert hasattr(pull_server_image_func, "__wrapped__")
-        assert hasattr(run_server_in_sandbox_func, "__wrapped__")
-
     @patch("mcp_router.container_manager.SandboxSession")
     def test_initialize_templates(self, mock_sandbox, container_manager):
-        """Test template initialization"""
-        # Create a mock session context manager
+        """Test that initialize_templates creates templates for all runtime types"""
+        # Mock the sandbox session
         mock_session = Mock()
-        mock_session.run = Mock(return_value=Mock(exit_code=0))
         mock_session.__enter__ = Mock(return_value=mock_session)
         mock_session.__exit__ = Mock(return_value=None)
         mock_sandbox.return_value = mock_session

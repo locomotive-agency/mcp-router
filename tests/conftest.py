@@ -46,6 +46,23 @@ def authenticated_client(client):
         yield client
 
 
+@pytest.fixture(scope="function")
+def user():
+    """Create a test user object for authentication tests."""
+
+    class TestUser:
+        def __init__(self):
+            self.id = 1
+            self.is_authenticated = True
+            self.is_active = True
+            self.is_anonymous = False
+
+        def get_id(self):
+            return str(self.id)
+
+    return TestUser()
+
+
 @pytest.fixture(autouse=True)
 def clean_db(app):
     """Fixture to ensure the database is clean before each test."""

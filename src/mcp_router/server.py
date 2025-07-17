@@ -93,7 +93,7 @@ def create_router(
             name="MCP-Router",
             auth=auth,
             instructions="""This router provides access to multiple MCP servers and a Python sandbox.
-        
+
 Use 'list_providers' to see available servers, then use tools/list with a provider parameter.
 
 Example workflow:
@@ -108,7 +108,7 @@ Example workflow:
             name="MCP-Router",
             auth=auth,
             instructions="""This is the MCP Router. Currently no MCP servers are configured.
-            
+
 You can still use the Python sandbox tool to execute Python code.
 To add MCP servers, use the web interface to configure and activate servers.
 """,
@@ -232,41 +232,31 @@ def create_api_key_auth_provider():
     return validate_api_key
 
 
-def get_mcp_app():
-    """Create and return the FastMCP ASGI application with proper authentication.
+def get_http_app():
+    """
+    Configure and retrieve the MCP ASGI application.
 
-    This is the critical integration point that creates the FastMCP ASGI app
-    with the correct authentication middleware configured based on Config.MCP_OAUTH_ENABLED.
+    Args:
+        router (FastMCP): The FastMCP router instance.
 
     Returns:
-        FastMCP ASGI application ready for HTTP transport
+        Callable: The MCP ASGI application.
     """
+    log.info("Configuring MCP ASGI app...")
+
     # Fetch active servers from the database
     with app.app_context():
         active_servers = get_active_servers()
-        log.info(f"Creating MCP app with {len(active_servers)} active servers")
+        log.info(f"Loaded {len(active_servers)} active servers from database")
 
-    # Configure authentication based on settings
-    if Config.MCP_OAUTH_ENABLED:
-        from mcp_router.mcp_oauth import create_bearer_auth_provider
+    # Create the router
+    router = create_router(active_servers)
 
-        create_bearer_auth_provider()
-        log.info("MCP app configured with OAuth bearer authentication")
-    elif Config.MCP_API_KEY:
-        create_api_key_auth_provider()
-        log.info("MCP app configured with API key bearer authentication")
-    else:
-        log.info("MCP app configured without authentication")
+    log.info("MCP ASGI app configured.")
 
-    # Create the router with appropriate authentication
-    # For now, we create without auth since our auth providers are for proxy layer
-    router = create_router(servers=active_servers)
-
-    # Note: FastMCP authentication would be configured here if we adapt our auth providers
-    # to the FastMCP BearerAuthProvider interface. For now, authentication is handled
-    # at the ASGI level through our custom auth providers.
-
-    return router
+    # Since this app is already mounted at /mcp in the ASGI configuration,
+    # we use the root path "/" to avoid double-mounting (which would cause /mcp/mcp)
+    return router.http_app(path="/")
 
 
 def run_stdio_mode():

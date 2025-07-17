@@ -1,7 +1,7 @@
 """Tests for HTTP mode functionality."""
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from mcp_router.__main__ import run_http_mode
 
 

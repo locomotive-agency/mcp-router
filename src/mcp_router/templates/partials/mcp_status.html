@@ -3,10 +3,10 @@
         <div>
             <h3 class="text-lg font-semibold">MCP Server Status</h3>
             <div class="mt-2 flex items-center space-x-4">
-                <span class="flex items-center">
+                    <span class="flex items-center">
                     <span class="h-3 w-3 bg-green-500 rounded-full mr-2"></span>
-                    <span class="text-green-600 font-medium">Running</span>
-                </span>
+                        <span class="text-green-600 font-medium">Running</span>
+                    </span>
                 <span class="text-gray-600">Transport: {{ status.transport|upper }}</span>
             </div>
         </div>
@@ -29,15 +29,23 @@
                         </div>
                     </div>
                     
-                    {% if status.web_ui_url %}
                     <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p class="text-sm text-blue-800">
-                            <strong>Web UI:</strong> Available at 
-                            <a href="{{ status.web_ui_url }}" target="_blank" class="underline hover:text-blue-600">{{ status.web_ui_url }}</a>
+                        <p class="text-sm text-blue-800 mb-2">
+                            <strong>Claude Desktop Configuration</strong>
                         </p>
-                        <p class="text-xs text-blue-700 mt-1">{{ status.web_ui_description }}</p>
+                        <div class="text-xs text-blue-700 space-y-1">
+                            <div>{{ status.connection_info.config_description }}</div>
+                            <div>
+                                <a href="{{ status.connection_info.config_download_url }}" 
+                                   class="inline-flex items-center px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    Download config.json
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                    {% endif %}
                 </div>
                 
             {% elif status.connection_info.type == 'http' %}
@@ -55,27 +63,57 @@
                                     Copy
                                 </button>
                             </div>
-                            <div><strong>Web UI:</strong> 
-                                <a href="{{ status.connection_info.web_ui_url }}" target="_blank" 
-                                   class="underline hover:text-blue-600">{{ status.connection_info.web_ui_url }}</a>
-                            </div>
+                            <div class="text-gray-600"><strong>Path:</strong> {{ status.connection_info.path }}</div>
                         </div>
                     </div>
                     
-                    <!-- Authentication Information -->
+                    <!-- Authentication Information with Toggle -->
                     <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                        <p class="text-sm text-gray-700 mb-2">
-                            <strong>Authentication:</strong> {{ status.connection_info.auth_type|title }}
-                        </p>
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-sm text-gray-700">
+                                <strong>Authentication:</strong> {{ status.connection_info.primary_auth }}
+                            </p>
+                            
+                            <!-- Auth Type Toggle Switch -->
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs text-gray-600">API Key</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" 
+                                           class="sr-only peer" 
+                                           {% if status.connection_info.auth_type == 'oauth' %}checked{% endif %}
+                                           hx-post="/api/mcp/auth-type"
+                                           hx-target="#mcp-status"
+                                           hx-vals='{"auth_type": "{{ 'api_key' if status.connection_info.auth_type == 'oauth' else 'oauth' }}"}'
+                                           hx-trigger="change">
+                                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                                <span class="text-xs text-gray-600">OAuth</span>
+                            </div>
+                        </div>
                         
                         {% if status.connection_info.auth_type == 'oauth' %}
+                            <!-- OAuth Mode Details -->
                             <div class="text-xs text-gray-600 space-y-1">
-                                <div>OAuth 2.1 with PKCE enabled</div>
-                                <div><strong>Discovery:</strong> <span class="font-mono">{{ status.connection_info.oauth_metadata_url }}</span></div>
+                                <div><strong>Current:</strong> OAuth 2.1 with PKCE enabled</div>
+                                <div><strong>Discovery:</strong> 
+                                    <span class="font-mono">{{ status.connection_info.oauth_metadata_url }}</span>
+                                    <button onclick="copyToClipboard('{{ status.connection_info.oauth_metadata_url }}')" 
+                                            class="ml-2 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
+                                        Copy
+                                    </button>
+                                </div>
+                                {% if status.connection_info.api_key_available %}
+                                <div class="mt-2 pt-2 border-t border-gray-300 text-blue-600">
+                                    <div><strong>Also Available:</strong> API Key authentication</div>
+                                    <div>Toggle switch above to change authentication method</div>
+                                </div>
+                                {% endif %}
                             </div>
-                        {% elif status.connection_info.auth_type == 'api_key' %}
-                            <div class="text-xs text-gray-600">
+                        {% else %}
+                            <!-- API Key Mode Details -->
+                            <div class="text-xs text-gray-600 space-y-1">
                                 {% if status.connection_info.api_key and status.connection_info.api_key != 'auto-generated' %}
+                                    <div><strong>Current:</strong> API Key authentication</div>
                                     <div><strong>API Key:</strong> 
                                         <span class="font-mono">{{ status.connection_info.api_key[:8] }}...{{ status.connection_info.api_key[-4:] }}</span>
                                         <button onclick="copyToClipboard('{{ status.connection_info.api_key }}')" 
@@ -84,11 +122,21 @@
                                         </button>
                                     </div>
                                 {% else %}
-                                    <div>API Key: Auto-generated on startup</div>
+                                    <div><strong>Current:</strong> API Key (auto-generated on startup)</div>
                                 {% endif %}
-                            </div>
-                        {% endif %}
-                    </div>
+                                
+                                {% if status.connection_info.oauth_available %}
+                                <div class="mt-2 pt-2 border-t border-gray-300 text-blue-600">
+                                    <div><strong>Also Available:</strong> OAuth 2.1 with PKCE</div>
+                                    <div><strong>Discovery:</strong> <span class="font-mono text-xs">{{ status.connection_info.oauth_metadata_url }}</span></div>
+                                    {% if status.connection_info.oauth_hint %}
+                                    <div class="text-xs mt-1">{{ status.connection_info.oauth_hint }}</div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+            </div>
+        {% endif %}
+    </div>
                 </div>
             {% endif %}
         </div>

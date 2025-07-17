@@ -32,21 +32,24 @@ class TestMCPServerManager:
             conn_info = status["connection_info"]
             assert conn_info["type"] == "stdio"
             assert conn_info["command"] == "python -m mcp_router --transport stdio"
-            assert "stdio transport" in conn_info["description"]
+            assert "Connect via Claude Desktop" in conn_info["description"]
 
-            # Check web UI info
-            assert status["web_ui_url"] == "http://127.0.0.1:8000"
-            assert "background" in status["web_ui_description"]
+            # Check configuration download info
+            assert "config_download_url" in conn_info
+            assert "config_description" in conn_info
 
-    def test_get_status_http_mode_with_oauth(self):
+    @patch("mcp_router.models.get_auth_type")
+    def test_get_status_http_mode_with_oauth(self, mock_get_auth_type):
         """Test get_status returns correct information for HTTP mode with OAuth"""
+        mock_get_auth_type.return_value = "oauth"
+
         with patch("mcp_router.server_manager.Config") as mock_config:
             mock_config.MCP_TRANSPORT = "http"
             mock_config.MCP_HOST = "127.0.0.1"
             mock_config.FLASK_PORT = 8000
             mock_config.MCP_PATH = "/mcp"
-            mock_config.MCP_OAUTH_ENABLED = True
-            mock_config.MCP_API_KEY = None
+            mock_config.MCP_AUTH_TYPE = "oauth"
+            mock_config.MCP_API_KEY = "test-key"
 
             manager = MCPServerManager()
             status = manager.get_status()
@@ -60,21 +63,24 @@ class TestMCPServerManager:
             conn_info = status["connection_info"]
             assert conn_info["type"] == "http"
             assert conn_info["mcp_endpoint"] == "http://127.0.0.1:8000/mcp"
-            assert conn_info["web_ui_url"] == "http://127.0.0.1:8000"
             assert conn_info["path"] == "/mcp"
 
             # Check OAuth authentication
             assert conn_info["auth_type"] == "oauth"
             assert "oauth-authorization-server" in conn_info["oauth_metadata_url"]
+            assert conn_info["api_key_available"] is True
 
-    def test_get_status_http_mode_with_api_key(self):
+    @patch("mcp_router.models.get_auth_type")
+    def test_get_status_http_mode_with_api_key(self, mock_get_auth_type):
         """Test get_status returns correct information for HTTP mode with API key"""
+        mock_get_auth_type.return_value = "api_key"
+
         with patch("mcp_router.server_manager.Config") as mock_config:
             mock_config.MCP_TRANSPORT = "http"
             mock_config.MCP_HOST = "0.0.0.0"
             mock_config.FLASK_PORT = 8001
             mock_config.MCP_PATH = "/api/mcp"
-            mock_config.MCP_OAUTH_ENABLED = False
+            mock_config.MCP_AUTH_TYPE = "api_key"
             mock_config.MCP_API_KEY = "test-api-key-123"
 
             manager = MCPServerManager()
@@ -94,15 +100,19 @@ class TestMCPServerManager:
             # Check API key authentication
             assert conn_info["auth_type"] == "api_key"
             assert conn_info["api_key"] == "test-api-key-123"
+            assert conn_info["oauth_hint"] == "Switch to OAuth for enhanced security"
 
-    def test_get_status_http_mode_auto_generated_api_key(self):
+    @patch("mcp_router.models.get_auth_type")
+    def test_get_status_http_mode_auto_generated_api_key(self, mock_get_auth_type):
         """Test get_status handles auto-generated API key case"""
+        mock_get_auth_type.return_value = "api_key"
+
         with patch("mcp_router.server_manager.Config") as mock_config:
             mock_config.MCP_TRANSPORT = "http"
             mock_config.MCP_HOST = "127.0.0.1"
             mock_config.FLASK_PORT = 8000
             mock_config.MCP_PATH = "/mcp"
-            mock_config.MCP_OAUTH_ENABLED = False
+            mock_config.MCP_AUTH_TYPE = "api_key"
             mock_config.MCP_API_KEY = None
 
             manager = MCPServerManager()

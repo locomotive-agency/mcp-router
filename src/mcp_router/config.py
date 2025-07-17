@@ -40,13 +40,15 @@ class Config:
     # MCP Server settings
     MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
     MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
-    MCP_PORT = int(os.environ.get("MCP_PORT", "8001"))
     MCP_PATH = os.environ.get("MCP_PATH", "/mcp")
     MCP_LOG_LEVEL = os.environ.get("MCP_LOG_LEVEL", "info")
     MCP_API_KEY = os.environ.get("MCP_API_KEY")
 
+    # Dynamic Authentication Type (preferred method)
+    _auth_type = os.environ.get("MCP_AUTH_TYPE", "api_key")
+    MCP_AUTH_TYPE = _auth_type if _auth_type in ("oauth", "api_key") else "api_key"
+
     # OAuth settings
-    MCP_OAUTH_ENABLED = os.environ.get("MCP_OAUTH_ENABLED", "false").lower() == "true"
     # The issuer will be dynamically set based on the request URL
     OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "")  # Empty by default, will use request URL
     OAUTH_AUDIENCE = os.environ.get("OAUTH_AUDIENCE", "mcp-server")
@@ -66,6 +68,22 @@ class Config:
 
     # Debug mode (should be False in production)
     DEBUG = os.environ.get("FLASK_DEBUG", "False").lower() in ["true", "1", "yes"]
+
+    # Validation
+    @classmethod
+    def validate(cls):
+        """Validate configuration settings"""
+        # Check if API key authentication is configured properly
+        if cls.MCP_AUTH_TYPE == "api_key" and not cls.MCP_API_KEY:
+            raise ValueError(
+                "MCP_API_KEY is required when MCP_AUTH_TYPE is set to 'api_key'. "
+                "Please set MCP_API_KEY in your environment variables."
+            )
+
+        # Check if OAuth authentication is configured properly
+        if cls.MCP_AUTH_TYPE == "oauth":
+            # OAuth doesn't require MCP_API_KEY, but we can add other OAuth validations here if needed
+            pass
 
 
 class DevelopmentConfig(Config):
@@ -102,4 +120,9 @@ config = {
 def get_config():
     """Get configuration based on environment"""
     env = os.environ.get("FLASK_ENV", "development")
-    return config.get(env, config["default"])
+    config_class = config.get(env, config["default"])
+
+    # Validate configuration
+    config_class.validate()
+
+    return config_class

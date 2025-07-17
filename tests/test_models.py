@@ -1,6 +1,5 @@
-"""Tests for the MCPServer database model"""
+"""Tests for database models"""
 
-import json
 import pytest
 from sqlalchemy.exc import IntegrityError
 from mcp_router.models import db, MCPServer

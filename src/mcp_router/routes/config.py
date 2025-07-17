@@ -20,7 +20,7 @@ def claude_desktop_config() -> Response:
         "mcpServers": {
             "mcp-router": {
                 "command": "python",
-                "args": ["-m", "mcp_router", "--transport", "stdio"]
+                "args": ["-m", "mcp_router", "--transport", "stdio"],
             }
         }
     }

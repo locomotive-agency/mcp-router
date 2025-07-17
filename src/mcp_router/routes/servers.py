@@ -34,13 +34,15 @@ def index() -> str:
     Returns:
         Rendered index template with server list
     """
+    from mcp_router.config import Config
+
     try:
         servers = MCPServer.query.filter_by(is_active=True).all()
-        return render_template("index.html", servers=servers)
+        return render_template("index.html", servers=servers, transport_mode=Config.MCP_TRANSPORT)
     except Exception as e:
         logger.error(f"Error loading servers: {e}")
         flash("Error loading servers. Please try again.", "error")
-        return render_template("index.html", servers=[])
+        return render_template("index.html", servers=[], transport_mode=Config.MCP_TRANSPORT)
 
 
 @servers_bp.route("/servers/add", methods=["GET", "POST"])

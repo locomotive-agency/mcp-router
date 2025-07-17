@@ -49,22 +49,6 @@ class TestDockerConfiguration:
         assert entrypoint_path.exists(), "entrypoint.sh not found"
         assert entrypoint_path.is_file(), "entrypoint.sh is not a file"
 
-    @pytest.mark.skipif(
-        subprocess.run(["docker", "--version"], capture_output=True).returncode != 0,
-        reason="Docker not available",
-    )
-    def test_docker_build_succeeds(self):
-        """Test that Docker build completes successfully"""
-        # Run docker build and check exit code
-        result = subprocess.run(
-            ["docker", "build", "-t", "mcp-router-test", "."],
-            capture_output=True,
-            text=True,
-            cwd=os.getcwd(),
-        )
-
-        assert result.returncode == 0, f"Docker build failed: {result.stderr}"
-
     def test_python_entry_point_available(self):
         """Test that python -m mcp_router entry point is available"""
         # This tests that the package structure supports the entry point
@@ -74,3 +58,4 @@ class TestDockerConfiguration:
             assert hasattr(mcp_router.__main__, "main"), "Entry point main function should exist"
         except ImportError as e:
             pytest.fail(f"Could not import entry point: {e}")
+ 

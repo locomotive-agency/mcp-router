@@ -139,4 +139,4 @@ def run_web_ui_in_background():
     logger.info(f"Web UI is running in the background on http://127.0.0.1:{Config.FLASK_PORT}")
 
 
-# Application is run from web.py
+# Application entry point is __main__.py which selects HTTP or STDIO transport mode

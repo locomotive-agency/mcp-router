@@ -249,10 +249,7 @@ def create_oauth_blueprint() -> Blueprint:
             )
 
         # Validate client and redirect URI
-        if (
-            client_id != auth_code_data["client_id"]
-            or redirect_uri != auth_code_data["redirect_uri"]
-        ):
+        if client_id != auth_code_data["client_id"] or redirect_uri != auth_code_data["redirect_uri"]:
             return jsonify({"error": "invalid_grant"}), 400
 
         # Generate access token

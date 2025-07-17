@@ -47,7 +47,7 @@ class ProviderFilterMiddleware(Middleware):
                 if tool["name"].startswith(f"{provider}_"):
                     # Create a copy and remove the prefix for cleaner presentation
                     tool_copy = tool.copy()
-                    tool_copy["name"] = tool["name"][len(provider) + 1 :]
+                    tool_copy["name"] = tool["name"][len(provider) + 1:]
                     filtered_tools.append(tool_copy)
 
             result["tools"] = filtered_tools

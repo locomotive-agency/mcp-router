@@ -19,7 +19,6 @@ import time
 import json
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -163,7 +162,7 @@ exec('npx --version', (err, stdout, stderr) => {{
         process.exit(1);
     }}
     console.log('npx version:', stdout.trim());
-    
+
     // Quick check for package info without installing
     exec('npm view {server.start_command} version', {{timeout: 10000}}, (err, stdout, stderr) => {{
         if (err) {{
@@ -203,11 +202,11 @@ try:
             'message': 'uvx not found in PATH'
         }}))
         sys.exit(1)
-    
+
     # Quick check if package exists without running it
     cmd = ['pip', 'index', 'versions', '{server.start_command}']
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-    
+
     if result.returncode == 0 and result.stdout:
         print(json.dumps({{
             'status': 'success',

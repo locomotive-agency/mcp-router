@@ -36,15 +36,18 @@ class MCPServerManager:
         }
 
         if transport == "stdio":
+            # For STDIO mode, show command for local clients
             status_info.update(
                 {
                     "connection_info": {
                         "type": "stdio",
+                        "description": "Connect via Claude Desktop or local clients",
                         "command": "python -m mcp_router --transport stdio",
-                        "description": "Connect using stdio transport for local clients like Claude Desktop",
-                    },
-                    "web_ui_url": f"http://127.0.0.1:{Config.FLASK_PORT}",
-                    "web_ui_description": "Web UI available in background for server management",
+                        "web_ui_url": f"http://127.0.0.1:{Config.FLASK_PORT}",
+                        "web_ui_description": "Web UI running in background for server management",
+                        "config_download_url": f"http://127.0.0.1:{Config.FLASK_PORT}/config/claude-desktop",
+                        "config_description": "Download Claude Desktop configuration file",
+                    }
                 }
             )
         elif transport == "http":
@@ -65,21 +68,39 @@ class MCPServerManager:
                 }
             )
 
-            # Add authentication information
-            if Config.MCP_OAUTH_ENABLED:
-                status_info["connection_info"].update(
+            # Add authentication information - get current auth type from database
+            try:
+                from mcp_router.models import get_auth_type
+
+                current_auth_type = get_auth_type()
+            except Exception:
+                # Fallback to environment configuration if database unavailable
+                current_auth_type = Config.MCP_AUTH_TYPE
+
+            # Always show both auth methods are available
+            auth_info = {
+                "auth_type": current_auth_type,
+                "oauth_available": True,
+                "oauth_metadata_url": f"{base_url}/.well-known/oauth-authorization-server",
+            }
+
+            if current_auth_type == "oauth":
+                auth_info.update(
                     {
-                        "auth_type": "oauth",
-                        "oauth_metadata_url": f"{base_url}/.well-known/oauth-authorization-server",
+                        "primary_auth": "OAuth 2.1 with PKCE",
+                        "api_key_available": True,
                     }
                 )
-            else:
-                status_info["connection_info"].update(
+            else:  # api_key
+                auth_info.update(
                     {
-                        "auth_type": "api_key",
+                        "primary_auth": "API Key",
                         "api_key": Config.MCP_API_KEY if Config.MCP_API_KEY else "auto-generated",
+                        "oauth_hint": "Switch to OAuth for enhanced security",
                     }
                 )
+
+            status_info["connection_info"].update(auth_info)
 
         return status_info
 

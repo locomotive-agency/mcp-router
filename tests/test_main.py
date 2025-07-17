@@ -1,8 +1,7 @@
 """Tests for the main entry point functionality."""
 
 import os
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 class TestMain:

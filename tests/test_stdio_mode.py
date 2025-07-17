@@ -1,8 +1,6 @@
 """Tests for STDIO mode functionality."""
 
-import pytest
 from unittest.mock import patch, MagicMock, Mock
-from threading import Thread
 from mcp_router.server import run_stdio_mode
 from mcp_router.app import run_web_ui_in_background
 

@@ -40,6 +40,9 @@ def main():
 
     transport_mode = args.transport
 
+    # Update the Config to reflect the actual runtime transport mode
+    Config.MCP_TRANSPORT = transport_mode
+
     if transport_mode == "stdio":
         logger.info("Starting MCP Router in STDIO mode...")
         run_stdio_mode()
