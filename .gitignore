@@ -160,3 +160,4 @@ logs/
 .cursorignore
 project.md
 
+.aider*
