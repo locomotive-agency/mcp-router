@@ -137,23 +137,34 @@ IMPORTANT: The servers will run in containerized environments. Keep these guidel
 - For Node.js packages, prefer "npx @package/name" over "npm install -g" with custom prefixes
 - Global installations with custom paths (e.g., --prefix=~/.global-node-modules) often fail in containers
 - If a package can be run directly with npx, use that instead of installing globally first
+- Consider if this is a published package or if it requires building from source
 
 1.  **Runtime type**: Determine if this is 'npx' (for Node.js), 'uvx' (for Python), or 'docker'. Prioritize `pyproject.toml` for Python projects and `package.json` for Node.js projects.
 2.  **Install command**: The command to install dependencies. For npx packages that can be run directly (e.g., npx @org/package), use "none". Avoid complex global installs.
 3.  **Start command**: The command to run the server. For npx, prefer "npx @org/package" over complex paths. This is the most critical piece of information.
-4.  **Server name**: A short, descriptive, machine-readable name for the server (e.g., "financial-data-api").
-5.  **Description**: A brief, one-sentence description of the server's purpose.
-6.  **Environment Variables**: List any required environment variables, their purpose, and if they are required.
+4.  **Build from source**: Determine if this requires building from source (true) or can use published packages (false). Set to true if: the package is not published, has custom build steps, or is a development/local package.
+5.  **Build command**: If building from source, the command to build the project (e.g., "npm run build", "pip install -e .", "npm install && npm run build").
+6.  **Server name**: A short, descriptive, machine-readable name for the server (e.g., "financial-data-api").
+7.  **Description**: A brief, one-sentence description of the server's purpose.
+8.  **Environment Variables**: List any required environment variables, their purpose, and if they are required.
 
 Examples of preferred commands:
 - GOOD: npx @ahrefs/mcp (simple, direct)
 - BAD: npm install --prefix=~/.global-node-modules @ahrefs/mcp -g && npx --prefix=~/.global-node-modules @ahrefs/mcp (complex, likely to fail in containers)
+
+For source building, consider:
+- If the repo has a build script in package.json (like "build": "tsc" or "build": "webpack")
+- If it's a TypeScript project that needs compilation
+- If it's a local/development package not published to registries
+- If the package.json has "private": true
 
 Respond in this exact, parsable format. Do not add any conversational text or pleasantries.
 
 RUNTIME: [npx|uvx|docker]
 INSTALL: [command or "none"]
 START: [command]
+BUILD_FROM_SOURCE: [true|false]
+BUILD_COMMAND: [command or "none"]
 NAME: [server name]
 DESCRIPTION: [one-line description]
 ENV_VARS:
@@ -167,6 +178,8 @@ ENV_VARS:
             "runtime_type": "docker",
             "install_command": "",
             "start_command": "",
+            "build_from_source": False,
+            "build_command": "",
             "name": "unnamed-server",
             "description": "",
             "env_variables": [],
@@ -180,6 +193,11 @@ ENV_VARS:
                 result["install_command"] = cmd if cmd.lower() != "none" else ""
             elif line.startswith("START:"):
                 result["start_command"] = line.split(":", 1)[1].strip()
+            elif line.startswith("BUILD_FROM_SOURCE:"):
+                result["build_from_source"] = line.split(":", 1)[1].strip().lower() == "true"
+            elif line.startswith("BUILD_COMMAND:"):
+                cmd = line.split(":", 1)[1].strip()
+                result["build_command"] = cmd if cmd.lower() != "none" else ""
             elif line.startswith("NAME:"):
                 result["name"] = line.split(":", 1)[1].strip()
             elif line.startswith("DESCRIPTION:"):

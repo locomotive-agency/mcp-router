@@ -14,6 +14,9 @@ def mock_server():
     server.name = "Test Server"
     server.runtime_type = "npx"
     server.start_command = "@test/mcp-server"
+    server.build_from_source = False
+    server.build_command = ""
+    server.github_url = "https://github.com/test/repo"
     server.env_variables = [
         {"key": "API_KEY", "value": "test-key"},
         {"key": "ENV_VAR", "value": "test-value"},

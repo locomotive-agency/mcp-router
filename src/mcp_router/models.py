@@ -23,6 +23,8 @@ class MCPServer(db.Model):
     runtime_type = db.Column(db.String(20), nullable=False)  # npx, uvx, docker
     install_command = db.Column(db.Text, nullable=False, default="")
     start_command = db.Column(db.Text, nullable=False)
+    build_from_source = db.Column(db.Boolean, nullable=False, default=False)
+    build_command = db.Column(db.Text, nullable=False, default="")
     env_variables = db.Column(JSON, nullable=False, default=list)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -40,6 +42,8 @@ class MCPServer(db.Model):
             "runtime_type": self.runtime_type,
             "install_command": self.install_command,
             "start_command": self.start_command,
+            "build_from_source": self.build_from_source,
+            "build_command": self.build_command,
             "env_variables": self.env_variables,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -131,6 +135,28 @@ def init_db(app) -> None:
                 logger.info(
                     f"Successfully added auth_type column with default '{default_auth_type}'"
                 )
+
+            # Check column existence in mcp_servers table
+            result = db.session.execute(text("PRAGMA table_info(mcp_servers)")).fetchall()
+            column_names = [row[1] for row in result]
+
+            # Add build_from_source column if it doesn't exist
+            if "build_from_source" not in column_names:
+                logger.info("Adding build_from_source column to mcp_servers table")
+                db.session.execute(
+                    text("ALTER TABLE mcp_servers ADD COLUMN build_from_source BOOLEAN DEFAULT 0")
+                )
+                db.session.commit()
+                logger.info("Successfully added build_from_source column")
+
+            # Add build_command column if it doesn't exist
+            if "build_command" not in column_names:
+                logger.info("Adding build_command column to mcp_servers table")
+                db.session.execute(
+                    text("ALTER TABLE mcp_servers ADD COLUMN build_command TEXT DEFAULT ''")
+                )
+                db.session.commit()
+                logger.info("Successfully added build_command column")
 
         except Exception as e:
             logger.error(f"Error during database migration: {e}")

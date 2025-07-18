@@ -101,6 +101,8 @@ def add_server() -> Union[str, Response]:
                         runtime_type=server_form.runtime_type.data,
                         install_command=server_form.install_command.data or "",
                         start_command=server_form.start_command.data,
+                        build_from_source=server_form.build_from_source.data,
+                        build_command=server_form.build_command.data or "",
                     )
 
                     # Add environment variables
@@ -178,6 +180,8 @@ def edit_server(server_id: str) -> Union[str, Response]:
                 server.runtime_type = form.runtime_type.data
                 server.install_command = form.install_command.data or ""
                 server.start_command = form.start_command.data
+                server.build_from_source = form.build_from_source.data
+                server.build_command = form.build_command.data or ""
 
                 # Update environment variables
                 env_vars = []
