@@ -110,46 +110,6 @@
                            placeholder="npx mcp-server or python -m mcp_server"
                            required>
                 </div>
-                
-                <div>
-                    <label class="flex items-center mb-2">
-                        <input type="checkbox" 
-                               id="build_from_source"
-                               name="build_from_source"
-                               value="true"
-                               {% if analysis.build_from_source %}checked{% endif %}
-                               class="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                               onchange="toggleBuildCommand()">
-                        <span class="text-sm font-medium">Build from Source</span>
-                    </label>
-                    <p class="text-xs text-gray-500 mb-2">
-                        Clone and build from the GitHub repository instead of using published packages
-                    </p>
-                </div>
-                
-                <div id="build_command_container" {% if not analysis.build_from_source %}style="display: none;"{% endif %}>
-                    <label for="build_command" class="block text-sm font-medium mb-2">
-                        Build Command
-                        <span class="text-gray-500 font-normal">(optional)</span>
-                    </label>
-                    <input type="text" 
-                           id="build_command"
-                           name="build_command" 
-                           value="{{ analysis.build_command }}"
-                           class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                           placeholder="npm run build or pip install -e .">
-                    <p class="text-xs text-gray-500 mt-1">
-                        Command to build the project after cloning (e.g., npm run build, pip install -e .)
-                    </p>
-                </div>
-                
-                <script>
-                function toggleBuildCommand() {
-                    const checkbox = document.getElementById('build_from_source');
-                    const container = document.getElementById('build_command_container');
-                    container.style.display = checkbox.checked ? 'block' : 'none';
-                }
-                </script>
             </div>
             
             <!-- Environment Variables -->
