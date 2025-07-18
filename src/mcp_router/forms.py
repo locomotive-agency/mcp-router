@@ -56,6 +56,17 @@ class ServerForm(FlaskForm):
         render_kw={"placeholder": "npx mcp-server or python -m mcp_server"},
     )
 
+    build_from_source = BooleanField(
+        "Build from Source",
+        description="Clone and build from the GitHub repository instead of using published packages",
+    )
+
+    build_command = StringField(
+        "Build Command",
+        validators=[Length(max=500)],
+        render_kw={"placeholder": "npm run build or pip install -e ."},
+    )
+
     # Environment variables are handled separately in the view
 
     def validate_github_url(self, field: StringField) -> None:

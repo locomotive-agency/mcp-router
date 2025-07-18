@@ -152,7 +152,43 @@ class ContainerManager:
             with self._create_sandbox_session(server, use_template=False) as sandbox:
                 if server.runtime_type == "npx":
                     # Simplified test - just check if npx is available and package info
-                    code = f"""
+                    if server.build_from_source:
+                        # Test source building capability
+                        code = f"""
+const {{ exec }} = require('child_process');
+
+// Check if git is available for source building
+exec('git --version', (err, stdout, stderr) => {{
+    if (err) {{
+        console.log(JSON.stringify({{
+            status: 'error',
+            message: 'Git not available - needed for source building'
+        }}));
+        process.exit(1);
+    }}
+    
+    // Check if npm is available for building
+    exec('npm --version', (err2, stdout2, stderr2) => {{
+        if (err2) {{
+            console.log(JSON.stringify({{
+                status: 'error',
+                message: 'npm not available - needed for source building'
+            }}));
+        }} else {{
+            console.log(JSON.stringify({{
+                status: 'success',
+                message: 'Git and npm available, ready for source building',
+                build_from_source: true,
+                git_version: stdout.trim(),
+                npm_version: stdout2.trim()
+            }}));
+        }}
+    }});
+}});
+"""
+                    else:
+                        # Original registry test
+                        code = f"""
 const {{ exec }} = require('child_process');
 
 // First check if npx is available
@@ -188,7 +224,31 @@ exec('npx --version', (err, stdout, stderr) => {{
 
                 elif server.runtime_type == "uvx":
                     # Simplified Python/uvx test
-                    code = f"""
+                    if server.build_from_source:
+                        # Test source building capability
+                        code = f"""
+import subprocess
+import json
+import sys
+import os
+
+# First ensure git is available
+try:
+    subprocess.run(['git', '--version'], check=True, capture_output=True)
+    print(json.dumps({{
+        'status': 'success',
+        'message': 'Git available, ready for source building',
+        'build_from_source': True
+    }}))
+except (subprocess.CalledProcessError, FileNotFoundError):
+    print(json.dumps({{
+        'status': 'error',
+        'message': 'Git not available - needed for source building'
+    }}))
+"""
+                    else:
+                        # Original registry test
+                        code = f"""
 import subprocess
 import json
 import sys
@@ -338,6 +398,68 @@ except Exception as e:
             logger.error(f"Error building custom sandbox image: {e}", exc_info=True)
             return {"status": "error", "message": str(e)}
 
+    def _clone_and_build_from_source(self, server: MCPServer, sandbox) -> Dict[str, Any]:
+        """Clone repository and build from source
+        
+        Args:
+            server: MCPServer instance
+            sandbox: SandboxSession for executing commands
+            
+        Returns:
+            Dict containing build results
+        """
+        logger.info(f"Building {server.name} from source: {server.github_url}")
+        
+        try:
+            # Extract repo info from GitHub URL
+            import re
+            match = re.match(r"https://github\.com/([^/]+)/([^/]+)", server.github_url)
+            if not match:
+                return {"success": False, "error": "Invalid GitHub URL format"}
+            
+            owner, repo = match.groups()
+            repo = repo.rstrip('.git')  # Remove .git if present
+            
+            # Clone the repository
+            clone_cmd = f"git clone {server.github_url} /tmp/source"
+            clone_result = sandbox.run(clone_cmd, timeout=60.0)
+            
+            if clone_result.exit_code != 0:
+                return {
+                    "success": False, 
+                    "error": f"Failed to clone repository: {clone_result.stderr}"
+                }
+            
+            # Change to source directory and run build command if specified
+            if server.build_command:
+                build_cmd = f"cd /tmp/source && {server.build_command}"
+                build_result = sandbox.run(build_cmd, timeout=300.0)  # 5 minutes for build
+                
+                if build_result.exit_code != 0:
+                    return {
+                        "success": False,
+                        "error": f"Build failed: {build_result.stderr}",
+                        "output": build_result.stdout
+                    }
+            
+            # Install dependencies if needed
+            if server.install_command:
+                install_cmd = f"cd /tmp/source && {server.install_command}"
+                install_result = sandbox.run(install_cmd, timeout=300.0)
+                
+                if install_result.exit_code != 0:
+                    return {
+                        "success": False,
+                        "error": f"Install failed: {install_result.stderr}",
+                        "output": install_result.stdout
+                    }
+            
+            return {"success": True, "message": "Source built successfully"}
+            
+        except Exception as e:
+            logger.error(f"Error building from source: {e}")
+            return {"success": False, "error": str(e)}
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -409,27 +531,48 @@ except Exception as e:
         try:
             # Create sandbox session with template for actual server runs
             with self._create_sandbox_session(server, use_template=True) as sandbox:
-                # Build the command based on runtime type
-                if server.runtime_type == "npx":
-                    # For npx servers, we run them directly
-                    command = f"npx -y {server.start_command}"
-                    # Add stdio transport args if needed
-                    if "--stdio" not in command:
-                        command += " stdio"
-
-                elif server.runtime_type == "uvx":
-                    # For Python/uvx servers
-                    command = f"uvx {server.start_command}"
-                    if "--stdio" not in command:
-                        command += " stdio"
-
+                # If building from source, clone and build first
+                if server.build_from_source:
+                    build_result = self._clone_and_build_from_source(server, sandbox)
+                    if not build_result["success"]:
+                        return {
+                            "success": False,
+                            "output": build_result.get("output", ""),
+                            "error": build_result["error"],
+                            "exit_code": 1,
+                        }
+                
+                # Build the command based on runtime type and source building
+                if server.build_from_source:
+                    # For source builds, run from the cloned directory
+                    if server.runtime_type == "npx":
+                        command = f"cd /tmp/source && {server.start_command}"
+                    elif server.runtime_type == "uvx":
+                        command = f"cd /tmp/source && {server.start_command}"
+                    else:
+                        command = f"cd /tmp/source && {server.start_command}"
                 else:
-                    # Custom command
-                    command = server.start_command
+                    # Original behavior for registry packages
+                    if server.runtime_type == "npx":
+                        # For npx servers, we run them directly
+                        command = f"npx -y {server.start_command}"
+                        # Add stdio transport args if needed
+                        if "--stdio" not in command:
+                            command += " stdio"
+
+                    elif server.runtime_type == "uvx":
+                        # For Python/uvx servers
+                        command = f"uvx {server.start_command}"
+                        if "--stdio" not in command:
+                            command += " stdio"
+
+                    else:
+                        # Custom command
+                        command = server.start_command
 
                 # Create the runner script
-                if server.runtime_type in ["npx", "uvx"]:
-                    # Use shell command directly for npx/uvx
+                if server.runtime_type in ["npx", "uvx"] or server.build_from_source:
+                    # Use shell command directly for npx/uvx and source builds
                     runner_code = command
                 else:
                     # For custom Docker, use the command as-is

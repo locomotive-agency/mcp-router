@@ -61,6 +61,35 @@
                         <p class="text-red-500 text-xs mt-1">{{ form.start_command.errors[0] }}</p>
                     {% endif %}
                 </div>
+                
+                <div>
+                    <label class="flex items-center mb-2">
+                        {{ form.build_from_source(class="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500", onchange="toggleBuildCommand()") }}
+                        <span class="text-sm font-medium">Build from Source</span>
+                    </label>
+                    <p class="text-xs text-gray-500 mb-2">
+                        Clone and build from the GitHub repository instead of using published packages
+                    </p>
+                </div>
+                
+                <div id="build_command_container" {% if not form.build_from_source.data %}style="display: none;"{% endif %}>
+                    {{ form.build_command.label(class="block text-sm font-medium mb-2") }}
+                    {{ form.build_command(class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500", placeholder="npm run build or pip install -e .") }}
+                    {% if form.build_command.errors %}
+                        <p class="text-red-500 text-xs mt-1">{{ form.build_command.errors[0] }}</p>
+                    {% endif %}
+                    <p class="text-xs text-gray-500 mt-1">
+                        Command to build the project after cloning (e.g., npm run build, pip install -e .)
+                    </p>
+                </div>
+                
+                <script>
+                function toggleBuildCommand() {
+                    const checkbox = document.querySelector('input[name="build_from_source"]');
+                    const container = document.getElementById('build_command_container');
+                    container.style.display = checkbox.checked ? 'block' : 'none';
+                }
+                </script>
             </div>
             
             <!-- Environment Variables -->
