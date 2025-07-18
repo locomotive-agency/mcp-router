@@ -1,5 +1,6 @@
 """FastMCP server implementation for MCP Router using proxy pattern"""
 
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP
@@ -61,20 +62,153 @@ def create_mcp_config(servers: List[MCPServer]) -> Dict[str, Any]:
     return config
 
 
+class DynamicServerManager:
+    """
+    Manages dynamic addition and removal of MCP servers using FastMCP's mount() capability.
+    
+    This class provides the ability to add and remove MCP servers at runtime without
+    requiring a full router reconstruction, leveraging FastMCP's built-in server composition.
+    """
+    
+    def __init__(self, router: FastMCP):
+        """
+        Initialize the dynamic server manager.
+        
+        Args:
+            router: The FastMCP router instance to manage
+        """
+        self.router = router
+        self.mounted_servers: Dict[str, FastMCP] = {}
+        self.server_descriptions: Dict[str, str] = {}
+        log.info("Initialized DynamicServerManager")
+    
+    def add_server(self, server_config: MCPServer) -> None:
+        """
+        Add a new MCP server dynamically using FastMCP's mount() capability.
+        
+        Args:
+            server_config: MCPServer instance containing server configuration
+        """
+        try:
+            # Create proxy configuration for the single server
+            proxy_config = create_mcp_config([server_config])
+            
+            # Create FastMCP proxy for the server
+            proxy = FastMCP.as_proxy(proxy_config)
+            
+            # Mount it with the server name as prefix (synchronous operation)
+            self.router.mount(proxy, prefix=server_config.name)
+            
+            # Track the server and its description
+            self.mounted_servers[server_config.name] = proxy
+            self.server_descriptions[server_config.name] = server_config.description or "No description provided"
+            
+            log.info(f"Successfully mounted server '{server_config.name}' dynamically")
+            
+        except Exception as e:
+            log.error(f"Failed to add server '{server_config.name}': {e}")
+            raise
+    
+    def remove_server(self, server_name: str) -> None:
+        """
+        Remove an MCP server dynamically by unmounting it from all managers.
+        
+        This uses the internal FastMCP managers to properly remove a mounted server,
+        as FastMCP doesn't provide a public unmount() method.
+        
+        Args:
+            server_name: Name of the server to remove
+        """
+        if server_name not in self.mounted_servers:
+            log.warning(f"Server '{server_name}' not found in mounted servers")
+            return
+            
+        try:
+            # Get the mounted server proxy
+            mounted_server = self.mounted_servers[server_name]
+            
+            # Remove from all FastMCP internal managers
+            # Based on FastMCP developer's example in issue #934
+            for manager in [self.router._tool_manager, self.router._resource_manager, self.router._prompt_manager]:
+                # Find and remove the mount for this server
+                mounts_to_remove = [m for m in manager._mounted_servers if m.server is mounted_server]
+                for mount in mounts_to_remove:
+                    manager._mounted_servers.remove(mount)
+                    log.debug(f"Removed mount from {manager.__class__.__name__}")
+            
+            # Clear the router cache to ensure changes take effect
+            self.router._cache.clear()
+            
+            # Remove from our tracking
+            del self.mounted_servers[server_name]
+            del self.server_descriptions[server_name]
+            
+            log.info(f"Successfully unmounted server '{server_name}' from all managers")
+            
+        except Exception as e:
+            log.error(f"Failed to remove server '{server_name}': {e}")
+            raise
+    
+    def get_providers(self) -> List[Dict[str, str]]:
+        """
+        Get list of providers with descriptions.
+        
+        Returns:
+            List of dictionaries containing provider name and description
+        """
+        providers = [
+            {"name": name, "description": desc}
+            for name, desc in self.server_descriptions.items()
+        ]
+        log.debug(f"Returning {len(providers)} providers")
+        return providers
+    
+    def get_provider_names(self) -> List[str]:
+        """
+        Get list of provider names only.
+        
+        Returns:
+            List of provider names
+        """
+        return list(self.server_descriptions.keys())
+
+
+# Global reference to the dynamic manager for access from routes
+_dynamic_manager: Optional[DynamicServerManager] = None
+
+
+def get_dynamic_manager() -> Optional[DynamicServerManager]:
+    """
+    Get the current dynamic server manager instance.
+    
+    Returns:
+        DynamicServerManager instance if available, None otherwise
+    """
+    # Try to get from Flask app context first
+    try:
+        if hasattr(app, 'mcp_router') and hasattr(app.mcp_router, '_dynamic_manager'):
+            return app.mcp_router._dynamic_manager
+    except RuntimeError:
+        # No Flask app context available
+        pass
+    
+    # Fall back to global reference
+    return _dynamic_manager
+
+
 def create_router(
     servers: List[MCPServer], api_key: Optional[str] = None, enable_oauth: bool = False
 ) -> FastMCP:
     """
-    Create the MCP router as a composite proxy with middleware.
+    Create the MCP router with dynamic server management capabilities.
 
     Args:
-        servers: List of active MCP servers
+        servers: List of active MCP servers to mount initially
         api_key: Optional API key for simple authentication
         enable_oauth: Enable OAuth authentication for Claude web
     """
-    # Generate proxy configuration from active servers
-    config = create_mcp_config(servers)
-
+    global _dynamic_manager
+    
     # Prepare authentication
     auth = None
     if enable_oauth:
@@ -85,14 +219,11 @@ def create_router(
         # The Flask proxy handles this validation
         log.info("API key authentication will be handled by the HTTP proxy layer")
 
-    # Check if we have any servers to proxy
-    if config["mcpServers"]:
-        # Create router as a proxy that manages all sub-servers
-        router = FastMCP.as_proxy(
-            config,
-            name="MCP-Router",
-            auth=auth,
-            instructions="""This router provides access to multiple MCP servers and a Python sandbox.
+    # Create base router (always create a standalone router for dynamic mounting)
+    router = FastMCP(
+        name="MCP-Router",
+        auth=auth,
+        instructions="""This router provides access to multiple MCP servers and a Python sandbox.
 
 Use 'list_providers' to see available servers, then use tools/list with a provider parameter.
 
@@ -101,18 +232,36 @@ Example workflow:
 2. Call tools/list with provider="server_name" to see that server's tools
 3. Call tools with provider="server_name" parameter to execute them
 """,
-        )
-    else:
-        # No servers configured, create a standalone MCP server
-        router = FastMCP(
-            name="MCP-Router",
-            auth=auth,
-            instructions="""This is the MCP Router. Currently no MCP servers are configured.
-
-You can still use the Python sandbox tool to execute Python code.
-To add MCP servers, use the web interface to configure and activate servers.
-""",
-        )
+    )
+    
+    # Initialize dynamic server manager
+    _dynamic_manager = DynamicServerManager(router)
+    
+    # Store reference in router for access from routes
+    router._dynamic_manager = _dynamic_manager
+    
+    # Mount all existing servers dynamically
+    for server in servers:
+        try:
+            # Mount servers synchronously during initialization
+            # Create proxy configuration for the single server
+            proxy_config = create_mcp_config([server])
+            
+            # Create FastMCP proxy for the server
+            proxy = FastMCP.as_proxy(proxy_config)
+            
+            # Mount it with the server name as prefix
+            router.mount(proxy, prefix=server.name)
+            
+            # Track the server and its description in the dynamic manager
+            _dynamic_manager.mounted_servers[server.name] = proxy
+            _dynamic_manager.server_descriptions[server.name] = server.description or "No description provided"
+            
+            log.info(f"Successfully mounted server '{server.name}' during initialization")
+            
+        except Exception as e:
+            log.error(f"Failed to mount server '{server.name}' during initialization: {e}")
+            continue
 
     # Add the built-in Python sandbox tool
     @router.tool()
@@ -181,19 +330,21 @@ To add MCP servers, use the web interface to configure and activate servers.
             return {"status": "error", "message": str(e)}
 
     @router.tool()
-    def list_providers() -> List[str]:
+    def list_providers() -> List[Dict[str, str]]:
         """
-        List all available MCP server providers.
+        List all available MCP server providers with descriptions.
 
-        Returns a list of server names that can be used with the provider parameter
-        in tools/list and tool calls.
+        Returns a list of dictionaries containing provider name and description
+        that can be used with the provider parameter in tools/list and tool calls.
         """
-        # Return the list of server names from the configuration
-        return list(config["mcpServers"].keys())
+        if _dynamic_manager:
+            return _dynamic_manager.get_providers()
+        else:
+            log.warning("Dynamic manager not available, returning empty provider list")
+            return []
 
-    # Add the middleware for hierarchical discovery only if we have servers
-    if config["mcpServers"]:
-        router.add_middleware(ProviderFilterMiddleware())
+    # Add the middleware for hierarchical discovery
+    router.add_middleware(ProviderFilterMiddleware())
 
     return router
 
@@ -236,9 +387,6 @@ def get_http_app():
     """
     Configure and retrieve the MCP ASGI application.
 
-    Args:
-        router (FastMCP): The FastMCP router instance.
-
     Returns:
         Callable: The MCP ASGI application.
     """
@@ -249,8 +397,11 @@ def get_http_app():
         active_servers = get_active_servers()
         log.info(f"Loaded {len(active_servers)} active servers from database")
 
-    # Create the router
-    router = create_router(active_servers)
+        # Create the router
+        router = create_router(active_servers)
+        
+        # Store router reference in Flask app for access from routes
+        app.mcp_router = router
 
     log.info("MCP ASGI app configured.")
 
@@ -271,9 +422,12 @@ def run_stdio_mode():
         active_servers = get_active_servers()
         log.info(f"Loaded {len(active_servers)} active servers from database")
 
-    # Create the router
-    # In STDIO mode, authentication is not handled by the router itself
-    router = create_router(active_servers)
+        # Create the router
+        # In STDIO mode, authentication is not handled by the router itself
+        router = create_router(active_servers)
+        
+        # Store router reference in Flask app for access from routes
+        app.mcp_router = router
 
     # Run the stdio transport in the main thread
     log.info("Running with stdio transport for local clients (e.g., Claude Desktop)")
