@@ -159,4 +159,5 @@ logs/
 .cursorrules
 .cursorignore
 project.md
-
+.aider*
+locomotive-service.json
