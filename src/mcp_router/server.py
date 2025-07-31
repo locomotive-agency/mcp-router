@@ -376,7 +376,7 @@ You can use tools/list to see all available tools from all mounted servers.
     return router
 
 
-def get_http_app():
+async def get_http_app():
     """
     Configure and retrieve the MCP ASGI application.
 
@@ -389,7 +389,7 @@ def get_http_app():
     with app.app_context():
         # Create the router with no servers initially.
         # Servers will be mounted dynamically after initialization.
-        router = create_router([])
+        router = await create_router([])
 
         # Store router reference in Flask app for access from routes
         app.mcp_router = router

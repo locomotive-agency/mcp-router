@@ -117,7 +117,7 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def create_asgi_app():
+async def create_asgi_app():
     """Create the ASGI application with proper authentication middleware"""
     from starlette.middleware import Middleware
 
@@ -126,7 +126,7 @@ def create_asgi_app():
 
     # Create the FastMCP ASGI app with authentication
     with flask_app.app_context():
-        mcp_app = get_http_app()
+        mcp_app = await get_http_app()
 
     # Define middleware stack
     middleware = [
@@ -147,7 +147,3 @@ def create_asgi_app():
     app.mount("/", wsgi_app)  # This is the Flask web UI
 
     return app
-
-
-# Create the ASGI app instance
-asgi_app = create_asgi_app()

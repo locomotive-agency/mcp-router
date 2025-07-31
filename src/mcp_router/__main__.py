@@ -4,10 +4,11 @@ import argparse
 import asyncio
 import os
 import uvicorn
+from starlette.applications import Starlette
 
 from mcp_router.logging_config import configure_logging, get_logger
 from mcp_router.server import run_stdio_mode
-from mcp_router.asgi import asgi_app
+from mcp_router.asgi import create_asgi_app
 from mcp_router.config import Config
 from mcp_router.app import app
 from mcp_router.container_manager import ContainerManager
@@ -24,7 +25,7 @@ configure_logging(
 logger = get_logger(__name__)
 
 
-async def run_http_mode():
+async def run_http_mode(asgi_app: Starlette):
     """Run the ASGI application with Uvicorn."""
     config = uvicorn.Config(
         asgi_app,
@@ -162,6 +163,8 @@ async def main():
             clear_database()
             logger.info("Database cleared successfully")
 
+    asgi_app = await create_asgi_app()
+
     # Initialize resources
     await initialize_mcp_router()
 
@@ -170,7 +173,7 @@ async def main():
         await run_stdio_mode()
     elif transport_mode == "http":
         logger.info("Starting MCP Router in HTTP mode...")
-        await run_http_mode()
+        await run_http_mode(asgi_app)
     else:
         # This should not be reachable due to argparse `choices`
         raise ValueError(f"Invalid transport mode: {transport_mode}")
