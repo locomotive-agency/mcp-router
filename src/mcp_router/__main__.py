@@ -1,6 +1,7 @@
 """Entry point for stdio subprocess mode"""
 
 import argparse
+import asyncio
 import os
 import uvicorn
 
@@ -23,18 +24,20 @@ configure_logging(
 logger = get_logger(__name__)
 
 
-def run_http_mode():
+async def run_http_mode():
     """Run the ASGI application with Uvicorn."""
-    uvicorn.run(
+    config = uvicorn.Config(
         asgi_app,
         host=Config.MCP_HOST,
         port=Config.FLASK_PORT,
         log_config=None,
         access_log=True,
     )
+    server = uvicorn.Server(config)
+    await server.serve()
 
 
-def initialize_mcp_router():
+async def initialize_mcp_router():
     """
     Initialize MCP Router resources on startup.
 
@@ -119,14 +122,14 @@ def initialize_mcp_router():
             dynamic_manager = app.mcp_router._dynamic_manager
             for server in built_servers:
                 try:
-                    dynamic_manager.add_server(server)
+                    await dynamic_manager.add_server(server)
                 except Exception as e:
                     logger.error(f"Failed to mount server '{server.name}': {e}")
         else:
             logger.info("No built servers to mount.")
 
 
-def main():
+async def main():
     """
     Main entry point for the MCP Router application.
     Parses command-line arguments and environment variables to select
@@ -160,18 +163,18 @@ def main():
             logger.info("Database cleared successfully")
 
     # Initialize resources
-    initialize_mcp_router()
+    await initialize_mcp_router()
 
     if transport_mode == "stdio":
         logger.info("Starting MCP Router in STDIO mode...")
         run_stdio_mode()
     elif transport_mode == "http":
         logger.info("Starting MCP Router in HTTP mode...")
-        run_http_mode()
+        await run_http_mode()
     else:
         # This should not be reachable due to argparse `choices`
         raise ValueError(f"Invalid transport mode: {transport_mode}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

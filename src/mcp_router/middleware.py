@@ -38,6 +38,7 @@ class ToolFilterMiddleware(Middleware):
         logger.debug("Intercepting tools/list response to filter disabled tools")
 
         disabled_prefixed_tools = self._get_disabled_tools()
+        logger.debug(f"Disabled prefixed tools: {disabled_prefixed_tools}")
         if not disabled_prefixed_tools:
             logger.debug("No disabled tools found, returning all tools")
             return all_tools

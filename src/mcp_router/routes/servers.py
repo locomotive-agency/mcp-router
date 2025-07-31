@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 servers_bp = Blueprint("servers", __name__)
 
 
-def handle_dynamic_server_update(server: MCPServer, operation: str = "add") -> None:
+async def handle_dynamic_server_update(server: MCPServer, operation: str = "add") -> None:
     """
     Handle dynamic server updates for HTTP mode.
 
@@ -50,7 +50,7 @@ def handle_dynamic_server_update(server: MCPServer, operation: str = "add") -> N
             return
 
         if operation == "add":
-            dynamic_manager.add_server(server)
+            await dynamic_manager.add_server(server)
             logger.info(f"Completed dynamic addition of server '{server.name}'")
 
         elif operation == "delete":
@@ -60,7 +60,7 @@ def handle_dynamic_server_update(server: MCPServer, operation: str = "add") -> N
         elif operation == "update":
             # For updates, remove and re-add
             dynamic_manager.remove_server(server.id)
-            dynamic_manager.add_server(server)
+            await dynamic_manager.add_server(server)
             logger.info(f"Completed dynamic update of server '{server.name}'")
 
     except Exception as e:

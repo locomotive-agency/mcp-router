@@ -138,7 +138,7 @@ class DynamicServerManager:
         logger.info("Initialized DynamicServerManager")
 
 
-    def add_server(self, server_config: MCPServer) -> None:
+    async def add_server(self, server_config: MCPServer) -> None:
         """
         Add a new MCP server dynamically using FastMCP's mount capability.
 
@@ -169,7 +169,7 @@ class DynamicServerManager:
 
             # Discover and store tools for this newly added server
             logger.info(f"Updating tools for server '{server_config.name}'")
-            self._update_server_tools(server_config)
+            await self._update_server_tools(server_config)
             logger.info(f"Updated tools for server '{server_config.name}'")
 
         except Exception as e:
@@ -227,7 +227,7 @@ class DynamicServerManager:
             raise
 
     
-    def _update_server_tools(self, server_config: MCPServer) -> None:
+    async def _update_server_tools(self, server_config: MCPServer) -> None:
         """
         Update the tools for a server.
 
@@ -235,20 +235,8 @@ class DynamicServerManager:
             server_config: The MCPServer configuration
 
         """
-
-        async def _get_tools():
-            return await self.mounted_servers[server_config.id]._tool_manager.get_tools()
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            tools = loop.run_until_complete(_get_tools())
-        finally:
-            loop.close()
-
-        logger.info(f"Discovered tools1: {tools}")
-
-
+        tools = await self.mounted_servers[server_config.id]._tool_manager.get_tools()
+        logger.info(f"Discovered tools: {tools}")
 
         # Find tools that belong to this server
         discovered_tools = []
