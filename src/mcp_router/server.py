@@ -1,7 +1,5 @@
 """FastMCP server implementation for MCP Router using proxy pattern"""
 
-import asyncio
-
 
 from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP
@@ -236,7 +234,6 @@ class DynamicServerManager:
 
         """
         tools = await self.mounted_servers[server_config.id]._tool_manager.get_tools()
-        logger.info(f"Discovered tools: {tools}")
 
         # Find tools that belong to this server
         discovered_tools = []

@@ -1,6 +1,6 @@
 """Middleware for tool filtering based on database enable/disable status in MCP Router"""
 
-from typing import Dict, Any, Callable, Awaitable, Set, List
+from typing import Any, Callable, Awaitable, Set, List
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from fastmcp.tools import Tool
 from mcp_router.logging_config import get_logger
@@ -66,14 +66,15 @@ class ToolFilterMiddleware(Middleware):
             disabled_tools = set()
             
             with app.app_context():
+
                 # Query for disabled tools
-                disabled_tools = db.session.query(
+                disabled_tools_query = db.session.query(
                     MCPServerTool.server_id,
                     MCPServerTool.tool_name
                 ).filter_by(is_enabled=False).all()
                 
                 # Create tool names
-                for server_id, tool_name in disabled_tools:
+                for server_id, tool_name in disabled_tools_query:
                     disabled_tools.add(tool_name)
                 
                 logger.debug(f"Found {len(disabled_tools)} disabled tools in database")

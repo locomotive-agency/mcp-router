@@ -12,7 +12,7 @@ from mcp_router.asgi import create_asgi_app
 from mcp_router.config import Config
 from mcp_router.app import app
 from mcp_router.container_manager import ContainerManager
-from mcp_router.models import MCPServer, db, clear_database
+from mcp_router.models import clear_database
 
 # Configure logging before anything else
 configure_logging(
@@ -42,92 +42,30 @@ async def initialize_mcp_router():
     """
     Initialize MCP Router resources on startup.
 
-    - Checks for Docker daemon
-    - Ensures base Docker images exist
-    - Creates/verifies system servers (like mcp-python-interpreter)
-    - Rebuilds any servers that are pending or have missing images
-    - Mounts all 'ready' servers to the running router
+    Uses ContainerManager to handle all initialization logic including:
+    - Docker daemon checks
+    - Base image verification  
+    - Default server creation
+    - Server building and mounting
     """
     logger.info("Initializing MCP Router resources...")
 
-    with app.app_context():
-        # Initialize container manager
-        container_manager = ContainerManager(app)
+    # Initialize container manager
+    container_manager = ContainerManager(app)
 
-        # 1. Check if Docker is running
-        if not container_manager.check_docker_running():
-            logger.error("Docker is not running. Please start Docker and restart the application.")
-            exit(1)
-        logger.info("Docker is running.")
-
-        # 2. Ensure base images exist
-        try:
-            logger.info("Ensuring base Docker images exist...")
-            container_manager.ensure_image_exists(Config.MCP_NODE_IMAGE)
-            container_manager.ensure_image_exists(Config.MCP_PYTHON_IMAGE)
-            logger.info("Base Docker images are available.")
-        except Exception as e:
-            logger.error(f"Failed to ensure base images: {e}. Please check your Docker setup.")
-            exit(1)
-
-        # 3. Ensure Python interpreter server exists in the database
-        sandbox_server = MCPServer.query.filter_by(
-            github_url="https://github.com/yzfly/mcp-python-interpreter"
-        ).first()
-        if not sandbox_server:
-            logger.info("Creating mcp-python-interpreter system server in database.")
-            sandbox_server = MCPServer(
-                name="Python Interpreter",
-                github_url="https://github.com/yzfly/mcp-python-interpreter",
-                description="Execute Python code in a secure sandbox environment",
-                runtime_type="uvx",
-                install_command="pip install mcp-python-interpreter",
-                start_command="uvx mcp-python-interpreter --dir /data/python-sandbox",
-                is_active=True,
-                build_status="pending",
-            )
-            db.session.add(sandbox_server)
-            db.session.commit()
-
-        # 4. Find all active servers and rebuild them all on startup
-        logger.info("Rebuilding all active server images on startup...")
-        all_active_servers = MCPServer.query.filter_by(is_active=True).all()
-
-        if all_active_servers:
-            logger.info(f"Found {len(all_active_servers)} active servers to rebuild.")
-            for server in all_active_servers:
-                try:
-                    logger.info(f"Building image for {server.name}...")
-                    server.build_status = "building"
-                    server.build_logs = "Building..."
-                    db.session.commit()
-
-                    image_tag = container_manager.build_server_image(server)
-                    server.build_status = "built"
-                    server.image_tag = image_tag
-                    server.build_logs = f"Successfully built image {image_tag}"
-                    db.session.commit()
-                    logger.info(f"Successfully built image for {server.name}.")
-                except Exception as e:
-                    logger.error(f"Failed to build {server.name}: {e}")
-                    server.build_status = "failed"
-                    server.build_logs = str(e)
-                    db.session.commit()
-        else:
-            logger.info("No active servers found to build.")
-
-        # 5. Mount all successfully built servers to the router
-        built_servers = MCPServer.query.filter_by(is_active=True, build_status="built").all()
-        if built_servers:
-            logger.info(f"Mounting {len(built_servers)} built servers...")
-            dynamic_manager = app.mcp_router._dynamic_manager
-            for server in built_servers:
-                try:
-                    await dynamic_manager.add_server(server)
-                except Exception as e:
-                    logger.error(f"Failed to mount server '{server.name}': {e}")
-        else:
-            logger.info("No built servers to mount.")
+    try:
+        # Initialize and build all servers
+        await container_manager.initialize_and_build_servers()
+        
+        # Mount all built servers to the router
+        dynamic_manager = app.mcp_router._dynamic_manager
+        await container_manager.mount_built_servers(dynamic_manager)
+        
+        logger.info("MCP Router initialization completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize MCP Router: {e}")
+        exit(1)
 
 
 async def main():

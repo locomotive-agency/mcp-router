@@ -1,6 +1,7 @@
 import time
 from starlette.applications import Starlette
 from a2wsgi import WSGIMiddleware
+from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, JSONResponse
@@ -119,7 +120,7 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 
 async def create_asgi_app():
     """Create the ASGI application with proper authentication middleware"""
-    from starlette.middleware import Middleware
+    
 
     # Create a WSGIMiddleware-wrapped Flask app
     wsgi_app = WSGIMiddleware(flask_app)

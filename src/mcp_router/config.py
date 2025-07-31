@@ -68,6 +68,7 @@ class Config:
     MCP_PYTHON_IMAGE = os.environ.get("MCP_PYTHON_IMAGE", "python:3.11-slim")
     MCP_NODE_IMAGE = os.environ.get("MCP_NODE_IMAGE", "node:20-slim")
     DOCKER_TIMEOUT = int(os.environ.get("DOCKER_TIMEOUT", "300"))  # 5 minutes default
+    DEFAULT_SERVERS_FILE = os.environ.get("DEFAULT_SERVERS_FILE", "default_servers.json")
 
     # Application settings
     WTF_CSRF_ENABLED = True

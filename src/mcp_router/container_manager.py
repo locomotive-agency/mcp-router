@@ -9,12 +9,14 @@ Supports:
 from typing import Dict, Any, Optional, List
 from flask import Flask
 from llm_sandbox import SandboxSession
-from mcp_router.models import MCPServer
+from mcp_router.models import MCPServer, db, get_active_servers, get_built_servers
 from mcp_router.config import Config
 from docker import DockerClient
 from docker.errors import ImageNotFound
 import time
 import shlex
+import json
+import os
 from mcp_router.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -35,7 +37,7 @@ class ContainerManager:
         # Docker client with extended timeout for large operations
         self.docker_client: DockerClient = DockerClient.from_env(timeout=Config.DOCKER_TIMEOUT)
 
-    def check_docker_running(self) -> bool:
+    def _check_docker_running(self) -> bool:
         """Check if the Docker daemon is running."""
         try:
             self.docker_client.ping()
@@ -47,7 +49,7 @@ class ContainerManager:
         """Generate the Docker image tag for a server."""
         return f"mcp-router/server-{server.id}"
 
-    def ensure_image_exists(self, image_name: str) -> None:
+    def _ensure_image_exists(self, image_name: str) -> None:
         """Checks if a Docker image exists locally and pulls it if not.
 
         Args:
@@ -363,3 +365,183 @@ class ContainerManager:
         except Exception as e:
             logger.error(f"Failed to build image for server {server.name}: {e}")
             raise
+
+
+    def load_default_servers(self, json_file_path: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Load default server configurations from JSON file.
+
+        Args:
+            json_file_path: Path to the JSON file containing default server configurations.
+                          If None, uses Config.DEFAULT_SERVERS_FILE
+
+        Returns:
+            List of server configuration dictionaries
+
+        Raises:
+            FileNotFoundError: If the JSON file doesn't exist
+            json.JSONDecodeError: If the JSON file is malformed
+        """
+        if json_file_path is None:
+            json_file_path = Config.DEFAULT_SERVERS_FILE
+            
+        try:
+            if not os.path.exists(json_file_path):
+                logger.warning(f"Default servers file not found: {json_file_path}")
+                return []
+
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                servers_config = json.load(f)
+
+            logger.info(f"Loaded {len(servers_config)} default server configurations from {json_file_path}")
+            return servers_config
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON file {json_file_path}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to load default servers from {json_file_path}: {e}")
+            raise
+
+
+    def ensure_default_servers(self, json_file_path: Optional[str] = None) -> None:
+        """
+        Ensure default servers exist in the database.
+
+        Args:
+            json_file_path: Path to the JSON file containing default server configurations.
+                          If None, uses Config.DEFAULT_SERVERS_FILE
+        """
+        if json_file_path is None:
+            json_file_path = Config.DEFAULT_SERVERS_FILE
+            
+        if not self.app:
+            logger.error("Flask app context required for database operations")
+            return
+
+        try:
+            default_servers = self.load_default_servers(json_file_path)
+
+            with self.app.app_context():
+                for server_config in default_servers:
+                    # Check if server already exists
+                    existing_server = MCPServer.query.filter_by(
+                        github_url=server_config.get("github_url")
+                    ).first()
+
+                    if not existing_server:
+                        logger.info(f"Creating default server: {server_config.get('name')}")
+                        new_server = MCPServer(
+                            name=server_config.get("name"),
+                            github_url=server_config.get("github_url"),
+                            description=server_config.get("description"),
+                            runtime_type=server_config.get("runtime_type"),
+                            install_command=server_config.get("install_command"),
+                            start_command=server_config.get("start_command"),
+                            is_active=server_config.get("is_active", True),
+                            build_status=server_config.get("build_status", "pending"),
+                        )
+                        db.session.add(new_server)
+
+                db.session.commit()
+                logger.info("Default servers ensured in database")
+
+        except Exception as e:
+            logger.error(f"Failed to ensure default servers: {e}")
+            if self.app:
+                with self.app.app_context():
+                    db.session.rollback()
+            raise
+
+    async def initialize_and_build_servers(self) -> None:
+        """
+        Initialize MCP Router resources: check Docker, ensure images, build servers.
+
+        This method:
+        - Checks for Docker daemon
+        - Ensures base Docker images exist
+        - Creates/verifies default servers in database
+        - Rebuilds all active servers
+        - Mounts all built servers to the router
+        """
+        if not self.app:
+            logger.error("Flask app context required for server initialization")
+            return
+
+        logger.info("Initializing MCP Router resources...")
+
+        # 1. Check if Docker is running
+        if not self._check_docker_running():
+            logger.error("Docker is not running. Please start Docker and restart the application.")
+            raise RuntimeError("Docker daemon is not running")
+        logger.info("Docker is running.")
+
+        # 2. Ensure base images exist
+        try:
+            logger.info("Ensuring base Docker images exist...")
+            self._ensure_image_exists(Config.MCP_NODE_IMAGE)
+            self._ensure_image_exists(Config.MCP_PYTHON_IMAGE)
+            logger.info("Base Docker images are available.")
+        except Exception as e:
+            logger.error(f"Failed to ensure base images: {e}. Please check your Docker setup.")
+            raise
+
+        # 3. Ensure default servers exist in the database
+        try:
+            self.ensure_default_servers()
+        except Exception as e:
+            logger.error(f"Failed to ensure default servers: {e}")
+            raise
+
+        # 4. Find all active servers and rebuild them all on startup
+        logger.info("Rebuilding all active server images on startup...")
+        
+        with self.app.app_context():
+            all_active_servers = get_active_servers()
+
+            if all_active_servers:
+                logger.info(f"Found {len(all_active_servers)} active servers to rebuild.")
+                for server in all_active_servers:
+                    try:
+                        logger.info(f"Building image for {server.name}...")
+                        server.build_status = "building"
+                        server.build_logs = "Building..."
+                        db.session.commit()
+
+                        image_tag = self.build_server_image(server)
+                        server.build_status = "built"
+                        server.image_tag = image_tag
+                        server.build_logs = f"Successfully built image {image_tag}"
+                        db.session.commit()
+                        logger.info(f"Successfully built image for {server.name}.")
+                    except Exception as e:
+                        logger.error(f"Failed to build {server.name}: {e}")
+                        server.build_status = "failed"
+                        server.build_logs = str(e)
+                        db.session.commit()
+            else:
+                logger.info("No active servers found to build.")
+
+    async def mount_built_servers(self, dynamic_manager) -> None:
+        """
+        Mount all successfully built servers to the router.
+
+        Args:
+            dynamic_manager: The dynamic manager instance from the router
+        """
+        if not self.app:
+            logger.error("Flask app context required for mounting servers")
+            return
+
+        with self.app.app_context():
+            built_servers = get_built_servers()
+            
+            if built_servers:
+                logger.info(f"Mounting {len(built_servers)} built servers...")
+                for server in built_servers:
+                    try:
+                        await dynamic_manager.add_server(server)
+                    except Exception as e:
+                        logger.error(f"Failed to mount server '{server.name}': {e}")
+            else:
+                logger.info("No built servers to mount.")

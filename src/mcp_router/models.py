@@ -234,6 +234,14 @@ def get_active_servers() -> List[MCPServer]:
     """
     return MCPServer.query.filter_by(is_active=True).all()
 
+def get_built_servers() -> List[MCPServer]:
+    """Get all built servers
+    
+    Returns:
+        List of built MCPServer instances
+    """
+    return MCPServer.query.filter_by(build_status="built").all()
+
 
 def get_auth_type() -> str:
     """Get current authentication type preference
