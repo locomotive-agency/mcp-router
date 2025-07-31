@@ -401,7 +401,7 @@ def get_http_app():
     return router.http_app(path="/")
 
 
-def run_stdio_mode():
+async def run_stdio_mode():
     """Main function to run the MCP server in STDIO mode."""
     logger.info("Starting MCP Router in STDIO mode...")
 
@@ -415,7 +415,7 @@ def run_stdio_mode():
 
         # Create the router
         # In STDIO mode, authentication is not handled by the router itself
-        router = create_router(active_servers)
+        router = await create_router(active_servers)
 
         # Store router reference in Flask app for access from routes
         app.mcp_router = router

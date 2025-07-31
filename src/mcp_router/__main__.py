@@ -167,7 +167,7 @@ async def main():
 
     if transport_mode == "stdio":
         logger.info("Starting MCP Router in STDIO mode...")
-        run_stdio_mode()
+        await run_stdio_mode()
     elif transport_mode == "http":
         logger.info("Starting MCP Router in HTTP mode...")
         await run_http_mode()
