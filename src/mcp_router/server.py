@@ -293,7 +293,7 @@ def get_dynamic_manager() -> Optional[DynamicServerManager]:
     return _dynamic_manager
 
 
-def create_router(
+async def create_router(
     servers: List[MCPServer], api_key: Optional[str] = None, enable_oauth: bool = False
 ) -> FastMCP:
     """
@@ -359,7 +359,7 @@ You can use tools/list to see all available tools from all mounted servers.
                 server.description or "No description provided"
             )
 
-            _dynamic_manager._update_server_tools(server)
+            await _dynamic_manager._update_server_tools(server)
 
             logger.info(f"Successfully mounted server '{server.name}' with prefix '{server.id}'")
 

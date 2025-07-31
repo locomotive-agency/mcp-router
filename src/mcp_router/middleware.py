@@ -35,18 +35,19 @@ class ToolFilterMiddleware(Middleware):
             A list of enabled tools.
         """
         all_tools = await call_next(ctx)
+        logger.debug(repr(all_tools))
         logger.debug("Intercepting tools/list response to filter disabled tools")
 
-        disabled_prefixed_tools = self._get_disabled_tools()
-        logger.debug(f"Disabled prefixed tools: {disabled_prefixed_tools}")
-        if not disabled_prefixed_tools:
+        disabled_tools = self._get_disabled_tools()
+        logger.debug(f"Disabled tools: {disabled_tools}")
+        if not disabled_tools:
             logger.debug("No disabled tools found, returning all tools")
             return all_tools
 
         enabled_tools = [
             tool
             for tool in all_tools
-            if not self._is_tool_disabled(tool, disabled_prefixed_tools)
+            if not self._is_tool_disabled(tool, disabled_tools)
         ]
 
         logger.info(
@@ -56,13 +57,13 @@ class ToolFilterMiddleware(Middleware):
 
     def _get_disabled_tools(self) -> Set[str]:
         """
-        Query the database for disabled tools and return their prefixed names.
+        Query the database for disabled tools and return their names.
         
         Returns:
-            Set of prefixed tool names that are disabled
+            Set of tool names that are disabled
         """
         try:
-            disabled_prefixed_tools = set()
+            disabled_tools = set()
             
             with app.app_context():
                 # Query for disabled tools
@@ -71,14 +72,13 @@ class ToolFilterMiddleware(Middleware):
                     MCPServerTool.tool_name
                 ).filter_by(is_enabled=False).all()
                 
-                # Create prefixed tool names
+                # Create tool names
                 for server_id, tool_name in disabled_tools:
-                    prefixed_name = f"{server_id}_{tool_name}"
-                    disabled_prefixed_tools.add(prefixed_name)
+                    disabled_tools.add(tool_name)
                 
-                logger.debug(f"Found {len(disabled_prefixed_tools)} disabled tools in database")
+                logger.debug(f"Found {len(disabled_tools)} disabled tools in database")
                 
-            return disabled_prefixed_tools
+            return disabled_tools
             
         except Exception as e:
             logger.error(f"Failed to query disabled tools from database: {e}")
