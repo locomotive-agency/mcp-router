@@ -2,9 +2,9 @@
   {
     "name": "Python Interpreter",
     "github_url": "https://github.com/yzfly/mcp-python-interpreter",
-    "description": "Execute Python code in a secure sandbox environment",
+    "description": "Execute Python code in a secure sandbox environment using uv",
     "runtime_type": "uvx",
-    "install_command": "pip install mcp-python-interpreter",
+    "install_command": "uv tool install mcp-python-interpreter --with mcp[cli]==1.6.0",
     "start_command": "uvx mcp-python-interpreter --dir /data/python-sandbox",
     "is_active": true,
     "build_status": "pending"

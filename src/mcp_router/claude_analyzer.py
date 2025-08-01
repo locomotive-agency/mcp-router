@@ -24,15 +24,7 @@ class ClaudeAnalyzer:
         self.model_name = Config.ANTHROPIC_MODEL_NAME
 
     def analyze_repository(self, github_url: str) -> Dict[str, Any]:
-        """
-        Analyze a GitHub repository and return a structured configuration.
-
-        Args:
-            github_url: The URL of the GitHub repository.
-
-        Returns:
-            A dictionary containing the extracted server configuration.
-        """
+        """Analyze a GitHub repository and return a structured configuration."""
         match = re.match(r"https://github\.com/([^/]+)/([^/]+)", github_url)
         if not match:
             raise ValueError("Invalid GitHub URL format. Expected: https://github.com/owner/repo")
@@ -62,14 +54,7 @@ class ClaudeAnalyzer:
         retry=retry_if_exception_type((AnthropicError, httpx.HTTPStatusError)),
     )
     def _call_claude_api(self, prompt: str) -> str:
-        """Call Claude API with retry logic
-
-        Args:
-            prompt: The prompt to send to Claude
-
-        Returns:
-            The response text from Claude
-        """
+        """Call Claude API with retry logic"""
         message = self.client.messages.create(
             model=self.model_name,
             max_tokens=1024,

@@ -45,14 +45,7 @@ login_manager = LoginManager()
 
 
 def init_auth(app) -> None:
-    """Initialize authentication for the Flask app
-
-    Args:
-        app: Flask application instance
-
-    Raises:
-        ValueError: If ADMIN_PASSCODE is not set in production environment
-    """
+    """Initialize authentication for the Flask app"""
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Please log in to access the admin area."
@@ -71,14 +64,7 @@ def init_auth(app) -> None:
 
 @login_manager.user_loader
 def load_user(user_id: str) -> Optional[User]:
-    """Load user by ID - we only have one admin user
-
-    Args:
-        user_id: The user ID to load
-
-    Returns:
-        User instance if found, None otherwise
-    """
+    """Load user by ID - we only have one admin user"""
     if user_id == "admin":
         return ADMIN_USER
     return None
@@ -86,11 +72,7 @@ def load_user(user_id: str) -> Optional[User]:
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login() -> Union[str, Response]:
-    """Login page - handles both GET and POST requests
-
-    Returns:
-        Rendered login template or redirect response
-    """
+    """Login page - handles both GET and POST requests"""
     from flask import current_app
 
     form = LoginForm()
@@ -119,11 +101,7 @@ def login() -> Union[str, Response]:
 @auth_bp.route("/logout")
 @login_required
 def logout() -> Response:
-    """Logout current user and redirect to login page
-
-    Returns:
-        Redirect response to login page
-    """
+    """Logout current user and redirect to login page"""
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))

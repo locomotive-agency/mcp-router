@@ -32,11 +32,7 @@ client_registrations: Dict[str, Dict] = {}
 
 # Generate RSA key pair for JWT signing
 def generate_rsa_keypair() -> Tuple[RSAPrivateKey, RSAPublicKey]:
-    """Generate RSA key pair for JWT signing
-
-    Returns:
-        Tuple of (private_key, public_key)
-    """
+    """Generate RSA key pair for JWT signing"""
     private_key = rsa.generate_private_key(
         public_exponent=65537, key_size=2048, backend=default_backend()
     )
@@ -49,11 +45,7 @@ PRIVATE_KEY, PUBLIC_KEY = generate_rsa_keypair()
 
 
 def get_jwks() -> Dict[str, Any]:
-    """Get JSON Web Key Set for token validation
-
-    Returns:
-        Dictionary containing JWKS with public key information
-    """
+    """Get JSON Web Key Set for token validation"""
     # Extract modulus and exponent from public key
     public_numbers = PUBLIC_KEY.public_numbers()
 
@@ -77,11 +69,7 @@ def get_jwks() -> Dict[str, Any]:
 
 
 def create_oauth_blueprint() -> Blueprint:
-    """Create Flask blueprint for OAuth endpoints
-
-    Returns:
-        Flask Blueprint with OAuth endpoints configured
-    """
+    """Create Flask blueprint for OAuth endpoints"""
     oauth_bp = Blueprint("oauth", __name__)
 
     @oauth_bp.route("/.well-known/oauth-authorization-server")
@@ -250,7 +238,8 @@ def create_oauth_blueprint() -> Blueprint:
 
         # Validate client and redirect URI
         if (
-            client_id != auth_code_data["client_id"] or redirect_uri != auth_code_data["redirect_uri"]
+            client_id != auth_code_data["client_id"]
+            or redirect_uri != auth_code_data["redirect_uri"]
         ):
             return jsonify({"error": "invalid_grant"}), 400
 

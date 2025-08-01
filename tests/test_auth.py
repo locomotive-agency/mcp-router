@@ -1,10 +1,10 @@
 
 import unittest
-from flask import Flask, session, url_for, Blueprint
+from flask import Flask, url_for, Blueprint
 from flask_wtf.csrf import CSRFProtect
-from mcp_router.auth import init_auth, auth_bp, User, ADMIN_USER
+from mcp_router.auth import init_auth
 from mcp_router.config import TestingConfig
-from flask_login import current_user, login_required, logout_user
+from flask_login import login_required
 
 
 class AuthTestCase(unittest.TestCase):
@@ -55,8 +55,6 @@ class AuthTestCase(unittest.TestCase):
         )
         # Test that the endpoint processes the request (doesn't return 404 or 500)
         self.assertIn(response.status_code, [200, 302])
-        # The actual authentication logic may not work perfectly in test environment
-        # due to password hashing setup, but the endpoint should be functional
 
     def test_login_failed(self):
         """Test a failed login with an incorrect passcode."""

@@ -1,7 +1,9 @@
 
+import asyncio
 import unittest
+import pytest
 from unittest.mock import MagicMock, patch
-from mcp_router.server import create_mcp_config, DynamicServerManager
+from mcp_router.server import create_mcp_config, MCPManager
 from mcp_router.models import MCPServer
 from fastmcp import FastMCP
 
@@ -32,7 +34,6 @@ class TestServer(unittest.TestCase):
         self.assertIn("TestServer1", config["mcpServers"])
         self.assertIn("TestServer2", config["mcpServers"])
 
-        # Check server1 config
         server1_config = config["mcpServers"]["TestServer1"]
         self.assertEqual(server1_config["transport"], "stdio")
         self.assertIn("docker", server1_config["command"])
@@ -42,15 +43,14 @@ class TestServer(unittest.TestCase):
         self.assertIn("node", server1_config["args"])
         self.assertIn("start.js", server1_config["args"])
 
-        # Check server2 config (uvx should have 'stdio' appended)
         server2_config = config["mcpServers"]["TestServer2"]
         self.assertIn("uvx", server2_config["args"])
         self.assertIn("stdio", server2_config["args"])
 
     def test_dynamic_server_manager_add_server(self):
-        """Test adding a server with the DynamicServerManager."""
+        """Test adding a server with the MCPManager."""
         mock_router = MagicMock(spec=FastMCP)
-        manager = DynamicServerManager(router=mock_router)
+        manager = MCPManager(router=mock_router)
 
         server_config = MCPServer(
             id="dyn_serv",
@@ -62,52 +62,42 @@ class TestServer(unittest.TestCase):
         )
 
         with patch("mcp_router.server.create_mcp_config") as mock_create_config:
-            # Mock the config creation to avoid Docker/command parsing dependency
-            mock_create_config.return_value = {
-                "mcpServers": {
-                    "DynamicServer": {
-                        "command": "docker",
-                        "args": ["run", "mcp-router/server-dyn_serv", "npx", "...", "stdio"],
-                        "transport": "stdio",
+            with patch("mcp_router.server.store_server_tools"):
+                mock_create_config.return_value = {
+                    "mcpServers": {
+                        "DynamicServer": {
+                            "command": "docker",
+                            "args": ["run", "mcp-router/server-dyn_serv", "npx", "...", "stdio"],
+                            "transport": "stdio",
+                        }
                     }
                 }
-            }
 
-            manager.add_server(server_config)
+                asyncio.run(manager.add_server(server_config))
 
-            # Verify that router.mount was called
             mock_router.mount.assert_called_once()
             args, kwargs = mock_router.mount.call_args
             self.assertIsInstance(args[0], FastMCP)  # The mounted proxy
             self.assertEqual(kwargs["prefix"], "dyn_serv")
 
-            # Verify server is tracked
             self.assertIn("dyn_serv", manager.mounted_servers)
-            self.assertEqual(
-                manager.server_descriptions["dyn_serv"], "A dynamic server."
-            )
 
     def test_dynamic_server_manager_remove_server(self):
-        """Test removing a server with the DynamicServerManager."""
+        """Test removing a server with the MCPManager."""
         mock_router = MagicMock(spec=FastMCP)
-        # Mock the internal managers that hold the mounted server info
         mock_router._tool_manager = MagicMock()
         mock_router._resource_manager = MagicMock()
         mock_router._prompt_manager = MagicMock()
         mock_router._cache = MagicMock()
 
-        manager = DynamicServerManager(router=mock_router)
+        manager = MCPManager(router=mock_router)
 
-        # First, add a server to be removed
         mock_mounted_proxy = MagicMock(spec=FastMCP)
         manager.mounted_servers["server_to_remove"] = mock_mounted_proxy
-        manager.server_descriptions["server_to_remove"] = "Description"
 
-        # Mock the internal mount objects
         mount_obj = MagicMock()
         mount_obj.server = mock_mounted_proxy
         
-        # Create mock lists with mock remove methods
         mock_tool_list = MagicMock()
         mock_resource_list = MagicMock()
         mock_prompt_list = MagicMock()
@@ -122,15 +112,12 @@ class TestServer(unittest.TestCase):
 
         manager.remove_server("server_to_remove")
 
-        # Verify the server was removed from tracking
         self.assertNotIn("server_to_remove", manager.mounted_servers)
 
-        # Verify the internal managers' mount lists were modified
         mock_tool_list.remove.assert_called_with(mount_obj)
         mock_resource_list.remove.assert_called_with(mount_obj)
         mock_prompt_list.remove.assert_called_with(mount_obj)
 
-        # Verify the cache was cleared
         mock_router._cache.clear.assert_called_once()
 
 

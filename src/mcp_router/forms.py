@@ -8,15 +8,7 @@ from wtforms.validators import DataRequired, URL, Length, ValidationError
 
 # Custom validators that can be reused across forms
 def validate_github_url(form, field):
-    """Validate GitHub URL format.
-
-    Args:
-        form: The form instance
-        field: The GitHub URL field to validate
-
-    Raises:
-        ValidationError: If URL is not a valid GitHub repository URL
-    """
+    """Validate GitHub URL format."""
     if field.data:
         pattern = r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?$"
         if not re.match(pattern, field.data.rstrip("/")):
@@ -78,27 +70,13 @@ class ServerForm(FlaskForm):
     )
 
     def validate_runtime_type(self, field: SelectField) -> None:
-        """Validate runtime type is one of allowed values.
-
-        Args:
-            field: The runtime type field to validate
-
-        Raises:
-            ValidationError: If runtime type is not valid
-        """
+        """Validate runtime type is one of allowed values."""
         allowed_types = ["npx", "uvx"]
         if field.data not in allowed_types:
             raise ValidationError(f'Runtime type must be one of: {", ".join(allowed_types)}')
 
     def validate_install_command(self, field: StringField) -> None:
-        """Ensure install command is provided for npx/uvx servers.
-
-        Args:
-            field: The install command field to validate
-
-        Raises:
-            ValidationError: If install command is missing for npx/uvx servers
-        """
+        """Ensure install command is provided for npx/uvx servers."""
         # Check if runtime_type is npx or uvx and install_command is empty
         if hasattr(self, "runtime_type") and self.runtime_type.data in ["npx", "uvx"]:
             if not field.data or not field.data.strip():

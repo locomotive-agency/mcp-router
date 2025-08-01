@@ -18,11 +18,7 @@ class InterceptHandler(logging.Handler):
     """Handler to intercept standard logging and redirect to loguru."""
 
     def emit(self, record: logging.LogRecord) -> None:
-        """Emit a log record to loguru.
-
-        Args:
-            record: The log record to emit
-        """
+        """Emit a log record to loguru."""
         # Get corresponding Loguru level if it exists
         try:
             level = logger.level(record.levelname).name
@@ -44,14 +40,7 @@ def configure_logging(
     log_file: Optional[str] = None,
     json_logs: bool = False,
 ) -> None:
-    """Configure logging for the entire application using loguru.
-
-    Args:
-        log_level: The logging level (default from Config.LOG_LEVEL)
-        log_format: Custom log format (default is sensible format)
-        log_file: Optional log file path
-        json_logs: Whether to output logs in JSON format
-    """
+    """Configure logging for the entire application using loguru."""
     # Remove default loguru handler
     logger.remove()
 
@@ -165,13 +154,6 @@ def suppress_deprecation_warnings() -> None:
     logger.debug("Suppressing websockets deprecation warnings until uvicorn updates to new API")
 
 
-def get_logger(name: str) -> "logger":
-    """Get a logger instance with the given name.
-
-    Args:
-        name: The name for the logger (typically __name__)
-
-    Returns:
-        A loguru logger instance bound with the name
-    """
+def get_logger(name: str):
+    """Get a logger instance with the given name."""
     return logger.bind(name=name)

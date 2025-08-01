@@ -59,25 +59,27 @@ class MCPServer(db.Model):
 
 class MCPServerTool(db.Model):
     """Model for MCP server tools"""
-    
+
     __tablename__ = "mcp_server_tools"
-    
+
     id = db.Column(db.Integer, primary_key=True)
-    server_id = db.Column(db.String(8), db.ForeignKey('mcp_servers.id'), nullable=False)
+    server_id = db.Column(
+        db.String(8), db.ForeignKey("mcp_servers.id", ondelete="CASCADE"), nullable=False
+    )
     tool_name = db.Column(db.String(200), nullable=False)
     tool_description = db.Column(db.Text)
     is_enabled = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    
+
     # Relationship
-    server = db.relationship('MCPServer', backref='tools')
-    
+    server = db.relationship("MCPServer", backref=db.backref("tools", cascade="all, delete-orphan"))
+
     # Unique constraint to prevent duplicate tools per server
-    __table_args__ = (db.UniqueConstraint('server_id', 'tool_name'),)
-    
+    __table_args__ = (db.UniqueConstraint("server_id", "tool_name"),)
+
     def __repr__(self) -> str:
         return f"<MCPServerTool {self.server_id}_{self.tool_name}>"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation"""
         return {
@@ -134,11 +136,7 @@ def generate_id() -> str:
 
 
 def init_db(app) -> None:
-    """Initialize database with app context and handle migrations
-
-    Args:
-        app: Flask application instance
-    """
+    """Initialize database with app context and handle migrations"""
     db.init_app(app)
     with app.app_context():
         # Create all tables
@@ -204,7 +202,11 @@ def init_db(app) -> None:
 
             # Check if mcp_server_tools table exists and create if needed
             try:
-                result = db.session.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='mcp_server_tools'")).fetchone()
+                result = db.session.execute(
+                    text(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='mcp_server_tools'"
+                    )
+                ).fetchone()
                 if not result:
                     logger.info("Creating mcp_server_tools table")
                     # Create the table using SQLAlchemy metadata
@@ -227,28 +229,17 @@ def init_db(app) -> None:
 
 
 def get_active_servers() -> List[MCPServer]:
-    """Get all active servers
-
-    Returns:
-        List of active MCPServer instances
-    """
+    """Get all active servers"""
     return MCPServer.query.filter_by(is_active=True).all()
 
+
 def get_built_servers() -> List[MCPServer]:
-    """Get all built servers
-    
-    Returns:
-        List of built MCPServer instances
-    """
+    """Get all built servers"""
     return MCPServer.query.filter_by(build_status="built").all()
 
 
 def get_auth_type() -> str:
-    """Get current authentication type preference
-
-    Returns:
-        Current auth type ('oauth' or 'api_key'), defaults to 'api_key'
-    """
+    """Get current authentication type preference"""
     server_status = MCPServerStatus.query.first()
     if server_status and server_status.auth_type:
         return server_status.auth_type
@@ -260,14 +251,7 @@ def get_auth_type() -> str:
 
 
 def set_auth_type(auth_type: str) -> None:
-    """Set authentication type preference with validation
-
-    Args:
-        auth_type: Authentication type ('oauth' or 'api_key')
-
-    Raises:
-        ValueError: If auth_type is not valid
-    """
+    """Set authentication type preference with validation"""
     if auth_type not in ("oauth", "api_key"):
         raise ValueError(f"Invalid auth_type '{auth_type}'. Must be 'oauth' or 'api_key'")
 
@@ -278,11 +262,7 @@ def set_auth_type(auth_type: str) -> None:
 
 
 def ensure_server_status_exists() -> MCPServerStatus:
-    """Ensure server status record exists for current transport
-
-    Returns:
-        MCPServerStatus instance (existing or newly created)
-    """
+    """Ensure server status record exists for current transport"""
 
     server_status = MCPServerStatus.query.first()
     if not server_status:
@@ -298,11 +278,7 @@ def ensure_server_status_exists() -> MCPServerStatus:
 
 
 def clear_database() -> None:
-    """Clear all data from the database tables.
-
-    This function drops all tables and recreates them, effectively clearing
-    all data. This is useful for fresh deployments.
-    """
+    """Clear all data from the database tables."""
     logger.info("Clearing database...")
     try:
         # Drop all tables
@@ -324,17 +300,7 @@ def clear_database() -> None:
 
 
 def get_connection_status(request=None) -> Dict[str, Any]:
-    """Get the current connection status and configuration.
-
-    Note: This function requires a Flask app context when transport is 'http'
-    because it queries the database for auth type.
-
-    Args:
-        request: Optional Flask request object for determining URLs
-
-    Returns:
-        Dict containing transport mode, status, and connection info
-    """
+    """Get the current connection status and configuration."""
     status_info = {
         "transport": Config.MCP_TRANSPORT,
         "status": "running",  # If this code is running, the app is running

@@ -50,11 +50,7 @@ class ContainerManager:
         return f"mcp-router/server-{server.id}"
 
     def _ensure_image_exists(self, image_name: str) -> None:
-        """Checks if a Docker image exists locally and pulls it if not.
-
-        Args:
-            image_name: Docker image name to check/pull
-        """
+        """Checks if a Docker image exists locally and pulls it if not."""
         try:
             self.docker_client.images.get(image_name)
             logger.info(f"Image '{image_name}' already exists locally.")
@@ -75,16 +71,7 @@ class ContainerManager:
         return env_vars
 
     def _parse_install_command(self, server: MCPServer) -> str:
-        """Parse and validate install command for container execution.
-
-        Note: Returns a string (not array) because it's executed via shell.
-
-        Args:
-            server: MCPServer instance with install_command
-
-        Returns:
-            Parsed install command suitable for shell execution
-        """
+        """Parse and validate install command for container execution."""
         cmd = server.install_command.strip()
 
         if not cmd:
@@ -120,21 +107,12 @@ class ContainerManager:
             # Since SandboxSession might not handle shell operators well,
             # we'll install uv separately in the build process
             return cmd if cmd.strip() else ""
-        
+
         # For other Python packages, return as-is since pip handles their own parsing
         return cmd
 
     def _parse_start_command(self, server: MCPServer) -> List[str]:
-        """Parse start command into Docker command array.
-
-        Uses shlex for proper shell parsing to handle quotes, spaces, etc.
-
-        Args:
-            server: MCPServer instance with start_command
-
-        Returns:
-            List of command parts suitable for Docker execution
-        """
+        """Parse start command into Docker command array."""
         cmd = server.start_command.strip()
 
         if not cmd:
@@ -160,17 +138,7 @@ class ContainerManager:
             return cmd.split()
 
     def test_server(self, server: MCPServer) -> Dict[str, Any]:
-        """Test server by verifying its Docker image exists and can start.
-
-        Simple approach: Try to run the actual command with a short timeout.
-        If it starts without crashing immediately, it's likely valid.
-
-        Args:
-            server: MCPServer instance
-
-        Returns:
-            Dict containing test results
-        """
+        """Test server by verifying its Docker image exists and can start."""
         logger.info(f"Testing server: {server.name}")
         start_time = time.time()
 
@@ -261,22 +229,7 @@ class ContainerManager:
             }
 
     def build_server_image(self, server: MCPServer) -> str:
-        """
-        Build a Docker image for an MCP server with dependencies pre-installed.
-
-        Uses LLM-Sandbox to create the container, install dependencies,
-        then commits it as a reusable Docker image.
-
-        Args:
-            server: MCPServer instance to build image for
-
-        Returns:
-            str: Docker image tag for the built image
-
-        Raises:
-            BuildError: If image building fails
-            RuntimeError: If dependency installation fails
-        """
+        """Build a Docker image for an MCP server with dependencies pre-installed."""
         image_tag = self.get_image_tag(server)
 
         logger.info(f"Building Docker image for server {server.name} ({server.runtime_type})")
@@ -322,9 +275,13 @@ class ContainerManager:
                     logger.info("uv installed successfully")
 
                 # Create Python sandbox directory for mcp-python-interpreter if this is a uvx server
-                if server.runtime_type == "uvx" and "mcp-python-interpreter" in server.start_command:
+                if (
+                    server.runtime_type == "uvx" and "mcp-python-interpreter" in server.start_command
+                ):
                     logger.info("Creating Python sandbox directory for mcp-python-interpreter...")
-                    mkdir_result = session.execute_command("mkdir -p /data/python-sandbox && chmod 755 /data/python-sandbox")
+                    mkdir_result = session.execute_command(
+                        "mkdir -p /data/python-sandbox && chmod 755 /data/python-sandbox"
+                    )
                     if mkdir_result.exit_code != 0:
                         logger.warning(f"Failed to create sandbox directory: {mkdir_result.stderr}")
 
@@ -335,9 +292,7 @@ class ContainerManager:
                     result = session.execute_command(install_command)
 
                     if result.exit_code != 0:
-                        raise RuntimeError(
-                            f"Failed to install {server.start_command}: {result.stderr}"
-                        )
+                        raise RuntimeError(f"Failed to install {install_command}: {result.stderr}")
 
                     logger.info("Dependencies installed successfully")
                 else:
@@ -366,34 +321,22 @@ class ContainerManager:
             logger.error(f"Failed to build image for server {server.name}: {e}")
             raise
 
-
     def load_default_servers(self, json_file_path: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        Load default server configurations from JSON file.
-
-        Args:
-            json_file_path: Path to the JSON file containing default server configurations.
-                          If None, uses Config.DEFAULT_SERVERS_FILE
-
-        Returns:
-            List of server configuration dictionaries
-
-        Raises:
-            FileNotFoundError: If the JSON file doesn't exist
-            json.JSONDecodeError: If the JSON file is malformed
-        """
+        """Load default server configurations from JSON file."""
         if json_file_path is None:
             json_file_path = Config.DEFAULT_SERVERS_FILE
-            
+
         try:
             if not os.path.exists(json_file_path):
                 logger.warning(f"Default servers file not found: {json_file_path}")
                 return []
 
-            with open(json_file_path, 'r', encoding='utf-8') as f:
+            with open(json_file_path, "r", encoding="utf-8") as f:
                 servers_config = json.load(f)
 
-            logger.info(f"Loaded {len(servers_config)} default server configurations from {json_file_path}")
+            logger.info(
+                f"Loaded {len(servers_config)} default server configurations from {json_file_path}"
+            )
             return servers_config
 
         except json.JSONDecodeError as e:
@@ -403,18 +346,11 @@ class ContainerManager:
             logger.error(f"Failed to load default servers from {json_file_path}: {e}")
             raise
 
-
     def ensure_default_servers(self, json_file_path: Optional[str] = None) -> None:
-        """
-        Ensure default servers exist in the database.
-
-        Args:
-            json_file_path: Path to the JSON file containing default server configurations.
-                          If None, uses Config.DEFAULT_SERVERS_FILE
-        """
+        """Ensure default servers exist in the database."""
         if json_file_path is None:
             json_file_path = Config.DEFAULT_SERVERS_FILE
-            
+
         if not self.app:
             logger.error("Flask app context required for database operations")
             return
@@ -441,6 +377,7 @@ class ContainerManager:
                             is_active=server_config.get("is_active", True),
                             build_status=server_config.get("build_status", "pending"),
                         )
+
                         db.session.add(new_server)
 
                 db.session.commit()
@@ -454,16 +391,7 @@ class ContainerManager:
             raise
 
     async def initialize_and_build_servers(self) -> None:
-        """
-        Initialize MCP Router resources: check Docker, ensure images, build servers.
-
-        This method:
-        - Checks for Docker daemon
-        - Ensures base Docker images exist
-        - Creates/verifies default servers in database
-        - Rebuilds all active servers
-        - Mounts all built servers to the router
-        """
+        """Initialize MCP Router resources: check Docker, ensure images, build servers."""
         if not self.app:
             logger.error("Flask app context required for server initialization")
             return
@@ -495,7 +423,7 @@ class ContainerManager:
 
         # 4. Find all active servers and rebuild them all on startup
         logger.info("Rebuilding all active server images on startup...")
-        
+
         with self.app.app_context():
             all_active_servers = get_active_servers()
 
@@ -522,25 +450,20 @@ class ContainerManager:
             else:
                 logger.info("No active servers found to build.")
 
-    async def mount_built_servers(self, dynamic_manager) -> None:
-        """
-        Mount all successfully built servers to the router.
-
-        Args:
-            dynamic_manager: The dynamic manager instance from the router
-        """
+    async def mount_built_servers(self, mcp_manager) -> None:
+        """Mount all successfully built servers to the router."""
         if not self.app:
             logger.error("Flask app context required for mounting servers")
             return
 
         with self.app.app_context():
             built_servers = get_built_servers()
-            
+
             if built_servers:
                 logger.info(f"Mounting {len(built_servers)} built servers...")
                 for server in built_servers:
                     try:
-                        await dynamic_manager.add_server(server)
+                        await mcp_manager.add_server(server)
                     except Exception as e:
                         logger.error(f"Failed to mount server '{server.name}': {e}")
             else:

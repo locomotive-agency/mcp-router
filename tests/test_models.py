@@ -71,16 +71,16 @@ class TestModels(unittest.TestCase):
         """Test the get_active_servers function."""
         active_server = MCPServer(
             name="Active Server",
-            github_url="http://a",
-            runtime_type="d",
-            start_command="s",
+            github_url="https://github.com/example/active",
+            runtime_type="docker",
+            start_command="docker run active",
             is_active=True,
         )
         inactive_server = MCPServer(
             name="Inactive Server",
-            github_url="http://b",
-            runtime_type="d",
-            start_command="s",
+            github_url="https://github.com/example/inactive",
+            runtime_type="docker",
+            start_command="docker run inactive",
             is_active=False,
         )
         db.session.add_all([active_server, inactive_server])
@@ -92,23 +92,18 @@ class TestModels(unittest.TestCase):
 
     def test_auth_type_handling(self):
         """Test the get_auth_type and set_auth_type functions."""
-        # Initially, no status exists, should fall back to config
         self.assertEqual(get_auth_type(), self.app.config["MCP_AUTH_TYPE"])
 
-        # Ensure a status record exists
         ensure_server_status_exists()
 
-        # Set auth type to 'oauth'
         set_auth_type("oauth")
         self.assertEqual(get_auth_type(), "oauth")
         status = MCPServerStatus.query.first()
         self.assertEqual(status.auth_type, "oauth")
 
-        # Set auth type back to 'api_key'
         set_auth_type("api_key")
         self.assertEqual(get_auth_type(), "api_key")
 
-        # Test invalid auth type
         with self.assertRaises(ValueError):
             set_auth_type("invalid_auth")
 

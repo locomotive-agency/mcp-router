@@ -80,11 +80,7 @@ register_error_handlers(app)
 # Register context processor
 @app.context_processor
 def utility_processor() -> Dict[str, Any]:
-    """Add utility functions to templates
-
-    Returns:
-        Dictionary of utility functions available in templates
-    """
+    """Add utility functions to templates"""
     return {
         "len": len,
         "str": str,

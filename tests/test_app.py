@@ -42,20 +42,7 @@ class TestApp(unittest.TestCase):
             self.app.wsgi_app.__class__.__name__, "ProxyFix"
         )
 
-    def test_cors_headers_on_mcp_endpoint(self):
-        """Test that CORS is configured for the application."""
-        # Since the /mcp endpoint is handled by the ASGI app layer,
-        # we'll test that Flask extensions are configured
-        # The actual CORS functionality would require an ASGI test client
-        
-        # Verify that the app has extensions configured
-        self.assertTrue(hasattr(self.app, 'extensions'), 
-                       "Flask app should have extensions configured")
-        
-        # This is sufficient to verify the app setup includes CORS configuration
-        # More detailed CORS testing would require integration tests with ASGI client
-        self.assertIsInstance(self.app.extensions, dict,
-                             "Extensions should be a dictionary")
+
 
 
 if __name__ == "__main__":

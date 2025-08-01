@@ -1,16 +1,14 @@
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from mcp_router.container_manager import ContainerManager
 from mcp_router.models import MCPServer
-from docker.errors import ImageNotFound
 
 class TestContainerManager(unittest.TestCase):
     """Test cases for the ContainerManager."""
 
     def setUp(self):
         """Set up the ContainerManager instance."""
-        # We don't need a real Flask app for these tests
         self.manager = ContainerManager(app=None)
 
     def test_get_image_tag(self):
@@ -82,11 +80,11 @@ class TestContainerManager(unittest.TestCase):
         mock_client_instance = mock_docker_client.from_env.return_value
         mock_client_instance.ping.return_value = True
         manager = ContainerManager()
-        self.assertTrue(manager.check_docker_running())
+        self.assertTrue(manager._check_docker_running())
 
         # Mock a failed ping
         mock_client_instance.ping.side_effect = Exception("Docker daemon not running")
-        self.assertFalse(manager.check_docker_running())
+        self.assertFalse(manager._check_docker_running())
 
 
 if __name__ == "__main__":

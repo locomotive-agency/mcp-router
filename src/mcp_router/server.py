@@ -1,11 +1,10 @@
 """FastMCP server implementation for MCP Router using proxy pattern"""
 
-
 from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP
 from sqlalchemy.exc import SQLAlchemyError, DatabaseError
 from mcp_router.middleware import ToolFilterMiddleware
-from mcp_router.models import get_active_servers, MCPServer, MCPServerTool, db
+from mcp_router.models import MCPServer, MCPServerTool, db
 from mcp_router.app import app, run_web_ui_in_background
 from mcp_router.container_manager import ContainerManager
 from mcp_router.logging_config import get_logger
@@ -14,12 +13,7 @@ logger = get_logger(__name__)
 
 
 def create_mcp_config(servers: List[MCPServer]) -> Dict[str, Any]:
-    """
-    Convert database servers to MCP proxy configuration format.
-
-    Each server runs in its own Docker container built by Container Manager.
-    Environment variables are passed at runtime.
-    """
+    """Convert database servers to MCP proxy configuration format."""
     config = {"mcpServers": {}}
     container_manager = ContainerManager()
 
@@ -66,45 +60,49 @@ def create_mcp_config(servers: List[MCPServer]) -> Dict[str, Any]:
     return config
 
 
-
 def store_server_tools(server_config: MCPServer, discovered_tools: List[Dict[str, Any]]) -> None:
-    """
-    Store discovered tools in the database.
-    
-    Args:
-        server_config: The MCPServer configuration
-        discovered_tools: List of tool definitions
-    """
+    """Store discovered tools in the database."""
     try:
         with app.app_context():
-            
 
             # Update database to match the discovered tools while perserving other model fields
-            existing_tools = {tool.tool_name: tool.to_dict() for tool in MCPServerTool.query.filter_by(server_id=server_config.id).all()}
+            existing_tools = {
+                tool.tool_name: tool.to_dict()
+                for tool in MCPServerTool.query.filter_by(server_id=server_config.id).all()
+            }
 
-            discovered_tools_dict = {tool['name']: tool for tool in discovered_tools}
+            discovered_tools_dict = {tool["name"]: tool for tool in discovered_tools}
 
-            #set of tools to add
+            # set of tools to add
             tools_to_add = discovered_tools_dict.keys() - existing_tools.keys()
 
-            #set of tools to remove
+            # set of tools to remove
             tools_to_remove = existing_tools.keys() - discovered_tools_dict.keys()
 
-            #add new tools
+            # add new tools
             for tool_name in tools_to_add:
-                db.session.add(MCPServerTool(server_id=server_config.id, tool_name=tool_name, tool_description=discovered_tools_dict[tool_name]['description'], is_enabled=True))
+                db.session.add(
+                    MCPServerTool(
+                        server_id=server_config.id,
+                        tool_name=tool_name,
+                        tool_description=discovered_tools_dict[tool_name]["description"],
+                        is_enabled=True,
+                    )
+                )
             logger.info(f"Added {len(tools_to_add)} tools for server '{server_config.name}'")
-            
-            #remove tools
+
+            # remove tools
             for tool_name in tools_to_remove:
-                tool = MCPServerTool.query.filter_by(server_id=server_config.id, tool_name=tool_name).first()
+                tool = MCPServerTool.query.filter_by(
+                    server_id=server_config.id, tool_name=tool_name
+                ).first()
                 db.session.delete(tool)
             logger.info(f"Removed {len(tools_to_remove)} tools for server '{server_config.name}'")
 
-
             db.session.commit()
-            logger.info(f"Stored {len(discovered_tools_dict)} tools for server '{server_config.name}'")
-
+            logger.info(
+                f"Stored {len(discovered_tools_dict)} tools for server '{server_config.name}'"
+            )
 
     except (SQLAlchemyError, DatabaseError) as e:
         logger.error(f"Database error storing tools for {server_config.name}: {e}")
@@ -114,35 +112,22 @@ def store_server_tools(server_config: MCPServer, discovered_tools: List[Dict[str
         # Don't raise here to avoid breaking server mounting
 
 
-
-class DynamicServerManager:
+class MCPManager:
     """
-    Manages dynamic addition and removal of MCP servers using FastMCP's mount() capability.
+    Manages the MCP router and handles runtime server mounting/unmounting.
 
-    This class provides the ability to add and remove MCP servers at runtime without
-    requiring a full router reconstruction, leveraging FastMCP's built-in server composition.
+    This class encapsulates the FastMCP router and provides methods to dynamically
+    add and remove MCP servers at runtime using FastMCP's mount() capability.
     """
 
     def __init__(self, router: FastMCP):
-        """
-        Initialize the dynamic server manager.
-
-        Args:
-            router: The FastMCP router instance to manage
-        """
+        """Initialize the MCP manager with a router."""
         self.router = router
         self.mounted_servers: Dict[str, FastMCP] = {}
-        self.server_descriptions: Dict[str, str] = {}
-        logger.info("Initialized DynamicServerManager")
-
+        logger.info("Initialized MCPManager")
 
     async def add_server(self, server_config: MCPServer) -> None:
-        """
-        Add a new MCP server dynamically using FastMCP's mount capability.
-
-        Args:
-            server_config: MCPServer instance
-        """
+        """Add a new MCP server dynamically using FastMCP's mount capability."""
         try:
             # Create proxy configuration for this single server
             proxy_config = create_mcp_config([server_config])
@@ -159,32 +144,20 @@ class DynamicServerManager:
 
             # Track the mounted server
             self.mounted_servers[server_config.id] = proxy
-            self.server_descriptions[server_config.id] = server_config.description or ""
 
             logger.info(
                 f"Successfully mounted server '{server_config.name}' with prefix '{prefix}'"
             )
 
             # Discover and store tools for this newly added server
-            logger.info(f"Updating tools for server '{server_config.name}'")
             await self._update_server_tools(server_config)
-            logger.info(f"Updated tools for server '{server_config.name}'")
 
         except Exception as e:
             logger.error(f"Failed to add server '{server_config.name}': {e}")
             # Continue with other servers rather than raising
 
-
     def remove_server(self, server_id: str) -> None:
-        """
-        Remove an MCP server dynamically by unmounting it from all managers.
-
-        This uses the internal FastMCP managers to properly remove a mounted server,
-        as FastMCP doesn't provide a public unmount() method.
-
-        Args:
-            server_name: Name of the server to remove
-        """
+        """Remove an MCP server dynamically by unmounting it from all managers."""
         if server_id not in self.mounted_servers:
             logger.warning(f"Server '{server_id}' not found in mounted servers")
             return
@@ -216,7 +189,6 @@ class DynamicServerManager:
 
             # Remove from our tracking
             del self.mounted_servers[server_id]
-            del self.server_descriptions[server_id]
 
             logger.info(f"Successfully unmounted server '{server_id}' from all managers")
 
@@ -224,38 +196,21 @@ class DynamicServerManager:
             logger.error(f"Failed to remove server '{server_id}': {e}")
             raise
 
-    
     async def _update_server_tools(self, server_config: MCPServer) -> None:
-        """
-        Update the tools for a server.
-
-        Args:
-            server_config: The MCPServer configuration
-
-        """
+        """Update the tools for a server."""
         tools = await self.mounted_servers[server_config.id]._tool_manager.get_tools()
 
         # Find tools that belong to this server
         discovered_tools = []
         for key, tool in tools.items():
-            discovered_tools.append({
-                'name': key,
-                'description': tool.description or ''
-            })
-
+            discovered_tools.append({"name": key, "description": tool.description or ""})
 
         store_server_tools(server_config, discovered_tools)
 
         logger.info(f"Updated tools for server '{server_config.name}'")
 
-
     def _remove_server_tools(self, server_id: str) -> None:
-        """
-        Remove the tools for a server.
-
-        Args:
-            server_name: The name of the server to remove
-        """
+        """Remove the tools for a server."""
         with app.app_context():
             MCPServerTool.query.filter_by(server_id=server_id).delete()
             db.session.commit()
@@ -263,45 +218,10 @@ class DynamicServerManager:
             logger.info(f"Removed tools for server '{server_id}'")
 
 
-
-
-
-
-# Global reference to the dynamic manager for access from routes
-_dynamic_manager: Optional[DynamicServerManager] = None
-
-
-def get_dynamic_manager() -> Optional[DynamicServerManager]:
-    """
-    Get the current dynamic server manager instance.
-
-    Returns:
-        DynamicServerManager instance if available, None otherwise
-    """
-    # Try to get from Flask app context first
-    try:
-        if hasattr(app, "mcp_router") and hasattr(app.mcp_router, "_dynamic_manager"):
-            return app.mcp_router._dynamic_manager
-    except RuntimeError:
-        # No Flask app context available
-        pass
-
-    # Fall back to global reference
-    return _dynamic_manager
-
-
-async def create_router(
-    servers: List[MCPServer], api_key: Optional[str] = None, enable_oauth: bool = False
-) -> FastMCP:
-    """
-    Create the MCP router with dynamic server management capabilities.
-
-    Args:
-        servers: List of active MCP servers to mount initially
-        api_key: Optional API key for simple authentication
-        enable_oauth: Enable OAuth authentication for Claude web
-    """
-    global _dynamic_manager
+async def create_mcp_manager(
+    api_key: Optional[str] = None, enable_oauth: bool = False
+) -> MCPManager:
+    """Create the MCP manager with router and dynamic server management capabilities."""
 
     # Prepare authentication
     auth = None
@@ -327,75 +247,30 @@ You can use tools/list to see all available tools from all mounted servers.
 """,
     )
 
-    # Initialize dynamic server manager
-    _dynamic_manager = DynamicServerManager(router)
-
-    # Store reference in router for access from routes
-    router._dynamic_manager = _dynamic_manager
-
-    # Mount all existing servers dynamically
-    for server in servers:
-        try:
-            # Mount servers synchronously during initialization
-            # Create proxy configuration for the single server
-            proxy_config = create_mcp_config([server])
-
-            if not proxy_config["mcpServers"]:
-                logger.warning(f"Skipping server '{server.name}' - no valid configuration")
-                continue
-
-            # Create FastMCP proxy for the server
-            proxy = FastMCP.as_proxy(proxy_config)
-
-            # Mount it with the server ID as prefix
-            router.mount(proxy, prefix=server.id)
-
-            # Track the server and its description in the dynamic manager
-            _dynamic_manager.mounted_servers[server.id] = proxy
-            _dynamic_manager.server_descriptions[server.id] = (
-                server.description or "No description provided"
-            )
-
-            await _dynamic_manager._update_server_tools(server)
-
-            logger.info(f"Successfully mounted server '{server.name}' with prefix '{server.id}'")
-
-            # Tool discovery will be handled after all servers are mounted
-
-        except Exception as e:
-            logger.error(f"Failed to mount server '{server.name}' during initialization: {e}")
-            continue
-
-
     # Add the middleware for tool filtering based on database settings
     router.add_middleware(ToolFilterMiddleware())
 
-    return router
+    # Create and return the MCP manager
+    mcp_manager = MCPManager(router)
+    return mcp_manager
 
 
 async def get_http_app():
-    """
-    Configure and retrieve the MCP ASGI application.
-
-    Returns:
-        Callable: The MCP ASGI application.
-    """
+    """Configure and retrieve the MCP ASGI application."""
     logger.info("Configuring MCP ASGI app...")
 
-    # Fetch active servers from the database
     with app.app_context():
-        # Create the router with no servers initially.
-        # Servers will be mounted dynamically after initialization.
-        router = await create_router([])
+        # Create the MCP manager with router
+        mcp_manager = await create_mcp_manager()
 
-        # Store router reference in Flask app for access from routes
-        app.mcp_router = router
+        # Store MCP manager reference in Flask app for access from routes
+        app.mcp_manager = mcp_manager
 
     logger.info("MCP ASGI app configured.")
 
     # Since this app is already mounted at /mcp in the ASGI configuration,
     # we use the root path "/" to avoid double-mounting (which would cause /mcp/mcp)
-    return router.http_app(path="/")
+    return mcp_manager.router.http_app(path="/")
 
 
 async def run_stdio_mode():
@@ -405,18 +280,14 @@ async def run_stdio_mode():
     # Run the Flask web UI in a background thread
     run_web_ui_in_background()
 
-    # Fetch active servers from the database
+    # Create the MCP manager - servers are mounted by initialize_mcp_router()
     with app.app_context():
-        active_servers = get_active_servers()
-        logger.info(f"Loaded {len(active_servers)} active servers from database")
-
-        # Create the router
         # In STDIO mode, authentication is not handled by the router itself
-        router = await create_router(active_servers)
+        mcp_manager = await create_mcp_manager()
 
-        # Store router reference in Flask app for access from routes
-        app.mcp_router = router
+        # Store MCP manager reference in Flask app for access from routes
+        app.mcp_manager = mcp_manager
 
     # Run the stdio transport in the main thread
     logger.info("Running with stdio transport for local clients (e.g., Claude Desktop)")
-    router.run(transport="stdio")
+    mcp_manager.router.run(transport="stdio")

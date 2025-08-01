@@ -120,7 +120,6 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 
 async def create_asgi_app():
     """Create the ASGI application with proper authentication middleware"""
-    
 
     # Create a WSGIMiddleware-wrapped Flask app
     wsgi_app = WSGIMiddleware(flask_app)

@@ -19,6 +19,7 @@ from mcp_router.container_manager import ContainerManager
 from mcp_router.claude_analyzer import ClaudeAnalyzer
 from mcp_router.config import Config
 from flask import current_app
+from mcp_router.async_utils import run_async_from_sync
 
 from mcp_router.logging_config import get_logger
 
@@ -28,7 +29,7 @@ logger = get_logger(__name__)
 servers_bp = Blueprint("servers", __name__)
 
 
-async def handle_dynamic_server_update(server: MCPServer, operation: str = "add") -> None:
+def handle_dynamic_server_update(server: MCPServer, operation: str = "add") -> None:
     """
     Handle dynamic server updates for HTTP mode.
 
@@ -42,26 +43,32 @@ async def handle_dynamic_server_update(server: MCPServer, operation: str = "add"
         return
 
     try:
-        from mcp_router.server import get_dynamic_manager
-
-        dynamic_manager = get_dynamic_manager()
-        if not dynamic_manager:
-            logger.warning("Dynamic manager not available - server changes require restart")
+        # Access MCP manager through cleaner interface
+        if not hasattr(current_app, "mcp_manager") or not current_app.mcp_manager:
+            logger.warning("MCP manager not available - server changes require restart")
             return
 
-        if operation == "add":
-            await dynamic_manager.add_server(server)
-            logger.info(f"Completed dynamic addition of server '{server.name}'")
+        mcp_manager = current_app.mcp_manager
 
-        elif operation == "delete":
-            dynamic_manager.remove_server(server.id)
+        if operation == "delete":
+            # Delete is synchronous
+            mcp_manager.remove_server(server.id)
             logger.info(f"Completed dynamic removal of server '{server.name}'")
 
-        elif operation == "update":
-            # For updates, remove and re-add
-            dynamic_manager.remove_server(server.id)
-            await dynamic_manager.add_server(server)
-            logger.info(f"Completed dynamic update of server '{server.name}'")
+        elif operation == "add" or operation == "update":
+            # Use the new async helper instead of asyncio.run()
+            try:
+                run_async_from_sync(
+                    mcp_manager.add_server(server),
+                    timeout=60.0,  # Give more time for server initialization
+                )
+                logger.info(f"Completed dynamic {operation} of server '{server.name}'")
+            except TimeoutError:
+                logger.error(f"Timeout while {operation}ing server '{server.name}'")
+                raise
+            except Exception as e:
+                logger.error(f"Failed to {operation} server '{server.name}': {e}")
+                raise
 
     except Exception as e:
         logger.error(f"Failed to handle dynamic server {operation}: {e}")
@@ -356,40 +363,37 @@ def toggle_server(server_id: str) -> Union[Response, Tuple[str, int]]:
 def toggle_tool(server_id: str) -> str:
     """
     Toggle enable/disable status of a tool (HTMX endpoint).
-    
+
     Args:
         server_id: ID of the server
-        
+
     Returns:
         HTML string with updated tool status
     """
     server = MCPServer.query.get_or_404(server_id)
-    tool_id = request.form.get('tool_id')
-    enabled = request.form.get('enabled') == 'true'
-    
+    tool_id = request.form.get("tool_id")
+    enabled = request.form.get("enabled") == "true"
+
     if not tool_id:
         return '<div class="text-red-600">Error: Missing tool ID</div>'
-    
+
     try:
-        tool = MCPServerTool.query.filter_by(
-            id=tool_id,
-            server_id=server_id
-        ).first_or_404()
-        
+        tool = MCPServerTool.query.filter_by(id=tool_id, server_id=server_id).first_or_404()
+
         tool.is_enabled = enabled
         db.session.commit()
-        
+
         status_text = "Enabled" if enabled else "Disabled"
         status_class = "bg-green-100 text-green-700" if enabled else "bg-gray-100 text-gray-700"
-        
+
         logger.info(f"Tool '{tool.tool_name}' for server '{server.name}' {status_text.lower()}")
-        
-        return f'''
+
+        return f"""
         <span class="text-xs px-2 py-1 rounded {status_class}">
             {status_text}
         </span>
-        '''
-        
+        """
+
     except Exception as e:
         logger.error(f"Failed to toggle tool: {e}")
         return '<div class="text-red-600">Error updating tool status</div>'

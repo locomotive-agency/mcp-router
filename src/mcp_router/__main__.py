@@ -13,6 +13,7 @@ from mcp_router.config import Config
 from mcp_router.app import app
 from mcp_router.container_manager import ContainerManager
 from mcp_router.models import clear_database
+from mcp_router.async_utils import EventLoopManager
 
 # Configure logging before anything else
 configure_logging(
@@ -27,6 +28,9 @@ logger = get_logger(__name__)
 
 async def run_http_mode(asgi_app: Starlette):
     """Run the ASGI application with Uvicorn."""
+    loop = asyncio.get_running_loop()
+    EventLoopManager.get_instance().set_main_loop(loop)
+
     config = uvicorn.Config(
         asgi_app,
         host=Config.MCP_HOST,
@@ -35,19 +39,16 @@ async def run_http_mode(asgi_app: Starlette):
         access_log=True,
     )
     server = uvicorn.Server(config)
-    await server.serve()
+
+    try:
+        await server.serve()
+    finally:
+        # Cleanup on shutdown
+        EventLoopManager.get_instance().cleanup()
 
 
 async def initialize_mcp_router():
-    """
-    Initialize MCP Router resources on startup.
-
-    Uses ContainerManager to handle all initialization logic including:
-    - Docker daemon checks
-    - Base image verification  
-    - Default server creation
-    - Server building and mounting
-    """
+    """Initialize MCP Router resources on startup."""
     logger.info("Initializing MCP Router resources...")
 
     # Initialize container manager
@@ -56,24 +57,20 @@ async def initialize_mcp_router():
     try:
         # Initialize and build all servers
         await container_manager.initialize_and_build_servers()
-        
+
         # Mount all built servers to the router
-        dynamic_manager = app.mcp_router._dynamic_manager
-        await container_manager.mount_built_servers(dynamic_manager)
-        
+        mcp_manager = app.mcp_manager
+        await container_manager.mount_built_servers(mcp_manager)
+
         logger.info("MCP Router initialization completed successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize MCP Router: {e}")
         exit(1)
 
 
 async def main():
-    """
-    Main entry point for the MCP Router application.
-    Parses command-line arguments and environment variables to select
-    and run the appropriate transport mode (HTTP or STDIO).
-    """
+    """Main entry point for MCP Router application."""
     parser = argparse.ArgumentParser(description="MCP Router")
     parser.add_argument(
         "--transport",
