@@ -1,14 +1,17 @@
-# Core Flask dependencies
-Flask>=2.0
-Flask-SQLAlchemy>=2.5
-Flask-WTF>=1.0
-Flask-Login>=0.6.0
-flask-sock>=0.7.0
-flask-cors>=4.0.0
+# Core web framework dependencies
+starlette[full]>=0.36.0
+uvicorn[standard]>=0.24.0
+
+# Database dependencies
+sqlalchemy[asyncio]>=2.0.0
+aiosqlite>=0.19.0
+
+# Template engine
+jinja2>=3.1.0
 
 # Authentication
 bcrypt>=4.0.0
-wtforms>=3.1.0
+werkzeug>=3.0.0
 
 # MCP and AI dependencies
 fastmcp>=2.9.0
@@ -26,8 +29,3 @@ loguru>=0.7.0
 pydantic>=2.10.3
 PyJWT>=2.8.0
 tenacity>=8.2.0
-
-# Production server dependencies
-uvicorn[standard]>=0.24.0
-starlette>=0.36.0
-a2wsgi>=1.10.0

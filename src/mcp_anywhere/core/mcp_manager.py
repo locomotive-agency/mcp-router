@@ -1,0 +1,241 @@
+"""MCP Manager for handling dynamic server mounting and unmounting"""
+
+from typing import List, Dict, Any, Optional
+from fastmcp import FastMCP
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+from mcp_anywhere.database import MCPServer
+from mcp_anywhere.container.manager import ContainerManager
+from mcp_anywhere.database import MCPServerTool
+from mcp_anywhere.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+def create_mcp_config(servers: List["MCPServer"]) -> Dict[str, Any]:
+    """Convert database servers to MCP proxy configuration format."""
+    config = {"mcpServers": {}}
+    container_manager = ContainerManager()
+
+    for server in servers:
+        # Docker image tag built by container_manager
+        image_tag = container_manager.get_image_tag(server)
+
+        # Extract environment variables
+        env_args = []
+        for env_var in server.env_variables:
+            if env_var.get("value"):
+                key = env_var["key"]
+                value = env_var["value"]
+                env_args.extend(["-e", f"{key}={value}"])
+
+        # Use container manager's parsing logic for commands
+        run_command = container_manager._parse_start_command(server)
+
+        if not run_command:
+            logger.warning(f"No start command for server {server.name}, skipping")
+            continue
+
+        # Docker command that FastMCP will execute
+        config["mcpServers"][server.name] = {
+            "command": "docker",
+            "args": [
+                "run",
+                "--rm",  # Remove container after exit
+                "-i",  # Interactive (for stdio)
+                "--name",
+                f"mcp-{server.id}",  # Container name
+                "--memory",
+                "512m",  # Memory limit
+                "--cpus",
+                "0.5",  # CPU limit
+                *env_args,  # Environment variables
+                image_tag,  # Our pre-built image
+                *run_command,  # The actual MCP command
+            ],
+            "env": {},  # Already passed via docker -e
+            "transport": "stdio",
+        }
+
+    return config
+
+
+class MCPManager:
+    """
+    Manages the MCP Anywhere router and handles runtime server mounting/unmounting.
+
+    This class encapsulates the FastMCP router and provides methods to dynamically
+    add and remove MCP servers at runtime using FastMCP's mount() capability.
+    """
+
+    def __init__(self, router: FastMCP):
+        """Initialize the MCP manager with a router."""
+        self.router = router
+        self.mounted_servers: Dict[str, FastMCP] = {}
+        logger.info("Initialized MCPManager")
+
+    async def add_server(self, server_config: "MCPServer") -> List[Dict[str, Any]]:
+        """
+        Add a new MCP server dynamically using FastMCP's mount capability.
+        
+        Args:
+            server_config: The MCPServer database model
+            
+        Returns:
+            List of discovered tools from the server
+        """
+        try:
+            # Create proxy configuration for this single server
+            proxy_config = create_mcp_config([server_config])
+
+            if not proxy_config["mcpServers"]:
+                raise RuntimeError(f"Failed to create proxy config for {server_config.name}")
+
+            # Create FastMCP proxy for the server
+            proxy = FastMCP.as_proxy(proxy_config)
+
+            # Mount with 8-character prefix
+            prefix = server_config.id
+            self.router.mount(proxy, prefix=prefix)
+
+            # Track the mounted server
+            self.mounted_servers[server_config.id] = proxy
+
+            logger.info(
+                f"Successfully mounted server '{server_config.name}' with prefix '{prefix}'"
+            )
+
+            # Discover and return tools for this newly added server
+            return await self._discover_server_tools(server_config.id)
+
+        except Exception as e:
+            logger.error(f"Failed to add server '{server_config.name}': {e}")
+            raise
+
+    def remove_server(self, server_id: str) -> None:
+        """Remove an MCP server dynamically by unmounting it from all managers."""
+        if server_id not in self.mounted_servers:
+            logger.warning(f"Server '{server_id}' not found in mounted servers")
+            return
+
+        try:
+            # Get the mounted server proxy
+            mounted_server = self.mounted_servers[server_id]
+
+            # Remove from all FastMCP internal managers
+            # Based on FastMCP developer's example in issue #934
+            for manager in [
+                self.router._tool_manager,
+                self.router._resource_manager,
+                self.router._prompt_manager,
+            ]:
+                # Find and remove the mount for this server
+                mounts_to_remove = [
+                    m for m in manager._mounted_servers if m.server is mounted_server
+                ]
+                for mount in mounts_to_remove:
+                    manager._mounted_servers.remove(mount)
+                    logger.debug(f"Removed mount from {manager.__class__.__name__}")
+
+            # Clear the router cache to ensure changes take effect
+            self.router._cache.clear()
+
+            # Remove from our tracking
+            del self.mounted_servers[server_id]
+
+            logger.info(f"Successfully unmounted server '{server_id}' from all managers")
+
+        except Exception as e:
+            logger.error(f"Failed to remove server '{server_id}': {e}")
+            raise
+
+    async def _discover_server_tools(self, server_id: str) -> List[Dict[str, Any]]:
+        """
+        Discover tools from a mounted server.
+        
+        Args:
+            server_id: The ID of the server to discover tools from
+            
+        Returns:
+            List of discovered tools with name and description
+        """
+        if server_id not in self.mounted_servers:
+            return []
+
+        try:
+            tools = await self.mounted_servers[server_id]._tool_manager.get_tools()
+            
+            # Convert tools to the format expected by the database
+            discovered_tools = []
+            for key, tool in tools.items():
+                discovered_tools.append({
+                    "name": key, 
+                    "description": tool.description or ""
+                })
+
+            logger.info(f"Discovered {len(discovered_tools)} tools for server '{server_id}'")
+            return discovered_tools
+
+        except Exception as e:
+            logger.error(f"Failed to discover tools for server '{server_id}': {e}")
+            return []
+
+
+async def store_server_tools(
+    db_session: AsyncSession, 
+    server_config: "MCPServer", 
+    discovered_tools: List[Dict[str, Any]]
+) -> None:
+    """
+    Store discovered tools in the database using async session.
+    
+    Args:
+        db_session: Async database session
+        server_config: The server configuration
+        discovered_tools: List of tools discovered from the server
+    """
+    try:
+        # Get existing tools
+        stmt = select(MCPServerTool).where(MCPServerTool.server_id == server_config.id)
+        result = await db_session.execute(stmt)
+        existing_tools = {tool.tool_name: tool for tool in result.scalars().all()}
+
+        discovered_tools_dict = {tool["name"]: tool for tool in discovered_tools}
+
+        # Set of tools to add
+        tools_to_add = discovered_tools_dict.keys() - existing_tools.keys()
+
+        # Set of tools to remove
+        tools_to_remove = existing_tools.keys() - discovered_tools_dict.keys()
+
+        # Add new tools
+        for tool_name in tools_to_add:
+            new_tool = MCPServerTool(
+                server_id=server_config.id,
+                tool_name=tool_name,
+                tool_description=discovered_tools_dict[tool_name]["description"],
+                is_enabled=True,
+            )
+            db_session.add(new_tool)
+            
+        logger.info(f"Added {len(tools_to_add)} tools for server '{server_config.name}'")
+
+        # Remove tools that are no longer present
+        if tools_to_remove:
+            stmt = delete(MCPServerTool).where(
+                MCPServerTool.server_id == server_config.id,
+                MCPServerTool.tool_name.in_(tools_to_remove)
+            )
+            await db_session.execute(stmt)
+            
+        logger.info(f"Removed {len(tools_to_remove)} tools for server '{server_config.name}'")
+
+        await db_session.commit()
+        logger.info(
+            f"Stored {len(discovered_tools_dict)} tools for server '{server_config.name}'"
+        )
+
+    except Exception as e:
+        logger.error(f"Database error storing tools for {server_config.name}: {e}")
+        await db_session.rollback()
+        raise

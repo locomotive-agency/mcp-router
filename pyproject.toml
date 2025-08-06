@@ -3,13 +3,13 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcp-router"
+name = "mcp-anywhere"
 version = "0.8.0"
 description = "Unified gateway for Model Context Protocol servers"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    {name = "MCP Router Team", email = "team@mcprouter.dev"}
+    {name = "MCP Anywhere Team", email = "team@mcpeverywhere.com"}
 ]
 dependencies = [
     "Flask>=2.0",
@@ -55,13 +55,13 @@ test = [
 ]
 
 [project.scripts]
-mcp-router = "mcp_router.__main__:main"
+mcp-anywhere = "mcp_anywhere.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-mcp_router = ["templates/**/*.html", "static/**/*"]
+mcp_anywhere = ["templates/**/*.html", "static/**/*"]
 
 [tool.black]
 line-length = 100

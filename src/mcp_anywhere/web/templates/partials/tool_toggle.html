@@ -1,0 +1,24 @@
+<!-- Tool Toggle Switch -->
+<div class="flex items-center justify-center">
+    <label class="relative inline-flex items-center cursor-pointer group">
+        <input type="checkbox" 
+               class="sr-only peer" 
+               {% if tool.is_enabled %}checked{% endif %}
+               hx-post="/servers/{{ server_id }}/tools/{{ tool.id }}/toggle"
+               hx-target="closest div"
+               hx-swap="outerHTML"
+               hx-indicator=".htmx-indicator-{{ tool.id }}">
+        <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 group-hover:bg-gray-300 peer-checked:group-hover:bg-green-700">
+            <!-- Loading spinner -->
+            <div class="htmx-indicator htmx-indicator-{{ tool.id }} absolute inset-0 flex items-center justify-center">
+                <svg class="w-4 h-4 text-gray-500 animate-spin" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+        </div>
+        <span class="ml-3 text-sm font-medium transition-colors {% if tool.is_enabled %}text-green-700{% else %}text-gray-500{% endif %}">
+            {% if tool.is_enabled %}Enabled{% else %}Disabled{% endif %}
+        </span>
+    </label>
+</div>

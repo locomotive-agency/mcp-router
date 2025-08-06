@@ -3,7 +3,7 @@
 # This script is the entrypoint for the Docker container.
 # It starts the Docker daemon in the background and then executes
 # the main application. This is necessary to support Docker-in-Docker
-# functionality required by the MCPRouter's container manager.
+# functionality required by the MCP Anywhere's container manager.
 
 set -e
 

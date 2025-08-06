@@ -15,8 +15,7 @@ htmlcov/
 dmypy.json
 
 # Project specific
-data/
-instance/
+.data/
 tests/
 .env
 .env.*

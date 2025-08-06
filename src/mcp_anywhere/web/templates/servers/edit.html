@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Server - MCP Anywhere{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <h2 class="text-2xl font-bold mb-6">Edit MCP Server</h2>
+    
+    {% if error %}
+        <div class="mb-4 p-4 rounded-md bg-red-100 text-red-700">
+            <p class="font-medium">Error:</p>
+            <p class="text-sm mt-1">{{ error }}</p>
+        </div>
+    {% endif %}
+    
+    <form method="POST" action="/servers/{{ server.id }}/edit" class="space-y-6">
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-medium mb-4">Server Configuration</h3>
+            
+            <div class="grid grid-cols-1 gap-4">
+                <div>
+                    <label for="name" class="block text-sm font-medium mb-2">Name</label>
+                    <input type="text" 
+                           id="name"
+                           name="name" 
+                           value="{{ server.name }}"
+                           class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                           placeholder="my-mcp-server"
+                           required>
+                    <p class="text-xs text-gray-500 mt-1">Unique name for this server</p>
+                    {% if errors and errors.name %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.name[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="github_url" class="block text-sm font-medium mb-2">GitHub URL</label>
+                    <input type="url" 
+                           id="github_url"
+                           name="github_url" 
+                           value="{{ server.github_url }}"
+                           class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                           placeholder="https://github.com/owner/repo" 
+                           required>
+                    <p class="text-xs text-gray-500 mt-1">URL to the GitHub repository</p>
+                    {% if errors and errors.github_url %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.github_url[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="description" class="block text-sm font-medium mb-2">Description</label>
+                    <textarea id="description"
+                              name="description" 
+                              rows="2"
+                              class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Brief description of what this server does...">{{ server.description or '' }}</textarea>
+                    {% if errors and errors.description %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.description[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="runtime_type" class="block text-sm font-medium mb-2">Runtime</label>
+                    <select id="runtime_type"
+                            name="runtime_type" 
+                            class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required>
+                        <option value="npx" {% if server.runtime_type == 'npx' %}selected{% endif %}>
+                            Node.js (npx)
+                        </option>
+                        <option value="uvx" {% if server.runtime_type == 'uvx' %}selected{% endif %}>
+                            Python (uvx)
+                        </option>
+                        <option value="docker" {% if server.runtime_type == 'docker' %}selected{% endif %}>
+                            Docker
+                        </option>
+                    </select>
+                    {% if errors and errors.runtime_type %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.runtime_type[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="install_command" class="block text-sm font-medium mb-2">
+                        Install Command 
+                        <span class="text-gray-500 font-normal">(optional)</span>
+                    </label>
+                    <input type="text" 
+                           id="install_command"
+                           name="install_command" 
+                           value="{{ server.install_command or '' }}"
+                           class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="npm install or pip install -e .">
+                    <p class="text-xs text-gray-500 mt-1">Command to install the server package</p>
+                    {% if errors and errors.install_command %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.install_command[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="start_command" class="block text-sm font-medium mb-2">Start Command</label>
+                    <input type="text" 
+                           id="start_command"
+                           name="start_command" 
+                           value="{{ server.start_command }}"
+                           class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                           placeholder="npx mcp-server or python -m mcp_server"
+                           required>
+                    <p class="text-xs text-gray-500 mt-1">Command to start the MCP server</p>
+                    {% if errors and errors.start_command %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.start_command[0] }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Environment Variables -->
+            <div class="mt-6">
+                <h4 class="text-md font-medium mb-3">Environment Variables</h4>
+                <div id="env-vars-container">
+                    {% if server.env_variables %}
+                        {% for env in server.env_variables %}
+                        <div class="flex flex-col sm:flex-row gap-2 mb-2 env-var-row">
+                            <input type="text" 
+                                   name="env_key_{{ loop.index0 }}" 
+                                   value="{{ env.key }}"
+                                   class="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-0">
+                            <div class="flex gap-2 flex-1">
+                                <input type="text" 
+                                       name="env_value_{{ loop.index0 }}" 
+                                       value="{{ env.value or '' }}"
+                                       placeholder="{% if env.required %}(required) {% endif %}{{ env.description or 'value' }}"
+                                       class="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500{% if env.required %} border-orange-300{% endif %} min-w-0">
+                                <button type="button" 
+                                        onclick="removeEnvVar(this)"
+                                        class="px-3 py-2 text-red-600 hover:text-red-800 flex-shrink-0">
+                                    ✕
+                                </button>
+                            </div>
+                            <input type="hidden" name="env_desc_{{ loop.index0 }}" value="{{ env.description or '' }}">
+                            <input type="hidden" name="env_required_{{ loop.index0 }}" value="{{ env.required|string|lower if env.required is defined else 'false' }}">
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="flex flex-col sm:flex-row gap-2 mb-2 env-var-row">
+                            <input type="text" 
+                                   name="env_key_0" 
+                                   placeholder="VARIABLE_NAME"
+                                   class="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-0">
+                            <div class="flex gap-2 flex-1">
+                                <input type="text" 
+                                       name="env_value_0" 
+                                       placeholder="value"
+                                       class="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-0">
+                                <button type="button" 
+                                        onclick="removeEnvVar(this)"
+                                        class="px-3 py-2 text-red-600 hover:text-red-800 flex-shrink-0">
+                                    ✕
+                                </button>
+                            </div>
+                            <input type="hidden" name="env_desc_0" value="">
+                            <input type="hidden" name="env_required_0" value="false">
+                        </div>
+                    {% endif %}
+                </div>
+                <button type="button" 
+                        onclick="addEnvVar()"
+                        class="text-blue-600 hover:text-blue-800 text-sm">
+                    + Add Environment Variable
+                </button>
+                <p class="text-xs text-gray-500 mt-1">Environment variables required by the server</p>
+            </div>
+            
+            <div class="mt-6 flex justify-end space-x-3">
+                <a href="/servers/{{ server.id }}" 
+                   class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        id="update-btn"
+                        hx-post="/servers/{{ server.id }}/edit"
+                        hx-target="body"
+                        hx-indicator="#update-btn .htmx-indicator"
+                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center">
+                    <svg id="update-icon" class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <svg class="htmx-indicator hidden inline w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span id="update-text">Update Server</span>
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+let envVarCounter = {{ server.env_variables|length if server.env_variables else 1 }};
+
+function addEnvVar() {
+    const container = document.getElementById('env-vars-container');
+    const newRow = document.createElement('div');
+    newRow.className = 'flex flex-col sm:flex-row gap-2 mb-2 env-var-row';
+    newRow.innerHTML = `
+        <input type="text" 
+               name="env_key_${envVarCounter}" 
+               placeholder="VARIABLE_NAME"
+               class="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-0">
+        <div class="flex gap-2 flex-1">
+            <input type="text" 
+                   name="env_value_${envVarCounter}" 
+                   placeholder="value"
+                   class="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-0">
+            <button type="button" 
+                    onclick="removeEnvVar(this)"
+                    class="px-3 py-2 text-red-600 hover:text-red-800 flex-shrink-0">
+                ✕
+            </button>
+        </div>
+        <input type="hidden" name="env_desc_${envVarCounter}" value="">
+        <input type="hidden" name="env_required_${envVarCounter}" value="false">
+    `;
+    container.appendChild(newRow);
+    envVarCounter++;
+}
+
+function removeEnvVar(button) {
+    const row = button.closest('.env-var-row');
+    if (row) {
+        row.remove();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // HTMX now handles form submission for update button
+    const form = document.querySelector('form');
+    
+    form.addEventListener('submit', function(event) {
+        // Only handle non-HTMX submissions if needed
+    });
+});
+</script>
+
+{% endblock %}

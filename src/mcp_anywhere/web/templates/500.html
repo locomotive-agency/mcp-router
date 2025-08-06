@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Server Error - MCP Anywhere</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; text-align: center; }
+        .error-container { max-width: 600px; margin: 50px auto; }
+        .error-code { font-size: 72px; color: #dc3545; font-weight: bold; }
+        .error-message { font-size: 24px; margin: 20px 0; }
+        .btn { padding: 10px 20px; margin: 10px; text-decoration: none; border-radius: 4px; background-color: #007bff; color: white; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-code">500</div>
+        <div class="error-message">{{ message or "Internal server error" }}</div>
+        <a href="/" class="btn">Go Home</a>
+    </div>
+</body>
+</html>

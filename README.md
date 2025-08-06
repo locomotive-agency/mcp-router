@@ -1,4 +1,4 @@
-# MCP Router (Alpha)
+# MCP Anywhere (Alpha)
 
 🚀 **Load any tools from GitHub → Configure API keys → Select tools → Use anywhere**
 
@@ -6,9 +6,9 @@ A unified gateway for Model Context Protocol (MCP) servers that lets you discove
 
 > ⚠️ **Alpha Software**: This project is in active development. APIs may change, and some features are experimental.
 
-## What is MCP Router?
+## What is MCP Anywhere?
 
-MCP Router simplifies using AI tools by:
+MCP Anywhere simplifies using AI tools by:
 - **Auto-discovering tools** from any GitHub repository
 - **Managing API keys** and credentials in one place  
 - **Selective tool access** - enable only what you need
@@ -21,8 +21,8 @@ MCP Router simplifies using AI tools by:
 
 ```bash
 # Clone and setup
-git clone https://github.com/locomotive-agency/mcp-router.git
-cd mcp-router
+git clone https://github.com/locomotive-agency/mcp-anywhere.git
+cd mcp-anywhere
 pip install -r requirements.txt
 
 # Configure (minimal setup)
@@ -32,7 +32,7 @@ cp env.example .env
 # ANTHROPIC_API_KEY=sk-ant-...  (for GitHub analysis)
 
 # Run it!
-python -m mcp_router
+python -m mcp_anywhere serve http
 # Open http://localhost:8000
 ```
 
@@ -43,7 +43,7 @@ python -m mcp_router
 curl -L https://fly.io/install.sh | sh
 
 # Deploy
-cd mcp-router
+cd mcp-anywhere
 fly launch  # Follow prompts
 fly secrets set ADMIN_PASSCODE=your-secure-password
 fly secrets set ANTHROPIC_API_KEY=sk-ant-your-key
@@ -75,9 +75,9 @@ Claude automatically analyzes the repo and configures it for you.
 ```json
 {
   "mcpServers": {
-    "mcp-router": {
+            "mcp-anywhere": {
       "command": "python",
-      "args": ["-m", "mcp_router", "--transport", "stdio"]
+      "args": ["-m", "mcp_anywhere", "serve", "stdio"]
     }
   }
 }
@@ -115,7 +115,7 @@ async with Client(
 ## Architecture
 
 ```
-Your App → MCP Router → Docker Containers → Individual Tools
+Your App → MCP Anywhere → Docker Containers → Individual Tools
             ↓
          Web UI (manage tools, keys, access)
 ```
@@ -125,19 +125,19 @@ Your App → MCP Router → Docker Containers → Individual Tools
 We need help with:
 
 ### 1. 🔐 OAuth Authentication
-- Current implementation in `src/mcp_router/mcp_oauth.py`
+- Current implementation in `src/mcp_anywhere/auth/`
 - Need: Production-ready token storage (Redis/DB)
 - Need: Additional OAuth providers beyond basic flow
 - Need: Refresh token implementation
 
 ### 2. ⚡ Starlette/Async Optimization
-- Current ASGI app in `src/mcp_router/asgi.py`
+- Current ASGI app in `src/mcp_anywhere/web/app.py`
 - Need: Better async patterns for tool discovery
 - Need: WebSocket support for real-time updates
 - Need: Performance optimization for concurrent requests
 
 ### 3. 🐳 Docker Optimization
-- Current implementation in `src/mcp_router/container_manager.py`
+- Current implementation in `src/mcp_anywhere/container/manager.py`
 - Need: Container pooling for faster startup
 - Need: Resource limits and monitoring
 - Need: Multi-architecture image support
@@ -162,16 +162,16 @@ DOCKER_TIMEOUT=300              # Container operation timeout
 pytest
 
 # Run with debug logging
-LOG_LEVEL=DEBUG python -m mcp_router
+LOG_LEVEL=DEBUG python -m mcp_anywhere serve http
 
 # Clear database for fresh start
-python -m mcp_router --clear-db
+python -m mcp_anywhere reset --confirm
 ```
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/locomotive-agency/mcp-router/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/locomotive-agency/mcp-router/discussions)
+- **Issues**: [GitHub Issues](https://github.com/locomotive-agency/mcp-anywhere/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/locomotive-agency/mcp-anywhere/discussions)
 
 ## License
 
@@ -179,6 +179,6 @@ See [LICENSE](LICENSE)
 
 ---
 
-**Made with ❤️ by the MCP Router Team**
+**Made with ❤️ by the MCP Anywhere Team**
 
 *Want to contribute? Check out our [contribution areas](#contributing) above!*
