@@ -103,7 +103,7 @@ def create_app(transport_mode: str = "http") -> Starlette:
 
     # Create routes
     app_routes = [
-        Mount("/static", app=StaticFiles(directory="src/mcp_anywhere/web/static"), name="static"),
+        # Mount("/static", app=StaticFiles(directory="src/mcp_anywhere/web/static"), name="static"),
         # Add config routes (for Claude Desktop integration)
         *config_routes,
         # Add web routes
