@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from starlette.applications import Starlette
 
 from mcp_anywhere.web.app import create_app
-from mcp_anywhere.database import Base
+from mcp_anywhere.base import Base
 
 
 @pytest.fixture(scope="session")

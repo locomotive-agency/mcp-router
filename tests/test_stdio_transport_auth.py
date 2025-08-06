@@ -37,7 +37,7 @@ def mock_env_stdio():
 def app_stdio(mock_env_stdio):
     """Create app instance for STDIO mode."""
     # Mock the lifespan to avoid actual database initialization
-    with patch("mcp_anywhere.web.app.lifespan", mock_lifespan):
+            with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
         # Create app with transport mode context
         app = create_app(transport_mode="stdio")
         return app
@@ -47,7 +47,7 @@ def app_stdio(mock_env_stdio):
 def app_http():
     """Create app instance for HTTP mode."""
     # Mock the lifespan to avoid actual database initialization
-    with patch("mcp_anywhere.web.app.lifespan", mock_lifespan):
+            with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
         # Create app with transport mode context
         app = create_app(transport_mode="http")
         return app

@@ -26,7 +26,7 @@ async def mock_lifespan(app):
 @pytest.fixture
 def app_stdio():
     """Create app instance for STDIO mode."""
-    with patch("mcp_anywhere.web.app.lifespan", mock_lifespan):
+    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
         app = create_app(transport_mode="stdio")
         return app
 
@@ -34,7 +34,7 @@ def app_stdio():
 @pytest.fixture
 def app_http():
     """Create app instance for HTTP mode."""
-    with patch("mcp_anywhere.web.app.lifespan", mock_lifespan):
+    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
         app = create_app(transport_mode="http")
         return app
 

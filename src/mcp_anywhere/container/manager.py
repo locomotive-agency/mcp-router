@@ -18,7 +18,7 @@ from llm_sandbox import SandboxSession
 from sqlalchemy import select
 
 from mcp_anywhere.config import Config
-from mcp_anywhere.core.mcp_manager import store_server_tools
+from mcp_anywhere.database_utils import store_server_tools
 from mcp_anywhere.database import (
     MCPServer,
     get_active_servers,

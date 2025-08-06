@@ -119,7 +119,7 @@ def create_app(transport_mode: str = "http") -> Starlette:
         app_routes.extend(oauth_routes)
 
         # Mount MCP endpoint with OAuth protection
-        from mcp.server.auth.middleware.bearer_auth import BearerAuthMiddleware
+        from mcp.server.auth.middleware.bearer_auth import RequireAuthMiddleware
 
         # Note: The MCP endpoint will be added after app creation since we need app.state.mcp_manager
 

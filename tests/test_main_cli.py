@@ -131,20 +131,21 @@ async def test_main_serve_help():
             await main()
 
 
-@pytest.mark.asyncio  
+@pytest.mark.asyncio
 async def test_main_error_handling():
     """
-    Test that server errors are properly handled and logged.
+    Test that server errors are properly handled and printed to stderr.
     """
-    with patch('mcp_anywhere.__main__.run_http_server', new_callable=AsyncMock, side_effect=Exception("Server error")) as mock_http_server, \
+    with patch('mcp_anywhere.__main__.run_http_server', new_callable=AsyncMock, side_effect=ValueError("Server error")) as mock_http_server, \
          patch('sys.argv', ['mcp-anywhere', 'serve', 'http']), \
-         patch('mcp_anywhere.__main__.logger') as mock_logger:
+         patch('builtins.print') as mock_print, \
+         patch('sys.exit') as mock_exit:
         
-        with pytest.raises(Exception, match="Server error"):
-            await main()
+        await main()
         
-        # Verify error was logged
-        mock_logger.error.assert_called()
+        # Verify error was printed to stderr and exit was called
+        mock_print.assert_called_with("Error: Server error", file=sys.stderr)
+        mock_exit.assert_called_with(1)
 
 
 def test_main_entry_point():

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from mcp_anywhere.database import MCPServer, MCPServerTool, get_async_session
 from mcp_anywhere.web.forms import ServerFormData, AnalyzeFormData
-from mcp_anywhere.core.mcp_manager import store_server_tools
+from mcp_anywhere.database_utils import store_server_tools
 from mcp_anywhere.container.manager import ContainerManager
 from mcp_anywhere.claude_analyzer import AsyncClaudeAnalyzer
 from mcp_anywhere.logging_config import get_logger

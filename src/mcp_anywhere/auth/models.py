@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from mcp_anywhere.database import Base
+from mcp_anywhere.base import Base
 
 
 class User(Base):

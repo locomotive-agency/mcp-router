@@ -7,17 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import String, Text, JSON, Boolean, DateTime, ForeignKey, select
 
-from mcp_anywhere.auth.models import User, OAuth2Client, AuthorizationCode
+from mcp_anywhere.base import Base
 from mcp_anywhere.config import Config
 from mcp_anywhere.logging_config import get_logger
 
 logger = get_logger(__name__)
-
-
-class Base(DeclarativeBase):
-    """Base class for all database models"""
-
-    pass
 
 
 def generate_id() -> str:
@@ -181,3 +175,5 @@ async def get_server_by_id(
             return result.scalar_one_or_none()
 
 
+# Import auth models after Base is defined to avoid circular imports
+from mcp_anywhere.auth.models import User, OAuth2Client, AuthorizationCode

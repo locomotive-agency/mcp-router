@@ -22,6 +22,8 @@ async def test_run_stdio_server_creates_app_and_tasks():
     # Mock dependencies
     mock_app = Mock(spec=Starlette)
     mock_app.state = Mock()
+    mock_app.router = Mock()
+    mock_app.router.lifespan_context = AsyncMock()
     mock_mcp_manager = Mock()
     mock_mcp_manager.router = Mock()
     mock_mcp_manager.router.run = AsyncMock()
@@ -83,6 +85,8 @@ async def test_run_stdio_server_uses_correct_defaults():
     """
     mock_app = Mock(spec=Starlette)
     mock_app.state = Mock()
+    mock_app.router = Mock()
+    mock_app.router.lifespan_context = AsyncMock()
     mock_mcp_manager = Mock()
     mock_mcp_manager.router = Mock()
     mock_mcp_manager.router.run = AsyncMock()
