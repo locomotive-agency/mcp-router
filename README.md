@@ -23,7 +23,7 @@ MCP Anywhere simplifies using AI tools by:
 # Clone and setup
 git clone https://github.com/locomotive-agency/mcp-anywhere.git
 cd mcp-anywhere
-pip install -r requirements.txt
+pip install -e .
 
 # Configure (minimal setup)
 cp env.example .env
