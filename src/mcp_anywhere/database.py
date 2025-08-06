@@ -6,14 +6,17 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import String, Text, JSON, Boolean, DateTime, ForeignKey, select
-from mcp_anywhere.logging_config import get_logger
+
+from mcp_anywhere.auth.models import User, OAuth2Client, AuthorizationCode
 from mcp_anywhere.config import Config
+from mcp_anywhere.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
 class Base(DeclarativeBase):
     """Base class for all database models"""
+
     pass
 
 
@@ -42,7 +45,9 @@ class MCPServer(Base):
     image_tag: Mapped[Optional[str]] = mapped_column(String(200))
 
     # Relationship to tools
-    tools: Mapped[List["MCPServerTool"]] = relationship(back_populates="server", cascade="all, delete-orphan")
+    tools: Mapped[List["MCPServerTool"]] = relationship(
+        back_populates="server", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<MCPServer {self.name}>"
@@ -94,21 +99,21 @@ _async_session_factory = None
 async def init_db():
     """Initialize the async database"""
     global _async_engine, _async_session_factory
-    
+
     if _async_engine is None:
         # Create engine - use SQLALCHEMY_DATABASE_URI from config
         db_url = Config.SQLALCHEMY_DATABASE_URI.replace("sqlite://", "sqlite+aiosqlite://")
         _async_engine = create_async_engine(db_url)
-        
+
         # Create session factory
         _async_session_factory = async_sessionmaker(
             _async_engine, class_=AsyncSession, expire_on_commit=False
         )
-        
+
         # Create tables
         async with _async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        
+
         logger.info("Async database initialized")
 
 
@@ -159,7 +164,9 @@ async def get_built_servers(session: Optional[AsyncSession] = None) -> List[MCPS
             return result.scalars().all()
 
 
-async def get_server_by_id(server_id: str, session: Optional[AsyncSession] = None) -> Optional[MCPServer]:
+async def get_server_by_id(
+    server_id: str, session: Optional[AsyncSession] = None
+) -> Optional[MCPServer]:
     """Get server by ID (async helper function)."""
     if session:
         # Use provided session
@@ -174,5 +181,3 @@ async def get_server_by_id(server_id: str, session: Optional[AsyncSession] = Non
             return result.scalar_one_or_none()
 
 
-# Import auth models to ensure they're included in Base.metadata
-from mcp_anywhere.auth.models import User, OAuth2Client, AuthorizationCode  # noqa: E402

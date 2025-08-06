@@ -7,15 +7,24 @@ Supports:
 """
 
 from typing import Dict, Any, Optional, List
-from llm_sandbox import SandboxSession
-from mcp_anywhere.database import MCPServer, get_active_servers, get_built_servers, get_async_session
-from mcp_anywhere.config import Config
-from docker import DockerClient
-from docker.errors import ImageNotFound, NotFound, APIError
-import time
-import shlex
 import json
 import os
+import shlex
+import time
+
+from docker import DockerClient
+from docker.errors import ImageNotFound, NotFound, APIError
+from llm_sandbox import SandboxSession
+from sqlalchemy import select
+
+from mcp_anywhere.config import Config
+from mcp_anywhere.core.mcp_manager import store_server_tools
+from mcp_anywhere.database import (
+    MCPServer,
+    get_active_servers,
+    get_built_servers,
+    get_async_session,
+)
 from mcp_anywhere.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -40,21 +49,21 @@ class ContainerManager:
         try:
             self.docker_client.ping()
             return True
-        except Exception:
+        except (APIError, ConnectionError, OSError):
             return False
 
     def get_image_tag(self, server: MCPServer) -> str:
         """Generate the Docker image tag for a server."""
         return f"mcp-anywhere/server-{server.id}"
-    
+
     def _get_container_name(self, server_id: str) -> str:
         """Generate the container name for a server."""
         return f"mcp-{server_id}"
-    
+
     def _cleanup_existing_container(self, container_name: str) -> None:
         """
         Clean up existing container with the same name.
-        
+
         Args:
             container_name: Name of the container to clean up
         """
@@ -62,21 +71,21 @@ class ContainerManager:
             # Try to get the existing container
             existing_container = self.docker_client.containers.get(container_name)
             logger.info(f"Found existing container '{container_name}', cleaning up...")
-            
+
             try:
                 # Stop the container if it's running
                 existing_container.stop(timeout=10)
                 logger.info(f"Stopped existing container '{container_name}'")
             except APIError as e:
                 logger.warning(f"Failed to stop container '{container_name}': {e}")
-            
+
             try:
                 # Remove the container
                 existing_container.remove(force=True)
                 logger.info(f"Removed existing container '{container_name}'")
             except APIError as e:
                 logger.warning(f"Failed to remove container '{container_name}': {e}")
-                
+
         except NotFound:
             # Container doesn't exist, nothing to clean up
             logger.debug(f"No existing container found with name '{container_name}'")
@@ -93,7 +102,7 @@ class ContainerManager:
             try:
                 self.docker_client.images.pull(image_name)
                 logger.info(f"Successfully pulled image '{image_name}'.")
-            except Exception as e:
+            except (APIError, ConnectionError, OSError) as e:
                 logger.error(f"Failed to pull image '{image_name}': {e}")
 
     def _get_env_vars(self, server: MCPServer) -> Dict[str, str]:
@@ -228,7 +237,7 @@ class ContainerManager:
                 try:
                     container.stop(timeout=2)
                     container.remove()
-                except Exception:
+                except (APIError, NotFound):
                     pass
 
                 if is_running:
@@ -251,10 +260,10 @@ class ContainerManager:
                 if container:
                     try:
                         container.remove(force=True)
-                    except Exception:
+                    except (APIError, NotFound):
                         pass
 
-        except Exception as e:
+        except (APIError, OSError, RuntimeError, ValueError) as e:
             logger.error(f"Error testing server {server.name}: {e}")
             return {
                 "status": "error",
@@ -310,7 +319,8 @@ class ContainerManager:
 
                 # Create Python sandbox directory for mcp-python-interpreter if this is a uvx server
                 if (
-                    server.runtime_type == "uvx" and "mcp-python-interpreter" in server.start_command
+                    server.runtime_type == "uvx"
+                    and "mcp-python-interpreter" in server.start_command
                 ):
                     logger.info("Creating Python sandbox directory for mcp-python-interpreter...")
                     mkdir_result = session.execute_command(
@@ -351,7 +361,7 @@ class ContainerManager:
             logger.info(f"Successfully built and tagged image {image_tag}")
             return image_tag
 
-        except Exception as e:
+        except (APIError, OSError, RuntimeError) as e:
             logger.error(f"Failed to build image for server {server.name}: {e}")
             raise
 
@@ -376,15 +386,13 @@ class ContainerManager:
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON file {json_file_path}: {e}")
             raise
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, OSError) as e:
             logger.error(f"Failed to load default servers from {json_file_path}: {e}")
             raise
 
     async def ensure_default_servers(self, json_file_path: Optional[str] = None) -> None:
         """Ensure default servers exist in the database."""
-        from mcp_anywhere.database import get_async_session
-        from sqlalchemy import select
-        
+
         if json_file_path is None:
             json_file_path = Config.DEFAULT_SERVERS_FILE
 
@@ -394,7 +402,9 @@ class ContainerManager:
             async with get_async_session() as session:
                 for server_config in default_servers:
                     # Check if server already exists
-                    stmt = select(MCPServer).where(MCPServer.github_url == server_config.get("github_url"))
+                    stmt = select(MCPServer).where(
+                        MCPServer.github_url == server_config.get("github_url")
+                    )
                     result = await session.execute(stmt)
                     existing_server = result.scalar_one_or_none()
 
@@ -416,14 +426,13 @@ class ContainerManager:
                 await session.commit()
                 logger.info("Default servers ensured in database")
 
-        except Exception as e:
+        except (RuntimeError, ValueError, OSError) as e:
             logger.error(f"Failed to ensure default servers: {e}")
             raise
 
     async def initialize_and_build_servers(self) -> None:
         """Initialize MCP Anywhere resources: check Docker, ensure images, build servers."""
-        from mcp_anywhere.database import get_async_session
-        
+
         logger.info("Initializing MCP Anywhere resources...")
 
         # 1. Check if Docker is running
@@ -438,14 +447,14 @@ class ContainerManager:
             self._ensure_image_exists(Config.MCP_NODE_IMAGE)
             self._ensure_image_exists(Config.MCP_PYTHON_IMAGE)
             logger.info("Base Docker images are available.")
-        except Exception as e:
+        except (APIError, OSError, RuntimeError) as e:
             logger.error(f"Failed to ensure base images: {e}. Please check your Docker setup.")
             raise
 
         # 3. Ensure default servers exist in the database
         try:
             await self.ensure_default_servers()
-        except Exception as e:
+        except (RuntimeError, ValueError, OSError) as e:
             logger.error(f"Failed to ensure default servers: {e}")
             raise
 
@@ -471,8 +480,10 @@ class ContainerManager:
                         server.build_logs = f"Successfully built image {image_tag}"
                         await session.commit()
                         logger.info(f"Successfully built image for {server.name}.")
-                        logger.debug(f"Server {server.name} build_status set to: {server.build_status}")
-                    except Exception as e:
+                        logger.debug(
+                            f"Server {server.name} build_status set to: {server.build_status}"
+                        )
+                    except (APIError, OSError, RuntimeError, ValueError) as e:
                         logger.error(f"Failed to build {server.name}: {e}")
                         server.build_status = "failed"
                         server.build_logs = str(e)
@@ -482,30 +493,31 @@ class ContainerManager:
 
     async def mount_built_servers(self, mcp_manager) -> None:
         """Mount all successfully built servers to the router and discover tools."""
-        from mcp_anywhere.core.mcp_manager import store_server_tools
-        
+
         built_servers = await get_built_servers()
         logger.debug(f"Found {len(built_servers)} servers with build_status='built'")
 
         if built_servers:
             logger.info(f"Mounting {len(built_servers)} built servers...")
-            
+
             # Clean up any existing containers before mounting
             for server in built_servers:
                 container_name = self._get_container_name(server.id)
                 self._cleanup_existing_container(container_name)
-            
+
             async with get_async_session() as db_session:
                 for server in built_servers:
                     try:
                         # Add server to MCP manager and discover tools
                         discovered_tools = await mcp_manager.add_server(server)
-                        
+
                         # Store discovered tools in database
                         await store_server_tools(db_session, server, discovered_tools)
-                        
-                        logger.info(f"Successfully mounted server '{server.name}' with {len(discovered_tools)} tools")
-                    except Exception as e:
+
+                        logger.info(
+                            f"Successfully mounted server '{server.name}' with {len(discovered_tools)} tools"
+                        )
+                    except (RuntimeError, ValueError, ConnectionError) as e:
                         logger.error(f"Failed to mount server '{server.name}': {e}")
         else:
             logger.info("No built servers to mount.")

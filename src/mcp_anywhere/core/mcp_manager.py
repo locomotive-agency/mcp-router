@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
+from sqlalchemy.exc import IntegrityError
 from mcp_anywhere.database import MCPServer
 from mcp_anywhere.container.manager import ContainerManager
 from mcp_anywhere.database import MCPServerTool
@@ -60,6 +61,49 @@ def create_mcp_config(servers: List["MCPServer"]) -> Dict[str, Any]:
     return config
 
 
+def create_gateway_config(servers: List["MCPServer"]) -> Dict[str, Any]:
+    """
+    Create MCP proxy configuration for the lightweight gateway.
+
+    This connects to existing running containers instead of creating new ones.
+    Containers should already be created and running by the management server.
+
+    Args:
+        servers: List of MCPServer instances from database
+
+    Returns:
+        Dict containing MCP server configurations for existing containers
+    """
+    config = {"mcpServers": {}}
+    container_manager = ContainerManager()
+
+    for server in servers:
+        # Check if container is already running
+        container_name = f"mcp-{server.id}"
+
+        # Use docker exec to connect to existing container instead of docker run
+        run_command = container_manager._parse_start_command(server)
+
+        if not run_command:
+            logger.warning(f"No start command for server {server.name}, skipping")
+            continue
+
+        # Connect to existing container via docker exec
+        config["mcpServers"][server.name] = {
+            "command": "docker",
+            "args": [
+                "exec",
+                "-i",  # Interactive (for stdio)
+                container_name,  # Existing container name
+                *run_command,  # The actual MCP command
+            ],
+            "env": {},
+            "transport": "stdio",
+        }
+
+    return config
+
+
 class MCPManager:
     """
     Manages the MCP Anywhere router and handles runtime server mounting/unmounting.
@@ -77,10 +121,10 @@ class MCPManager:
     async def add_server(self, server_config: "MCPServer") -> List[Dict[str, Any]]:
         """
         Add a new MCP server dynamically using FastMCP's mount capability.
-        
+
         Args:
             server_config: The MCPServer database model
-            
+
         Returns:
             List of discovered tools from the server
         """
@@ -108,7 +152,7 @@ class MCPManager:
             # Discover and return tools for this newly added server
             return await self._discover_server_tools(server_config.id)
 
-        except Exception as e:
+        except (RuntimeError, ValueError, ConnectionError, OSError) as e:
             logger.error(f"Failed to add server '{server_config.name}': {e}")
             raise
 
@@ -145,17 +189,17 @@ class MCPManager:
 
             logger.info(f"Successfully unmounted server '{server_id}' from all managers")
 
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError) as e:
             logger.error(f"Failed to remove server '{server_id}': {e}")
             raise
 
     async def _discover_server_tools(self, server_id: str) -> List[Dict[str, Any]]:
         """
         Discover tools from a mounted server.
-        
+
         Args:
             server_id: The ID of the server to discover tools from
-            
+
         Returns:
             List of discovered tools with name and description
         """
@@ -164,31 +208,26 @@ class MCPManager:
 
         try:
             tools = await self.mounted_servers[server_id]._tool_manager.get_tools()
-            
+
             # Convert tools to the format expected by the database
             discovered_tools = []
             for key, tool in tools.items():
-                discovered_tools.append({
-                    "name": key, 
-                    "description": tool.description or ""
-                })
+                discovered_tools.append({"name": key, "description": tool.description or ""})
 
             logger.info(f"Discovered {len(discovered_tools)} tools for server '{server_id}'")
             return discovered_tools
 
-        except Exception as e:
+        except (RuntimeError, ValueError, ConnectionError, AttributeError) as e:
             logger.error(f"Failed to discover tools for server '{server_id}': {e}")
             return []
 
 
 async def store_server_tools(
-    db_session: AsyncSession, 
-    server_config: "MCPServer", 
-    discovered_tools: List[Dict[str, Any]]
+    db_session: AsyncSession, server_config: "MCPServer", discovered_tools: List[Dict[str, Any]]
 ) -> None:
     """
     Store discovered tools in the database using async session.
-    
+
     Args:
         db_session: Async database session
         server_config: The server configuration
@@ -217,25 +256,23 @@ async def store_server_tools(
                 is_enabled=True,
             )
             db_session.add(new_tool)
-            
+
         logger.info(f"Added {len(tools_to_add)} tools for server '{server_config.name}'")
 
         # Remove tools that are no longer present
         if tools_to_remove:
             stmt = delete(MCPServerTool).where(
                 MCPServerTool.server_id == server_config.id,
-                MCPServerTool.tool_name.in_(tools_to_remove)
+                MCPServerTool.tool_name.in_(tools_to_remove),
             )
             await db_session.execute(stmt)
-            
+
         logger.info(f"Removed {len(tools_to_remove)} tools for server '{server_config.name}'")
 
         await db_session.commit()
-        logger.info(
-            f"Stored {len(discovered_tools_dict)} tools for server '{server_config.name}'"
-        )
+        logger.info(f"Stored {len(discovered_tools_dict)} tools for server '{server_config.name}'")
 
-    except Exception as e:
+    except (RuntimeError, ValueError, ConnectionError, IntegrityError) as e:
         logger.error(f"Database error storing tools for {server_config.name}: {e}")
         await db_session.rollback()
         raise

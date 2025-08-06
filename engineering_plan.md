@@ -22,8 +22,8 @@ The solution separates concerns into two independent processes that share only a
 ```mermaid
 graph TD
     subgraph "Host Machine"
-        P1["Process 1: Management Server<br/>(python -m mcp_anywhere serve http)"]
-        P2["Process 2: STDIO Gateway<br/>(python -m mcp_anywhere connect)"]
+        P1["Process 1: Server with HTTP Transport<br/>(python -m mcp_anywhere serve http)<br/>Web UI + MCP/HTTP"]
+        P2["Process 2: STDIO Gateway<br/>(python -m mcp_anywhere connect)<br/>MCP/STDIO only"]
         DB[(SQLite Database)]
         DOCKER[("Docker Image Registry")]
         
@@ -34,8 +34,9 @@ graph TD
         P2 -->|"Runs containers"| DOCKER
     end
     
-    ADMIN["Admin User<br/>(Browser)"] -->|"HTTP"| P1
-    CLIENT["MCP Client<br/>(Claude, IDE)"] -->|"STDIO"| P2
+    ADMIN["Admin User<br/>(Browser)"] -->|"HTTP to /"| P1
+    CLIENT1["MCP Client<br/>(OAuth-capable)"] -->|"HTTP to /mcp"| P1
+    CLIENT2["MCP Client<br/>(Claude Desktop)"] -->|"STDIO"| P2
 ```
 
 **Process 1: Management Server with HTTP Transport** (`python -m mcp_anywhere serve http`)

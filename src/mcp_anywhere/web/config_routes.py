@@ -22,95 +22,88 @@ logger = get_logger(__name__)
 def generate_claude_config() -> Dict[str, Any]:
     """
     Generate Claude Desktop configuration for MCP Anywhere.
-    
+
     Returns:
         Dict containing the Claude Desktop configuration structure
     """
     # Determine Python executable path
     python_cmd = sys.executable if sys.executable else "python3"
-    
+
     config = {
         "mcpServers": {
             "mcp-anywhere": {
                 "command": python_cmd,
-                "args": [
-                    "-m",
-                    "mcp_anywhere",
-                    "serve",
-                    "stdio"
-                ],
+                "args": ["-m", "mcp_anywhere", "connect"],
                 "env": {
                     # Add any required environment variables here
                     "PYTHONUNBUFFERED": "1"
-                }
+                },
             }
         }
     }
-    
+
     return config
 
 
 async def config_download(request: Request) -> Response:
     """
     Endpoint to download Claude Desktop configuration file.
-    
+
     Args:
         request: The incoming HTTP request
-        
+
     Returns:
         JSON response with configuration file as download
     """
     # Check transport mode
-    transport_mode = getattr(request.app.state, 'transport_mode', 'http')
-    
-    if transport_mode != 'stdio':
+    transport_mode = getattr(request.app.state, "transport_mode", "http")
+
+    if transport_mode != "stdio":
         # In HTTP mode, return a different configuration or message
         return JSONResponse(
             {
                 "error": "Configuration download is only available in STDIO mode",
-                "message": "HTTP mode uses direct API endpoints and doesn't require Claude Desktop configuration"
+                "message": "HTTP mode uses direct API endpoints and doesn't require Claude Desktop configuration",
             },
-            status_code=400
+            status_code=400,
         )
-    
+
     # Generate configuration
     config = generate_claude_config()
-    
+
     # Convert to JSON string with nice formatting
     config_json = json.dumps(config, indent=2)
-    
+
     # Return as downloadable JSON file
     return Response(
         content=config_json,
         media_type="application/json",
-        headers={
-            "Content-Disposition": "attachment; filename=claude_desktop_config.json"
-        }
+        headers={"Content-Disposition": "attachment; filename=claude_desktop_config.json"},
     )
 
 
 async def config_view(request: Request) -> JSONResponse:
     """
     Endpoint to view Claude Desktop configuration as JSON.
-    
+
     Args:
         request: The incoming HTTP request
-        
+
     Returns:
         JSON response with configuration
     """
     # Check transport mode
-    transport_mode = getattr(request.app.state, 'transport_mode', 'http')
-    
-    if transport_mode != 'stdio':
+    transport_mode = getattr(request.app.state, "transport_mode", "http")
+
+    if transport_mode != "stdio":
         return JSONResponse(
             {
                 "error": "Configuration view is only available in STDIO mode",
-                "transport_mode": transport_mode
+                "transport_mode": transport_mode,
             },
-            status_code=400
+            status_code=400,
         )
-    
+
     # Generate and return configuration
     config = generate_claude_config()
     return JSONResponse(config)
@@ -119,16 +112,16 @@ async def config_view(request: Request) -> JSONResponse:
 async def config_instructions(request: Request) -> HTMLResponse:
     """
     Endpoint to show setup instructions for Claude Desktop integration.
-    
+
     Args:
         request: The incoming HTTP request
-        
+
     Returns:
         HTML response with setup instructions
     """
-    transport_mode = getattr(request.app.state, 'transport_mode', 'http')
-    
-    if transport_mode != 'stdio':
+    transport_mode = getattr(request.app.state, "transport_mode", "http")
+
+    if transport_mode != "stdio":
         html_content = """
         <!DOCTYPE html>
         <html lang="en">
@@ -153,10 +146,10 @@ async def config_instructions(request: Request) -> HTMLResponse:
         </html>
         """
         return HTMLResponse(html_content)
-    
+
     # Get Python command used
     python_cmd = sys.executable if sys.executable else "python3"
-    
+
     html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -229,7 +222,7 @@ async def config_instructions(request: Request) -> HTMLResponse:
                             The configuration will add MCP Anywhere to Claude Desktop with this command:
                         </p>
                         <div class="bg-gray-100 rounded p-4">
-                            <code class="text-sm">{python_cmd} -m mcp_anywhere serve stdio</code>
+                            <code class="text-sm">{python_cmd} -m mcp_anywhere connect</code>
                         </div>
                         <p class="text-gray-700 mt-3">
                             Restart Claude Desktop after installing the configuration file.
@@ -263,7 +256,7 @@ async def config_instructions(request: Request) -> HTMLResponse:
     </body>
     </html>
     """
-    
+
     return HTMLResponse(html_content)
 
 

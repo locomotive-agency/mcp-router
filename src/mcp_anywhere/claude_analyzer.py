@@ -89,7 +89,7 @@ class ClaudeAnalyzer:
             if e.response.status_code == 404:
                 return None  # File not found is not an error
             raise
-        except Exception as e:
+        except (httpx.RequestError, ValueError, KeyError, UnicodeDecodeError) as e:
             logger.warning(f"Could not fetch {path} from {owner}/{repo}: {e}")
             return None
 
@@ -177,14 +177,14 @@ ENV_VARS:
                     parts = [p.strip() for p in line.split(",")]
                     if len(parts) < 1:
                         continue
-                    
+
                     # Extract key (required)
                     key_part = parts[0].split(":", 1)
                     if len(key_part) < 2:
                         logger.warning(f"Could not parse env var line (missing key): {line}")
                         continue
                     key = key_part[1].strip()
-                    
+
                     # Extract description (optional, but line must have proper format)
                     desc = ""
                     if len(parts) > 1 and "DESC:" in parts[1]:
@@ -193,13 +193,13 @@ ENV_VARS:
                         # Line has comma but no DESC: - this is malformed
                         logger.warning(f"Could not parse env var line (malformed DESC): {line}")
                         continue
-                    
+
                     # Extract required flag (optional, defaults to true)
                     required = True
                     if len(parts) > 2 and "REQUIRED:" in parts[2]:
                         req_str = parts[2].split(":", 1)[1].strip()
                         required = req_str.lower() == "true"
-                    
+
                     result["env_variables"].append(
                         {"key": key, "description": desc, "required": required}
                     )
@@ -233,26 +233,28 @@ class AsyncClaudeAnalyzer:
             readme_task = self._fetch_file(owner, repo, "README.md")
             package_json_task = self._fetch_file(owner, repo, "package.json")
             pyproject_task = self._fetch_file(owner, repo, "pyproject.toml")
-            
+
             results = await asyncio.gather(
                 readme_task, package_json_task, pyproject_task, return_exceptions=True
             )
-            
+
             # Check for critical errors (non-404 HTTP errors)
             for result in results:
                 if isinstance(result, httpx.HTTPStatusError) and result.response.status_code != 404:
                     logger.error(f"GitHub API error: {result}")
-                    raise ConnectionError(f"Failed to fetch files from GitHub: {result.response.status_code}")
-            
+                    raise ConnectionError(
+                        f"Failed to fetch files from GitHub: {result.response.status_code}"
+                    )
+
             # Convert results, treating exceptions as None
             readme = results[0] if not isinstance(results[0], Exception) else None
             package_json = results[1] if not isinstance(results[1], Exception) else None
             pyproject = results[2] if not isinstance(results[2], Exception) else None
-            
+
         except ConnectionError:
             # Re-raise connection errors
             raise
-        except Exception as e:
+        except (RuntimeError, TypeError, ValueError) as e:
             logger.error(f"Unexpected error fetching files: {e}")
             raise ConnectionError(f"Failed to fetch files from GitHub: {e}")
 
@@ -281,9 +283,9 @@ class AsyncClaudeAnalyzer:
                 max_tokens=1024,
                 temperature=0.0,
                 messages=[{"role": "user", "content": prompt}],
-            )
+            ),
         )
-        
+
         # Extract text content from the first content block
         if hasattr(message.content[0], "text"):
             return message.content[0].text
@@ -311,7 +313,7 @@ class AsyncClaudeAnalyzer:
             if e.response.status_code == 404:
                 return None  # File not found is not an error
             raise
-        except Exception as e:
+        except (httpx.RequestError, ValueError, KeyError, UnicodeDecodeError) as e:
             logger.warning(f"Could not fetch {path} from {owner}/{repo}: {e}")
             return None
 
@@ -399,14 +401,14 @@ ENV_VARS:
                     parts = [p.strip() for p in line.split(",")]
                     if len(parts) < 1:
                         continue
-                    
+
                     # Extract key (required)
                     key_part = parts[0].split(":", 1)
                     if len(key_part) < 2:
                         logger.warning(f"Could not parse env var line (missing key): {line}")
                         continue
                     key = key_part[1].strip()
-                    
+
                     # Extract description (optional, but line must have proper format)
                     desc = ""
                     if len(parts) > 1 and "DESC:" in parts[1]:
@@ -415,13 +417,13 @@ ENV_VARS:
                         # Line has comma but no DESC: - this is malformed
                         logger.warning(f"Could not parse env var line (malformed DESC): {line}")
                         continue
-                    
+
                     # Extract required flag (optional, defaults to true)
                     required = True
                     if len(parts) > 2 and "REQUIRED:" in parts[2]:
                         req_str = parts[2].split(":", 1)[1].strip()
                         required = req_str.lower() == "true"
-                    
+
                     result["env_variables"].append(
                         {"key": key, "description": desc, "required": required}
                     )

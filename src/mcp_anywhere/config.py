@@ -22,7 +22,7 @@ DATA_DIR.mkdir(exist_ok=True)
 
 class Config:
     """Base configuration class"""
-    
+
     # Data directory setting
     DATA_DIR = DATA_DIR
 
