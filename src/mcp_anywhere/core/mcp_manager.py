@@ -214,6 +214,3 @@ class MCPManager:
         except (RuntimeError, ValueError, ConnectionError, AttributeError) as e:
             logger.error(f"Failed to discover tools for server '{server_id}': {e}")
             return []
-
-
-

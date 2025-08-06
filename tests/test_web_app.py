@@ -29,9 +29,11 @@ async def test_homepage_loads(app: Starlette):
     Tests that the homepage redirects to login when not authenticated.
     This is correct behavior as the homepage is protected by session auth middleware.
     """
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test", follow_redirects=False) as client:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test", follow_redirects=False
+    ) as client:
         response = await client.get("/")
-        
+
     # Should redirect to login since homepage is protected
     assert response.status_code == 302
     assert "/auth/login" in response.headers["location"]
@@ -44,6 +46,8 @@ async def test_static_files_route(app: Starlette):
     This verifies that the static files directory is correctly mounted.
     """
     # We expect a 404 for a non-existent file.
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
         response = await client.get("/static/style.css")
         assert response.status_code == 404

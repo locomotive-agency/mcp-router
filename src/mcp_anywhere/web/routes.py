@@ -54,8 +54,7 @@ def get_mcp_manager(request: Request):
 
 
 async def homepage(request: Request) -> HTMLResponse:
-    """Renders the homepage, displaying a list of configured MCP servers.
-    """
+    """Renders the homepage, displaying a list of configured MCP servers."""
     try:
         async with get_async_session() as db_session:
             # Query all active servers with their tools
@@ -81,8 +80,7 @@ async def homepage(request: Request) -> HTMLResponse:
 
 
 async def server_detail(request: Request) -> HTMLResponse:
-    """Show server details including tools.
-    """
+    """Show server details including tools."""
     server_id = request.path_params["server_id"]
 
     try:
@@ -123,8 +121,7 @@ async def server_detail(request: Request) -> HTMLResponse:
 
 
 async def delete_server(request: Request) -> RedirectResponse:
-    """Delete a server and remove it from MCP manager.
-    """
+    """Delete a server and remove it from MCP manager."""
     server_id = request.path_params["server_id"]
 
     try:

@@ -25,8 +25,7 @@ logger = get_logger(__name__)
 
 
 class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
-    """OAuth 2.0 provider that integrates MCP SDK auth with our database.
-    """
+    """OAuth 2.0 provider that integrates MCP SDK auth with our database."""
 
     def __init__(self, db_session_factory: Callable[[], Awaitable[AsyncSession]]) -> None:
         """Initialize with a database session factory."""
@@ -170,8 +169,7 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         response_types: list[str],
         scope: str,
     ) -> dict[str, Any]:
-        """Register a new OAuth client (optional, can be disabled).
-        """
+        """Register a new OAuth client (optional, can be disabled)."""
         client_id = secrets.token_urlsafe(16)
         client_secret = secrets.token_urlsafe(32)
 

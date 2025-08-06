@@ -32,7 +32,7 @@ class ServerFormData(BaseModel):
         """Validate runtime type is one of allowed values."""
         allowed_types = ["npx", "uvx", "docker"]
         if v not in allowed_types:
-            raise ValueError(f'Runtime type must be one of: {", ".join(allowed_types)}')
+            raise ValueError(f"Runtime type must be one of: {', '.join(allowed_types)}")
         return v
 
     @field_validator("install_command")

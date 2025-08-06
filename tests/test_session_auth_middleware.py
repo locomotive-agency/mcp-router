@@ -38,7 +38,7 @@ def test_app():
         Middleware(SessionMiddleware, secret_key="test-secret"),
         Middleware(SessionAuthMiddleware, login_url="/auth/login"),
     ]
-    
+
     routes = [
         Route("/", endpoint=homepage),
         Route("/servers", endpoint=servers),
@@ -46,7 +46,7 @@ def test_app():
         Route("/auth/login", endpoint=login_page),
         Route("/static/style.css", endpoint=static_file),
     ]
-    
+
     return Starlette(middleware=middleware, routes=routes)
 
 
@@ -54,7 +54,7 @@ def test_session_auth_middleware_protects_dashboard(test_app):
     """Test that unauthenticated users are redirected from dashboard."""
     with TestClient(test_app) as client:
         response = client.get("/", follow_redirects=False)
-        
+
         # Should redirect to login
         assert response.status_code == 302
         assert response.headers["location"] == "/auth/login"
@@ -64,13 +64,13 @@ def test_session_auth_middleware_protects_servers(test_app):
     """Test that unauthenticated users are redirected from server routes."""
     with TestClient(test_app) as client:
         response = client.get("/servers", follow_redirects=False)
-        
+
         # Should redirect to login
         assert response.status_code == 302
         assert response.headers["location"] == "/auth/login"
-        
+
         response = client.get("/servers/add", follow_redirects=False)
-        
+
         # Should redirect to login
         assert response.status_code == 302
         assert response.headers["location"] == "/auth/login"
@@ -83,7 +83,7 @@ def test_session_auth_middleware_allows_public_routes(test_app):
         response = client.get("/auth/login")
         assert response.status_code == 200
         assert response.text == "Login page"
-        
+
         # Static files should be accessible
         response = client.get("/static/style.css")
         assert response.status_code == 200
@@ -96,7 +96,7 @@ def test_session_auth_middleware_allows_authenticated_access(test_app):
         # Simulate authentication by making a request with session data
         # First, make a login request to get a session
         client.cookies.set("session", "test-session-data")
-        
+
         # For this test, we'll use a different approach - modify the middleware behavior
         # Or we can test this functionality through integration tests
         # For now, let's skip this specific test case
@@ -106,16 +106,16 @@ def test_session_auth_middleware_allows_authenticated_access(test_app):
 def test_session_auth_path_patterns():
     """Test that the middleware correctly matches path patterns."""
     from mcp_anywhere.web.middleware import SessionAuthMiddleware
-    
+
     # Create middleware instance
     middleware = SessionAuthMiddleware(None)
-    
+
     # Test protected paths
     assert middleware._should_protect_path("/") is True
     assert middleware._should_protect_path("/servers") is True
     assert middleware._should_protect_path("/servers/add") is True
     assert middleware._should_protect_path("/servers/123/edit") is True
-    
+
     # Test skipped paths
     assert middleware._should_protect_path("/auth/login") is False
     assert middleware._should_protect_path("/auth/logout") is False

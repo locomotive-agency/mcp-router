@@ -159,9 +159,7 @@ async def get_built_servers(session: AsyncSession | None = None) -> list[MCPServ
             return result.scalars().all()
 
 
-async def get_server_by_id(
-    server_id: str, session: AsyncSession | None = None
-) -> MCPServer | None:
+async def get_server_by_id(server_id: str, session: AsyncSession | None = None) -> MCPServer | None:
     """Get server by ID (async helper function)."""
     if session:
         # Use provided session

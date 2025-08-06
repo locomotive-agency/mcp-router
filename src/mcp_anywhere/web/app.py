@@ -43,8 +43,7 @@ def create_lifespan(transport_mode: str):
 
     @asynccontextmanager
     async def lifespan(app: Starlette):
-        """Application lifespan context to initialize resources on startup.
-        """
+        """Application lifespan context to initialize resources on startup."""
         # Initialize database
         await init_db()
 

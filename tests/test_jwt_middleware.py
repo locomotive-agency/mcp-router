@@ -29,7 +29,7 @@ async def valid_token(jwt_secret: str):
         "client_id": "test_client",
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1),
-        "iss": "mcp-anywhere"
+        "iss": "mcp-anywhere",
     }
     return jwt.encode(payload, jwt_secret, algorithm="HS256")
 
@@ -43,7 +43,7 @@ async def expired_token(jwt_secret: str):
         "scope": "read",
         "iat": datetime.utcnow() - timedelta(hours=2),
         "exp": datetime.utcnow() - timedelta(hours=1),  # Expired
-        "iss": "mcp-anywhere"
+        "iss": "mcp-anywhere",
     }
     return jwt.encode(payload, jwt_secret, algorithm="HS256")
 
@@ -51,14 +51,15 @@ async def expired_token(jwt_secret: str):
 @pytest_asyncio.fixture
 async def test_app_with_auth():
     """Create test app with JWT middleware."""
+
     async def protected_endpoint(request: Request):
         # This endpoint should only be accessible with valid JWT
         return JSONResponse({"message": "success", "user": request.state.user})
-    
+
     async def public_endpoint(request: Request):
         # This endpoint should be accessible without JWT
         return JSONResponse({"message": "public"})
-    
+
     # Create app with JWT middleware on protected route
     app = Starlette(
         routes=[
@@ -70,11 +71,11 @@ async def test_app_with_auth():
                 JWTAuthMiddleware,
                 secret_key="test-jwt-secret-key",
                 protected_paths=["/protected"],
-                required_scopes=["read"]
+                required_scopes=["read"],
             )
-        ]
+        ],
     )
-    
+
     return app
 
 
@@ -97,7 +98,9 @@ async def test_jwt_middleware_blocks_protected_without_token(test_app_with_auth:
 
 
 @pytest.mark.asyncio
-async def test_jwt_middleware_allows_protected_with_valid_token(test_app_with_auth: Starlette, valid_token: str):
+async def test_jwt_middleware_allows_protected_with_valid_token(
+    test_app_with_auth: Starlette, valid_token: str
+):
     """Test that JWT middleware allows access with valid token."""
     with TestClient(test_app_with_auth) as client:
         headers = {"Authorization": f"Bearer {valid_token}"}
@@ -108,7 +111,9 @@ async def test_jwt_middleware_allows_protected_with_valid_token(test_app_with_au
 
 
 @pytest.mark.asyncio
-async def test_jwt_middleware_blocks_expired_token(test_app_with_auth: Starlette, expired_token: str):
+async def test_jwt_middleware_blocks_expired_token(
+    test_app_with_auth: Starlette, expired_token: str
+):
     """Test that JWT middleware blocks expired tokens."""
     with TestClient(test_app_with_auth) as client:
         headers = {"Authorization": f"Bearer {expired_token}"}
@@ -139,9 +144,10 @@ async def test_jwt_middleware_blocks_malformed_auth_header(test_app_with_auth: S
 @pytest.mark.asyncio
 async def test_jwt_middleware_scope_validation():
     """Test JWT middleware with scope requirements."""
+
     async def admin_endpoint(request: Request):
         return JSONResponse({"message": "admin access"})
-    
+
     # Create app with admin scope requirement
     app = Starlette(
         routes=[Route("/admin", admin_endpoint)],
@@ -150,11 +156,11 @@ async def test_jwt_middleware_scope_validation():
                 JWTAuthMiddleware,
                 secret_key="test-jwt-secret-key",
                 protected_paths=["/admin"],
-                required_scopes=["admin"]
+                required_scopes=["admin"],
             )
-        ]
+        ],
     )
-    
+
     # Create token with only "read" scope
     payload = {
         "sub": "123",
@@ -162,10 +168,10 @@ async def test_jwt_middleware_scope_validation():
         "scope": "read",  # Missing "admin" scope
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1),
-        "iss": "mcp-anywhere"
+        "iss": "mcp-anywhere",
     }
     token = jwt.encode(payload, "test-jwt-secret-key", algorithm="HS256")
-    
+
     with TestClient(app) as client:
         headers = {"Authorization": f"Bearer {token}"}
         response = client.get("/admin", headers=headers)
@@ -176,9 +182,10 @@ async def test_jwt_middleware_scope_validation():
 @pytest.mark.asyncio
 async def test_jwt_middleware_multiple_scopes():
     """Test JWT middleware with multiple scope requirements."""
+
     async def multi_scope_endpoint(request: Request):
         return JSONResponse({"message": "multi scope access"})
-    
+
     # Create app requiring multiple scopes
     app = Starlette(
         routes=[Route("/multi", multi_scope_endpoint)],
@@ -187,11 +194,11 @@ async def test_jwt_middleware_multiple_scopes():
                 JWTAuthMiddleware,
                 secret_key="test-jwt-secret-key",
                 protected_paths=["/multi"],
-                required_scopes=["read", "write"]
+                required_scopes=["read", "write"],
             )
-        ]
+        ],
     )
-    
+
     # Create token with both required scopes
     payload = {
         "sub": "123",
@@ -199,10 +206,10 @@ async def test_jwt_middleware_multiple_scopes():
         "scope": "read write admin",
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1),
-        "iss": "mcp-anywhere"
+        "iss": "mcp-anywhere",
     }
     token = jwt.encode(payload, "test-jwt-secret-key", algorithm="HS256")
-    
+
     with TestClient(app) as client:
         headers = {"Authorization": f"Bearer {token}"}
         response = client.get("/multi", headers=headers)
@@ -213,9 +220,10 @@ async def test_jwt_middleware_multiple_scopes():
 @pytest.mark.asyncio
 async def test_jwt_middleware_wildcard_protected_paths():
     """Test JWT middleware with wildcard protected paths."""
+
     async def api_endpoint(request: Request):
         return JSONResponse({"message": "api access"})
-    
+
     # Create app with wildcard path protection
     app = Starlette(
         routes=[
@@ -227,11 +235,11 @@ async def test_jwt_middleware_wildcard_protected_paths():
                 JWTAuthMiddleware,
                 secret_key="test-jwt-secret-key",
                 protected_paths=["/api/*"],
-                required_scopes=["read"]
+                required_scopes=["read"],
             )
-        ]
+        ],
     )
-    
+
     # Create valid token
     payload = {
         "sub": "123",
@@ -239,20 +247,20 @@ async def test_jwt_middleware_wildcard_protected_paths():
         "scope": "read",
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1),
-        "iss": "mcp-anywhere"
+        "iss": "mcp-anywhere",
     }
     token = jwt.encode(payload, "test-jwt-secret-key", algorithm="HS256")
-    
+
     with TestClient(app) as client:
         headers = {"Authorization": f"Bearer {token}"}
-        
+
         # Both API endpoints should require auth
         response1 = client.get("/api/v1/test", headers=headers)
         assert response1.status_code == 200
-        
+
         response2 = client.get("/api/v2/test", headers=headers)
         assert response2.status_code == 200
-        
+
         # Without auth should fail
         response3 = client.get("/api/v1/test")
         assert response3.status_code == 401

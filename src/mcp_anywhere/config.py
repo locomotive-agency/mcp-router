@@ -57,9 +57,11 @@ class Config:
     MCP_PATH = os.environ.get("MCP_PATH", "/mcp")
     MCP_LOG_LEVEL = os.environ.get("MCP_LOG_LEVEL", "info")
     MCP_API_KEY = os.environ.get("MCP_API_KEY")
-    
+
     # Server URL - configurable for different environments
-    SERVER_URL = os.environ.get("SERVER_URL", f"http://localhost:{int(os.environ.get('WEB_PORT', '8000'))}")
+    SERVER_URL = os.environ.get(
+        "SERVER_URL", f"http://localhost:{int(os.environ.get('WEB_PORT', '8000'))}"
+    )
 
     # Dynamic Authentication Type (preferred method)
     _auth_type = os.environ.get("MCP_AUTH_TYPE", "api_key")
