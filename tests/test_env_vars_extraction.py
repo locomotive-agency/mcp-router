@@ -1,7 +1,7 @@
 """Test environment variable extraction and form handling."""
 
 import pytest
-from src.mcp_anywhere.claude_analyzer import AsyncClaudeAnalyzer
+from mcp_anywhere.claude_analyzer import AsyncClaudeAnalyzer
 
 
 @pytest.mark.asyncio

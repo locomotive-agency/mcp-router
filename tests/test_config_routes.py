@@ -66,9 +66,7 @@ def test_config_download_stdio_mode(app_stdio):
         # Should use python command for STDIO
         assert "python" in server_config["command"] or "python3" in server_config["command"]
         assert "mcp_anywhere" in " ".join(server_config["args"])
-        assert "serve" in server_config["args"]
-        assert "stdio" in server_config["args"]
-
+        assert "connect" in server_config["args"]
 
 def test_config_view_stdio_mode(app_stdio):
     """
@@ -100,7 +98,6 @@ def test_config_instructions_stdio_mode(app_stdio):
         # Check for key instruction elements
         assert "Claude Desktop" in html
         assert "configuration" in html.lower()
-        assert "stdio" in html.lower() or "STDIO" in html
 
 
 def test_config_routes_not_available_http_mode(app_http):

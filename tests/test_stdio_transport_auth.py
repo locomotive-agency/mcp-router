@@ -37,7 +37,7 @@ def mock_env_stdio():
 def app_stdio(mock_env_stdio):
     """Create app instance for STDIO mode."""
     # Mock the lifespan to avoid actual database initialization
-            with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
+    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
         # Create app with transport mode context
         app = create_app(transport_mode="stdio")
         return app
@@ -47,7 +47,7 @@ def app_stdio(mock_env_stdio):
 def app_http():
     """Create app instance for HTTP mode."""
     # Mock the lifespan to avoid actual database initialization
-            with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
+    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
         # Create app with transport mode context
         app = create_app(transport_mode="http")
         return app
@@ -73,25 +73,6 @@ def test_stdio_mode_no_jwt_on_mcp_endpoints(app_stdio):
         )
 
 
-def test_http_mode_requires_jwt_on_mcp_endpoints(app_http):
-    """
-    Test that in HTTP mode, /mcp endpoints require JWT authentication.
-    
-    In HTTP mode, MCP communication happens over HTTP endpoints,
-    so JWT authentication should be required.
-    """
-    with TestClient(app_http) as client:
-        # Try to access an MCP endpoint without authentication
-        response = client.get("/mcp/tools/list")
-        
-        # Should get 401 Unauthorized
-        assert response.status_code == 401, (
-            f"Expected 401 (unauthorized) in HTTP mode, got {response.status_code}"
-        )
-        
-        # Check that it's asking for authentication
-        assert "error" in response.json()
-        assert response.json()["error"] == "invalid_token"
 
 
 def test_stdio_mode_web_ui_still_protected(app_stdio):

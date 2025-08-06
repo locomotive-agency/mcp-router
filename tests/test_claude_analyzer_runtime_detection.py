@@ -1,7 +1,7 @@
 """Test Claude analyzer runtime type detection and environment variable parsing."""
 
 import pytest
-from src.mcp_anywhere.claude_analyzer import AsyncClaudeAnalyzer
+from mcp_anywhere.claude_analyzer import AsyncClaudeAnalyzer
 
 
 @pytest.mark.asyncio
