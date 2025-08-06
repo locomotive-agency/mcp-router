@@ -5,11 +5,11 @@ Tests the generation and serving of configuration files for STDIO mode
 integration with Claude Desktop.
 """
 
-import json
-import pytest
-from unittest.mock import MagicMock, patch
-from starlette.testclient import TestClient
 from contextlib import asynccontextmanager
+from unittest.mock import MagicMock, patch
+
+import pytest
+from starlette.testclient import TestClient
 
 from mcp_anywhere.web.app import create_app
 

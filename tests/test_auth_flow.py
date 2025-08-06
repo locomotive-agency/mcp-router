@@ -5,13 +5,13 @@ This module tests the OAuth authentication flows as specified in Phase 4
 of the engineering documentation.
 """
 
-import pytest
-import httpx
 from unittest.mock import patch
-from sqlalchemy.ext.asyncio import AsyncSession
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
-from mcp_anywhere.auth.models import User, OAuth2Client
+import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from mcp_anywhere.auth.models import OAuth2Client, User
 
 
 async def test_login_and_session(client: httpx.AsyncClient, db_session: AsyncSession):

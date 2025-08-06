@@ -1,8 +1,7 @@
 """Test Claude analyzer runtime type detection and environment variable parsing."""
 
-import pytest
-from unittest.mock import patch, AsyncMock
 
+import pytest
 from src.mcp_anywhere.claude_analyzer import AsyncClaudeAnalyzer
 
 

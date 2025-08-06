@@ -1,8 +1,9 @@
 """Authentication and authorization models for OAuth 2.0 implementation."""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime
-from werkzeug.security import generate_password_hash, check_password_hash
+
+from sqlalchemy import Column, DateTime, Integer, String
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from mcp_anywhere.base import Base
 

@@ -1,19 +1,17 @@
 """MCP Manager for handling dynamic server mounting and unmounting"""
 
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from fastmcp import FastMCP
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
-from sqlalchemy.exc import IntegrityError
-from mcp_anywhere.database import MCPServer
+
 from mcp_anywhere.container.manager import ContainerManager
-from mcp_anywhere.database import MCPServerTool
+from mcp_anywhere.database import MCPServer
 from mcp_anywhere.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-def create_mcp_config(servers: List["MCPServer"]) -> Dict[str, Any]:
+def create_mcp_config(servers: list["MCPServer"]) -> dict[str, Any]:
     """Convert database servers to MCP proxy configuration format."""
     config = {"mcpServers": {}}
     container_manager = ContainerManager()
@@ -61,9 +59,8 @@ def create_mcp_config(servers: List["MCPServer"]) -> Dict[str, Any]:
     return config
 
 
-def create_gateway_config(servers: List["MCPServer"]) -> Dict[str, Any]:
-    """
-    Create MCP proxy configuration for the lightweight gateway.
+def create_gateway_config(servers: list["MCPServer"]) -> dict[str, Any]:
+    """Create MCP proxy configuration for the lightweight gateway.
 
     This connects to existing running containers instead of creating new ones.
     Containers should already be created and running by the management server.
@@ -105,8 +102,7 @@ def create_gateway_config(servers: List["MCPServer"]) -> Dict[str, Any]:
 
 
 class MCPManager:
-    """
-    Manages the MCP Anywhere router and handles runtime server mounting/unmounting.
+    """Manages the MCP Anywhere router and handles runtime server mounting/unmounting.
 
     This class encapsulates the FastMCP router and provides methods to dynamically
     add and remove MCP servers at runtime using FastMCP's mount() capability.
@@ -115,12 +111,11 @@ class MCPManager:
     def __init__(self, router: FastMCP):
         """Initialize the MCP manager with a router."""
         self.router = router
-        self.mounted_servers: Dict[str, FastMCP] = {}
+        self.mounted_servers: dict[str, FastMCP] = {}
         logger.info("Initialized MCPManager")
 
-    async def add_server(self, server_config: "MCPServer") -> List[Dict[str, Any]]:
-        """
-        Add a new MCP server dynamically using FastMCP's mount capability.
+    async def add_server(self, server_config: "MCPServer") -> list[dict[str, Any]]:
+        """Add a new MCP server dynamically using FastMCP's mount capability.
 
         Args:
             server_config: The MCPServer database model
@@ -193,9 +188,8 @@ class MCPManager:
             logger.error(f"Failed to remove server '{server_id}': {e}")
             raise
 
-    async def _discover_server_tools(self, server_id: str) -> List[Dict[str, Any]]:
-        """
-        Discover tools from a mounted server.
+    async def _discover_server_tools(self, server_id: str) -> list[dict[str, Any]]:
+        """Discover tools from a mounted server.
 
         Args:
             server_id: The ID of the server to discover tools from

@@ -1,22 +1,16 @@
-"""
-OAuth routes using MCP SDK's auth module.
+"""OAuth routes using MCP SDK's auth module.
 Provides all required endpoints including .well-known discovery.
 """
 
 import time
-from typing import List
-from starlette.routing import Route, Mount
-from starlette.requests import Request
-from starlette.responses import HTMLResponse, RedirectResponse, JSONResponse
-from starlette.templating import Jinja2Templates
-from sqlalchemy import select
 
-from mcp.server.auth.routes import create_auth_routes, cors_middleware
+from mcp.server.auth.routes import cors_middleware, create_auth_routes
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
-from mcp.server.auth.handlers.metadata import MetadataHandler
-from mcp.server.auth.handlers.authorize import AuthorizationHandler
-from mcp.server.auth.handlers.register import RegistrationHandler
-from mcp.server.auth.handlers.revoke import RevocationHandler
+from sqlalchemy import select
+from starlette.requests import Request
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.routing import Route
+from starlette.templating import Jinja2Templates
 
 from mcp_anywhere.auth.mcp_provider import MCPAnywhereAuthProvider
 from mcp_anywhere.auth.models import User
@@ -114,9 +108,8 @@ async def handle_consent(request: Request) -> RedirectResponse:
     return RedirectResponse(url=redirect_url, status_code=302)
 
 
-def create_oauth_routes(get_async_session) -> List[Route]:
-    """
-    Create all OAuth routes using MCP SDK.
+def create_oauth_routes(get_async_session) -> list[Route]:
+    """Create all OAuth routes using MCP SDK.
 
     This includes:
     - /.well-known/oauth-authorization-server
@@ -127,7 +120,6 @@ def create_oauth_routes(get_async_session) -> List[Route]:
     - /auth/revoke
     - /auth/register (optional)
     """
-
     # Create provider instance
     provider = MCPAnywhereAuthProvider(get_async_session)
 

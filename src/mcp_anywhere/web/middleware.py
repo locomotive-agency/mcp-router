@@ -1,10 +1,10 @@
 """Session-based authentication middleware for web UI routes."""
 
 import fnmatch
-from typing import List
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response, RedirectResponse
+from starlette.responses import RedirectResponse, Response
 from starlette.types import ASGIApp
 
 from mcp_anywhere.logging_config import get_logger
@@ -18,12 +18,11 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: ASGIApp,
-        protected_paths: List[str] = None,
-        skip_paths: List[str] = None,
+        protected_paths: list[str] = None,
+        skip_paths: list[str] = None,
         login_url: str = "/auth/login",
     ):
-        """
-        Initialize session authentication middleware.
+        """Initialize session authentication middleware.
 
         Args:
             app: ASGI application
@@ -46,8 +45,7 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
         )
 
     def _should_protect_path(self, path: str) -> bool:
-        """
-        Check if a path should be protected by authentication.
+        """Check if a path should be protected by authentication.
 
         Args:
             path: Request path to check
@@ -68,8 +66,7 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
         return False
 
     def _is_authenticated(self, request: Request) -> bool:
-        """
-        Check if user is authenticated via session.
+        """Check if user is authenticated via session.
 
         Args:
             request: Starlette request object
@@ -81,8 +78,7 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
         return bool(user_id)
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        """
-        Process request through session authentication middleware.
+        """Process request through session authentication middleware.
 
         Args:
             request: Starlette request object

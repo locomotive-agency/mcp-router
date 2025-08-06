@@ -1,5 +1,4 @@
-"""
-Main command-line entry point for MCP Anywhere.
+"""Main command-line entry point for MCP Anywhere.
 
 This module acts as the main command-line entry point as specified in Phase 3
 of the engineering documentation.
@@ -7,20 +6,17 @@ of the engineering documentation.
 
 import argparse
 import asyncio
-import sys
 import shutil
-from typing import Optional
-from pathlib import Path
+import sys
 
 from mcp_anywhere.config import Config
 from mcp_anywhere.transport.http_server import run_http_server
-from mcp_anywhere.transport.stdio_server import run_stdio_server
 from mcp_anywhere.transport.stdio_gateway import run_connect_gateway
+from mcp_anywhere.transport.stdio_server import run_stdio_server
 
 
 def create_parser() -> argparse.ArgumentParser:
-    """
-    Create and configure the argument parser for MCP Anywhere CLI.
+    """Create and configure the argument parser for MCP Anywhere CLI.
 
     Returns:
         argparse.ArgumentParser: Configured argument parser
@@ -72,8 +68,7 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def reset_data(confirm: bool = False) -> None:
-    """
-    Reset MCP Anywhere data by clearing the data directory.
+    """Reset MCP Anywhere data by clearing the data directory.
 
     Args:
         confirm: Skip confirmation prompt if True
@@ -116,8 +111,7 @@ def reset_data(confirm: bool = False) -> None:
 
 
 async def main() -> None:
-    """
-    Main entry point for MCP Anywhere application.
+    """Main entry point for MCP Anywhere application.
 
     Parses command-line arguments and calls the appropriate transport server
     function based on the chosen sub-command.

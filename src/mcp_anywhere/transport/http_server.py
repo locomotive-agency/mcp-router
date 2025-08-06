@@ -2,14 +2,13 @@
 
 import uvicorn
 
-from mcp_anywhere.web.app import create_app
-from mcp_anywhere.logging_config import configure_logging, get_logger
 from mcp_anywhere.config import Config
+from mcp_anywhere.logging_config import configure_logging, get_logger
+from mcp_anywhere.web.app import create_app
 
 
 async def run_http_server(host: str = "0.0.0.0", port: int = 8000, log_level: str = "info") -> None:
-    """
-    Run the MCP Anywhere as an HTTP web server using uvicorn.
+    """Run the MCP Anywhere as an HTTP web server using uvicorn.
 
     Args:
         host: Host address to bind to
@@ -25,7 +24,7 @@ async def run_http_server(host: str = "0.0.0.0", port: int = 8000, log_level: st
     )
 
     logger = get_logger(__name__)
-    logger.info(f"Starting MCP Anywhere Server with HTTP transport")
+    logger.info("Starting MCP Anywhere Server with HTTP transport")
     logger.info(f"Web UI: http://{host}:{port}/")
     logger.info(f"MCP Endpoint: http://{host}:{port}/mcp (with OAuth)")
 

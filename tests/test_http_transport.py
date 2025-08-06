@@ -1,7 +1,6 @@
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-import pytest_asyncio
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock
 from starlette.applications import Starlette
 
 from mcp_anywhere.transport.http_server import run_http_server

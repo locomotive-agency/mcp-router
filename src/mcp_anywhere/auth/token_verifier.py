@@ -1,8 +1,9 @@
 """JWT token verification for OAuth 2.0 access tokens."""
 
-from typing import Optional, Dict, Any
+from typing import Any
+
 import jwt
-from jwt.exceptions import InvalidTokenError, ExpiredSignatureError, InvalidSignatureError
+from jwt.exceptions import ExpiredSignatureError, InvalidSignatureError, InvalidTokenError
 
 from mcp_anywhere.config import Config
 from mcp_anywhere.logging_config import get_logger
@@ -13,9 +14,8 @@ logger = get_logger(__name__)
 class TokenVerifier:
     """JWT token verifier for OAuth 2.0 access tokens."""
 
-    def __init__(self, secret_key: Optional[str] = None):
-        """
-        Initialize the token verifier.
+    def __init__(self, secret_key: str | None = None):
+        """Initialize the token verifier.
 
         Args:
             secret_key: JWT secret key. If None, uses Config.JWT_SECRET_KEY
@@ -24,9 +24,8 @@ class TokenVerifier:
         self.algorithm = "HS256"
         self.expected_issuer = "mcp-anywhere"
 
-    def verify(self, token: str) -> Optional[Dict[str, Any]]:
-        """
-        Verify and decode a JWT access token.
+    def verify(self, token: str) -> dict[str, Any] | None:
+        """Verify and decode a JWT access token.
 
         Args:
             token: JWT token string
@@ -69,9 +68,8 @@ class TokenVerifier:
             logger.error(f"Unexpected error during token verification: {str(e)}")
             return None
 
-    def extract_bearer_token(self, authorization_header: Optional[str]) -> Optional[str]:
-        """
-        Extract bearer token from Authorization header.
+    def extract_bearer_token(self, authorization_header: str | None) -> str | None:
+        """Extract bearer token from Authorization header.
 
         Args:
             authorization_header: HTTP Authorization header value
@@ -94,9 +92,8 @@ class TokenVerifier:
 
         return token
 
-    def verify_bearer_token(self, authorization_header: Optional[str]) -> Optional[Dict[str, Any]]:
-        """
-        Extract and verify bearer token from Authorization header.
+    def verify_bearer_token(self, authorization_header: str | None) -> dict[str, Any] | None:
+        """Extract and verify bearer token from Authorization header.
 
         Args:
             authorization_header: HTTP Authorization header value
@@ -110,9 +107,8 @@ class TokenVerifier:
 
         return self.verify(token)
 
-    def has_scope(self, token_payload: Dict[str, Any], required_scope: str) -> bool:
-        """
-        Check if token has required scope.
+    def has_scope(self, token_payload: dict[str, Any], required_scope: str) -> bool:
+        """Check if token has required scope.
 
         Args:
             token_payload: Decoded JWT token payload
@@ -124,9 +120,8 @@ class TokenVerifier:
         token_scopes = token_payload.get("scope", "").split()
         return required_scope in token_scopes
 
-    def has_any_scope(self, token_payload: Dict[str, Any], required_scopes: list) -> bool:
-        """
-        Check if token has any of the required scopes.
+    def has_any_scope(self, token_payload: dict[str, Any], required_scopes: list) -> bool:
+        """Check if token has any of the required scopes.
 
         Args:
             token_payload: Decoded JWT token payload
@@ -139,9 +134,8 @@ class TokenVerifier:
         required_scopes_set = set(required_scopes)
         return bool(token_scopes.intersection(required_scopes_set))
 
-    def has_all_scopes(self, token_payload: Dict[str, Any], required_scopes: list) -> bool:
-        """
-        Check if token has all required scopes.
+    def has_all_scopes(self, token_payload: dict[str, Any], required_scopes: list) -> bool:
+        """Check if token has all required scopes.
 
         Args:
             token_payload: Decoded JWT token payload

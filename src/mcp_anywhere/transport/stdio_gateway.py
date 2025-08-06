@@ -1,5 +1,4 @@
-"""
-Lightweight STDIO gateway for MCP client connections.
+"""Lightweight STDIO gateway for MCP client connections.
 This module provides a clean stdio interface without any web server or management overhead.
 """
 
@@ -9,24 +8,23 @@ import os
 os.environ["FASTMCP_DISABLE_BANNER"] = "1"
 
 
-from typing import List
-from fastmcp import FastMCP
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select
-
-from mcp_anywhere.database import MCPServer
-from mcp_anywhere.core.mcp_manager import create_gateway_config
-from mcp_anywhere.config import Config
 import logging
+
+from fastmcp import FastMCP
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+from mcp_anywhere.config import Config
+from mcp_anywhere.core.mcp_manager import create_gateway_config
+from mcp_anywhere.database import MCPServer
 
 # Completely disable logging for clean stdio
 logging.disable(logging.CRITICAL)
 
 
 async def run_connect_gateway() -> None:
-    """
-    Run the lightweight STDIO gateway for MCP client connections.
+    """Run the lightweight STDIO gateway for MCP client connections.
 
     This function:
     1. Reads server configurations from the database (read-only)
@@ -34,7 +32,6 @@ async def run_connect_gateway() -> None:
     3. Runs the stdio transport for client communication
     4. Does NOT start any web servers or management interfaces
     """
-
     try:
         # Additional logging suppression for imported modules
         logging.getLogger("sqlalchemy").disabled = True
@@ -57,7 +54,7 @@ async def run_connect_gateway() -> None:
 
         AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-        servers: List[MCPServer] = []
+        servers: list[MCPServer] = []
         async with AsyncSessionLocal() as session:
             # Read all configured servers
             result = await session.execute(select(MCPServer).where(MCPServer.is_active == True))
@@ -111,9 +108,9 @@ async def run_connect_gateway() -> None:
 
         # 5. Run the stdio transport
         # Redirect stderr to suppress all output from underlying MCP servers
-        import sys
         import contextlib
         import io
+        import sys
 
         # Suppress all stderr output to keep MCP protocol clean
         with contextlib.redirect_stderr(io.StringIO()):

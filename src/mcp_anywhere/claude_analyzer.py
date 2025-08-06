@@ -1,12 +1,14 @@
 """Analyzes GitHub repositories to extract MCP server configuration using Claude"""
 
-import re
-import base64
 import asyncio
+import base64
+import re
+from typing import Any
+
 import httpx
 from anthropic import Anthropic, AnthropicError
-from typing import Dict, Any, Optional
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
 from mcp_anywhere.config import Config
 from mcp_anywhere.logging_config import get_logger
 
@@ -16,7 +18,7 @@ logger = get_logger(__name__)
 class ClaudeAnalyzer:
     """Analyzes GitHub repositories to extract MCP server configuration"""
 
-    def __init__(self, api_key: Optional[str] = None, github_token: Optional[str] = None):
+    def __init__(self, api_key: str | None = None, github_token: str | None = None):
         self.api_key = api_key or Config.ANTHROPIC_API_KEY
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY is required for ClaudeAnalyzer")
@@ -24,7 +26,7 @@ class ClaudeAnalyzer:
         self.github_token = github_token or Config.GITHUB_TOKEN
         self.model_name = Config.ANTHROPIC_MODEL_NAME
 
-    def analyze_repository(self, github_url: str) -> Dict[str, Any]:
+    def analyze_repository(self, github_url: str) -> dict[str, Any]:
         """Analyze a GitHub repository and return a structured configuration."""
         match = re.match(r"https://github\.com/([^/]+)/([^/]+)", github_url)
         if not match:
@@ -72,7 +74,7 @@ class ClaudeAnalyzer:
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type(httpx.HTTPStatusError),
     )
-    def _fetch_file(self, owner: str, repo: str, path: str) -> Optional[str]:
+    def _fetch_file(self, owner: str, repo: str, path: str) -> str | None:
         """Fetch file content from a public GitHub repository."""
         url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
         headers = {"Accept": "application/vnd.github.v3+json"}
@@ -94,7 +96,7 @@ class ClaudeAnalyzer:
             return None
 
     def _build_prompt(
-        self, url: str, readme: Optional[str], pkg_json: Optional[str], pyproject: Optional[str]
+        self, url: str, readme: str | None, pkg_json: str | None, pyproject: str | None
     ) -> str:
         """Constructs the prompt for the Claude API call."""
         return f"""
@@ -148,7 +150,7 @@ ENV_VARS:
 - KEY: [key name], DESC: [description], REQUIRED: [true|false]
 """
 
-    def _parse_claude_response(self, text: str) -> Dict[str, Any]:
+    def _parse_claude_response(self, text: str) -> dict[str, Any]:
         """Parse Claude's structured response into a dictionary."""
         result = {
             "runtime_type": "docker",
@@ -212,7 +214,7 @@ ENV_VARS:
 class AsyncClaudeAnalyzer:
     """Async version of ClaudeAnalyzer for use in async contexts"""
 
-    def __init__(self, api_key: Optional[str] = None, github_token: Optional[str] = None):
+    def __init__(self, api_key: str | None = None, github_token: str | None = None):
         self.api_key = api_key or Config.ANTHROPIC_API_KEY
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY is required for AsyncClaudeAnalyzer")
@@ -220,7 +222,7 @@ class AsyncClaudeAnalyzer:
         self.github_token = github_token or Config.GITHUB_TOKEN
         self.model_name = Config.ANTHROPIC_MODEL_NAME
 
-    async def analyze_repository(self, github_url: str) -> Dict[str, Any]:
+    async def analyze_repository(self, github_url: str) -> dict[str, Any]:
         """Analyze a GitHub repository and return a structured configuration."""
         match = re.match(r"https://github\.com/([^/]+)/([^/]+)", github_url)
         if not match:
@@ -296,7 +298,7 @@ class AsyncClaudeAnalyzer:
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type(httpx.HTTPStatusError),
     )
-    async def _fetch_file(self, owner: str, repo: str, path: str) -> Optional[str]:
+    async def _fetch_file(self, owner: str, repo: str, path: str) -> str | None:
         """Fetch file content from a public GitHub repository using async httpx."""
         url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
         headers = {"Accept": "application/vnd.github.v3+json"}
@@ -318,7 +320,7 @@ class AsyncClaudeAnalyzer:
             return None
 
     def _build_prompt(
-        self, url: str, readme: Optional[str], pkg_json: Optional[str], pyproject: Optional[str]
+        self, url: str, readme: str | None, pkg_json: str | None, pyproject: str | None
     ) -> str:
         """Constructs the prompt for the Claude API call."""
         return f"""
@@ -372,7 +374,7 @@ ENV_VARS:
 - KEY: [key name], DESC: [description], REQUIRED: [true|false]
 """
 
-    def _parse_claude_response(self, text: str) -> Dict[str, Any]:
+    def _parse_claude_response(self, text: str) -> dict[str, Any]:
         """Parse Claude's structured response into a dictionary."""
         result = {
             "runtime_type": "docker",

@@ -1,17 +1,16 @@
-"""
-Custom middleware for MCP Anywhere.
+"""Custom middleware for MCP Anywhere.
 
 This module houses custom middleware as specified in Phase 3 of the engineering documentation.
 The ToolFilterMiddleware has been moved here and updated to use async-safe database access.
 """
 
 import json
-from typing import Set, List, Any, Dict
+from typing import Any
+
+from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from mcp_anywhere.database import MCPServerTool, get_async_session
 from mcp_anywhere.logging_config import get_logger
@@ -20,8 +19,7 @@ logger = get_logger(__name__)
 
 
 class ToolFilterMiddleware(BaseHTTPMiddleware):
-    """
-    HTTP middleware that filters tools based on database enable/disable status.
+    """HTTP middleware that filters tools based on database enable/disable status.
 
     This middleware intercepts MCP tools/list responses and filters out disabled tools
     while preserving the prefixed tool names for correct routing. It uses async-safe
@@ -29,8 +27,7 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        """
-        Intercept requests and filter MCP tools/list responses.
+        """Intercept requests and filter MCP tools/list responses.
 
         Args:
             request: The incoming request
@@ -77,9 +74,8 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
         content_type = response.headers.get("content-type", "")
         return "application/json" in content_type and response.status_code == 200
 
-    def _get_disabled_tools_sync(self) -> Set[str]:
-        """
-        Synchronous method to query disabled tools from database.
+    def _get_disabled_tools_sync(self) -> set[str]:
+        """Synchronous method to query disabled tools from database.
         This runs in a thread pool to avoid blocking the event loop.
 
         Returns:
@@ -95,9 +91,8 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
             logger.error(f"Failed to query disabled tools from database: {e}")
             return set()
 
-    async def _get_disabled_tools_async(self) -> Set[str]:
-        """
-        Async method to query disabled tools from database.
+    async def _get_disabled_tools_async(self) -> set[str]:
+        """Async method to query disabled tools from database.
 
         Returns:
             Set[str]: Set of disabled tool names
@@ -118,9 +113,8 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
 
         return disabled_tools
 
-    async def _filter_response(self, response: Response, disabled_tools: Set[str]) -> Response:
-        """
-        Filter tools from the response body.
+    async def _filter_response(self, response: Response, disabled_tools: set[str]) -> Response:
+        """Filter tools from the response body.
 
         Args:
             response: Original response
@@ -171,9 +165,8 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
             logger.error(f"Error filtering response: {e}")
             return response
 
-    def _filter_tools(self, tools: List[Any], disabled_tools: Set[str]) -> List[Any]:
-        """
-        Filter a list of tools based on disabled tool names.
+    def _filter_tools(self, tools: list[Any], disabled_tools: set[str]) -> list[Any]:
+        """Filter a list of tools based on disabled tool names.
 
         Args:
             tools: List of tool objects or dictionaries
@@ -193,9 +186,8 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
 
         return enabled_tools
 
-    def _is_tool_disabled(self, tool: Any, disabled_tools: Set[str]) -> bool:
-        """
-        Check if a tool is disabled based on its name.
+    def _is_tool_disabled(self, tool: Any, disabled_tools: set[str]) -> bool:
+        """Check if a tool is disabled based on its name.
 
         Args:
             tool: Tool object or dictionary
@@ -208,8 +200,7 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
         return tool_name in disabled_tools if tool_name else False
 
     def _get_tool_name(self, tool: Any) -> str:
-        """
-        Extract tool name from different possible formats.
+        """Extract tool name from different possible formats.
 
         Args:
             tool: Tool object or dictionary

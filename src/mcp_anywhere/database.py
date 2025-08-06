@@ -2,10 +2,11 @@
 
 import uuid
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import String, Text, JSON, Boolean, DateTime, ForeignKey, select
+from typing import Any
+
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mcp_anywhere.base import Base
 from mcp_anywhere.config import Config
@@ -27,26 +28,26 @@ class MCPServer(Base):
     id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_id)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     github_url: Mapped[str] = mapped_column(String(500), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
     runtime_type: Mapped[str] = mapped_column(String(20), nullable=False)  # npx, uvx, docker
     install_command: Mapped[str] = mapped_column(Text, nullable=False, default="")
     start_command: Mapped[str] = mapped_column(Text, nullable=False)
-    env_variables: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    env_variables: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     build_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
-    build_error: Mapped[Optional[str]] = mapped_column(Text)
-    image_tag: Mapped[Optional[str]] = mapped_column(String(200))
+    build_error: Mapped[str | None] = mapped_column(Text)
+    image_tag: Mapped[str | None] = mapped_column(String(200))
 
     # Relationship to tools
-    tools: Mapped[List["MCPServerTool"]] = relationship(
+    tools: Mapped[list["MCPServerTool"]] = relationship(
         back_populates="server", cascade="all, delete-orphan"
     )
 
     def __repr__(self):
         return f"<MCPServer {self.name}>"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation"""
         return {
             "id": self.id,
@@ -73,8 +74,8 @@ class MCPServerTool(Base):
     id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_id)
     server_id: Mapped[str] = mapped_column(String(8), ForeignKey("mcp_servers.id"), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    tool_description: Mapped[Optional[str]] = mapped_column(Text)
-    tool_schema: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON)
+    tool_description: Mapped[str | None] = mapped_column(Text)
+    tool_schema: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
@@ -128,7 +129,7 @@ async def close_db():
 
 
 # Async helper functions to replace Flask-SQLAlchemy equivalents
-async def get_active_servers(session: Optional[AsyncSession] = None) -> List[MCPServer]:
+async def get_active_servers(session: AsyncSession | None = None) -> list[MCPServer]:
     """Get all active servers (async equivalent of Flask-SQLAlchemy function)."""
     if session:
         # Use provided session
@@ -143,7 +144,7 @@ async def get_active_servers(session: Optional[AsyncSession] = None) -> List[MCP
             return result.scalars().all()
 
 
-async def get_built_servers(session: Optional[AsyncSession] = None) -> List[MCPServer]:
+async def get_built_servers(session: AsyncSession | None = None) -> list[MCPServer]:
     """Get all built servers (async equivalent of Flask-SQLAlchemy function)."""
     if session:
         # Use provided session
@@ -159,8 +160,8 @@ async def get_built_servers(session: Optional[AsyncSession] = None) -> List[MCPS
 
 
 async def get_server_by_id(
-    server_id: str, session: Optional[AsyncSession] = None
-) -> Optional[MCPServer]:
+    server_id: str, session: AsyncSession | None = None
+) -> MCPServer | None:
     """Get server by ID (async helper function)."""
     if session:
         # Use provided session
@@ -176,4 +177,3 @@ async def get_server_by_id(
 
 
 # Import auth models after Base is defined to avoid circular imports
-from mcp_anywhere.auth.models import User, OAuth2Client, AuthorizationCode

@@ -1,26 +1,23 @@
-"""
-MCP SDK-based OAuth provider implementation.
+"""MCP SDK-based OAuth provider implementation.
 Uses the MCP auth module for spec-compliant OAuth 2.0 flows.
 """
 
 import secrets
 import time
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Callable, Awaitable
-from starlette.requests import Request
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from mcp.server.auth.provider import (
-    OAuthAuthorizationServerProvider,
     AccessToken,
-    RegistrationError,
-    RegistrationErrorCode,
+    OAuthAuthorizationServerProvider,
     TokenError,
     TokenErrorCode,
 )
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import Request
 
-from mcp_anywhere.auth.models import User, OAuth2Client, AuthorizationCode
+from mcp_anywhere.auth.models import OAuth2Client
 from mcp_anywhere.config import Config
 from mcp_anywhere.logging_config import get_logger
 
@@ -28,8 +25,7 @@ logger = get_logger(__name__)
 
 
 class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
-    """
-    OAuth 2.0 provider that integrates MCP SDK auth with our database.
+    """OAuth 2.0 provider that integrates MCP SDK auth with our database.
     """
 
     def __init__(self, db_session_factory: Callable[[], Awaitable[AsyncSession]]) -> None:
@@ -43,12 +39,11 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         request: Request,
         client_id: str,
         redirect_uri: str,
-        state: Optional[str],
+        state: str | None,
         scope: str,
         response_type: str,
-    ) -> tuple[bool, Optional[str]]:
-        """
-        Validate authorization request and check user authentication.
+    ) -> tuple[bool, str | None]:
+        """Validate authorization request and check user authentication.
         Returns (is_valid, error_message).
         """
         async with self.db_session_factory() as session:
@@ -97,7 +92,7 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
 
     async def exchange_authorization_code(
         self, code: str, client_id: str, client_secret: str, redirect_uri: str
-    ) -> Optional[AccessToken]:
+    ) -> AccessToken | None:
         """Exchange authorization code for access token."""
         # Validate client credentials
         async with self.db_session_factory() as session:
@@ -144,9 +139,8 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
 
         return access_token
 
-    async def introspect_token(self, token: str) -> Optional[AccessToken]:
-        """
-        Introspect an access token for resource server validation.
+    async def introspect_token(self, token: str) -> AccessToken | None:
+        """Introspect an access token for resource server validation.
         Required for the introspection endpoint.
         """
         access_token = self.access_tokens.get(token)
@@ -161,7 +155,7 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
 
         return access_token
 
-    async def revoke_token(self, token: str, token_type_hint: Optional[str] = None) -> bool:
+    async def revoke_token(self, token: str, token_type_hint: str | None = None) -> bool:
         """Revoke an access token."""
         if token in self.access_tokens:
             del self.access_tokens[token]
@@ -175,9 +169,8 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         grant_types: list[str],
         response_types: list[str],
         scope: str,
-    ) -> Dict[str, Any]:
-        """
-        Register a new OAuth client (optional, can be disabled).
+    ) -> dict[str, Any]:
+        """Register a new OAuth client (optional, can be disabled).
         """
         client_id = secrets.token_urlsafe(16)
         client_secret = secrets.token_urlsafe(32)

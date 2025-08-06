@@ -1,22 +1,23 @@
 from contextlib import asynccontextmanager
+
+from fastmcp import FastMCP
 from starlette.applications import Starlette
-from starlette.routing import Mount, Route
-from starlette.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
-from fastmcp import FastMCP
+from starlette.routing import Mount
+from starlette.staticfiles import StaticFiles
 
-from mcp_anywhere.web import routes
-from mcp_anywhere.web.middleware import SessionAuthMiddleware
-from mcp_anywhere.web.config_routes import config_routes
-from mcp_anywhere.database import init_db, close_db, get_async_session
-from mcp_anywhere.core.mcp_manager import MCPManager
-from mcp_anywhere.container.manager import ContainerManager
-from mcp_anywhere.auth.mcp_routes import create_oauth_routes
-from mcp_anywhere.auth.mcp_provider import MCPAnywhereAuthProvider
 from mcp_anywhere.auth.initialization import initialize_oauth_data
+from mcp_anywhere.auth.mcp_provider import MCPAnywhereAuthProvider
+from mcp_anywhere.auth.mcp_routes import create_oauth_routes
 from mcp_anywhere.config import Config
+from mcp_anywhere.container.manager import ContainerManager
+from mcp_anywhere.core.mcp_manager import MCPManager
+from mcp_anywhere.database import close_db, get_async_session, init_db
 from mcp_anywhere.logging_config import get_logger
+from mcp_anywhere.web import routes
+from mcp_anywhere.web.config_routes import config_routes
+from mcp_anywhere.web.middleware import SessionAuthMiddleware
 
 logger = get_logger(__name__)
 
@@ -42,8 +43,7 @@ def create_lifespan(transport_mode: str):
 
     @asynccontextmanager
     async def lifespan(app: Starlette):
-        """
-        Application lifespan context to initialize resources on startup.
+        """Application lifespan context to initialize resources on startup.
         """
         # Initialize database
         await init_db()
@@ -89,8 +89,7 @@ def create_lifespan(transport_mode: str):
 
 
 def create_app(transport_mode: str = "http") -> Starlette:
-    """
-    Creates and configures the main Starlette application.
+    """Creates and configures the main Starlette application.
 
     Args:
         transport_mode: The transport mode ("http" or "stdio")
@@ -119,7 +118,6 @@ def create_app(transport_mode: str = "http") -> Starlette:
         app_routes.extend(oauth_routes)
 
         # Mount MCP endpoint with OAuth protection
-        from mcp.server.auth.middleware.bearer_auth import RequireAuthMiddleware
 
         # Note: The MCP endpoint will be added after app creation since we need app.state.mcp_manager
 

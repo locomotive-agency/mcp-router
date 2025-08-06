@@ -5,18 +5,17 @@ This module tests the moved and refactored ToolFilterMiddleware as specified
 in Phase 3 of the engineering documentation.
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import Response
-from starlette.middleware import Middleware
-from starlette.testclient import TestClient
-from starlette.routing import Route
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.responses import Response
+from starlette.routing import Route
+from starlette.testclient import TestClient
 
 from mcp_anywhere.core.middleware import ToolFilterMiddleware
-from mcp_anywhere.database import MCPServerTool
 
 
 @pytest.mark.asyncio

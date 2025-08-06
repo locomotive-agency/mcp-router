@@ -1,5 +1,4 @@
-"""
-STDIO transport module for running MCP Anywhere server with STDIO MCP transport.
+"""STDIO transport module for running MCP Anywhere server with STDIO MCP transport.
 
 This module runs the full application (web UI + MCP manager) but provides MCP
 over STDIO transport instead of HTTP. This is different from the lightweight
@@ -7,18 +6,18 @@ gateway which doesn't include the web UI.
 """
 
 import asyncio
+
 import uvicorn
 
-from mcp_anywhere.web.app import create_app
-from mcp_anywhere.logging_config import configure_logging, get_logger
 from mcp_anywhere.config import Config
+from mcp_anywhere.logging_config import configure_logging, get_logger
+from mcp_anywhere.web.app import create_app
 
 
 async def run_stdio_server(
     host: str = "0.0.0.0", port: int = 8000, log_level: str = "info"
 ) -> None:
-    """
-    Run the full MCP Anywhere server with STDIO transport for MCP.
+    """Run the full MCP Anywhere server with STDIO transport for MCP.
 
     This provides:
     - Web UI for management at the specified host:port
@@ -38,9 +37,9 @@ async def run_stdio_server(
     )
 
     logger = get_logger(__name__)
-    logger.info(f"Starting MCP Anywhere Server with STDIO transport")
+    logger.info("Starting MCP Anywhere Server with STDIO transport")
     logger.info(f"Web UI: http://{host}:{port}/")
-    logger.info(f"MCP: Available over stdio (no OAuth required)")
+    logger.info("MCP: Available over stdio (no OAuth required)")
 
     # Create app with stdio transport mode (no OAuth on MCP)
     app = create_app(transport_mode="stdio")

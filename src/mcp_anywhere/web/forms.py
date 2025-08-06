@@ -1,8 +1,8 @@
 """Pydantic models for form validation"""
 
 import re
-from typing import List, Optional
-from pydantic import BaseModel, Field, field_validator, ValidationInfo
+
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class ServerFormData(BaseModel):
@@ -10,11 +10,11 @@ class ServerFormData(BaseModel):
 
     name: str = Field(..., min_length=2, max_length=100)
     github_url: str = Field(..., max_length=500)
-    description: Optional[str] = Field(None, max_length=500)
+    description: str | None = Field(None, max_length=500)
     runtime_type: str = Field(...)
-    install_command: Optional[str] = Field(None, max_length=500)
+    install_command: str | None = Field(None, max_length=500)
     start_command: str = Field(..., max_length=500)
-    env_variables: List[dict] = Field(default_factory=list)
+    env_variables: list[dict] = Field(default_factory=list)
 
     @field_validator("github_url")
     @classmethod

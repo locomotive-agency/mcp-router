@@ -1,8 +1,8 @@
+from unittest.mock import AsyncMock, Mock, patch
+
+import httpx
 import pytest
 import pytest_asyncio
-from unittest.mock import patch, AsyncMock, Mock
-import httpx
-import json
 
 from mcp_anywhere.claude_analyzer import AsyncClaudeAnalyzer
 

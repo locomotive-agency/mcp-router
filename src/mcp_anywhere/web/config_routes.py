@@ -1,5 +1,4 @@
-"""
-Configuration routes for Claude Desktop integration.
+"""Configuration routes for Claude Desktop integration.
 
 This module provides endpoints to generate and serve configuration files
 needed to integrate MCP Anywhere with Claude Desktop when running in STDIO mode.
@@ -7,11 +6,10 @@ needed to integrate MCP Anywhere with Claude Desktop when running in STDIO mode.
 
 import json
 import sys
-from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import JSONResponse, HTMLResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
 from mcp_anywhere.logging_config import get_logger
@@ -19,9 +17,8 @@ from mcp_anywhere.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def generate_claude_config() -> Dict[str, Any]:
-    """
-    Generate Claude Desktop configuration for MCP Anywhere.
+def generate_claude_config() -> dict[str, Any]:
+    """Generate Claude Desktop configuration for MCP Anywhere.
 
     Returns:
         Dict containing the Claude Desktop configuration structure
@@ -46,8 +43,7 @@ def generate_claude_config() -> Dict[str, Any]:
 
 
 async def config_download(request: Request) -> Response:
-    """
-    Endpoint to download Claude Desktop configuration file.
+    """Endpoint to download Claude Desktop configuration file.
 
     Args:
         request: The incoming HTTP request
@@ -83,8 +79,7 @@ async def config_download(request: Request) -> Response:
 
 
 async def config_view(request: Request) -> JSONResponse:
-    """
-    Endpoint to view Claude Desktop configuration as JSON.
+    """Endpoint to view Claude Desktop configuration as JSON.
 
     Args:
         request: The incoming HTTP request
@@ -110,8 +105,7 @@ async def config_view(request: Request) -> JSONResponse:
 
 
 async def config_instructions(request: Request) -> HTMLResponse:
-    """
-    Endpoint to show setup instructions for Claude Desktop integration.
+    """Endpoint to show setup instructions for Claude Desktop integration.
 
     Args:
         request: The incoming HTTP request

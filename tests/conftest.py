@@ -5,17 +5,18 @@ This module provides centralized fixtures for async testing as specified
 in Phase 4 of the engineering documentation.
 """
 
+import os
+import tempfile
+from collections.abc import AsyncGenerator
+
+import httpx
 import pytest
 import pytest_asyncio
-import tempfile
-import os
-from typing import AsyncGenerator
-import httpx
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from starlette.applications import Starlette
 
-from mcp_anywhere.web.app import create_app
 from mcp_anywhere.base import Base
+from mcp_anywhere.web.app import create_app
 
 
 @pytest.fixture(scope="session")

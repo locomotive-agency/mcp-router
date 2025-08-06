@@ -1,9 +1,10 @@
 """Database utility functions for MCP Anywhere."""
 
-from typing import List, Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from typing import Any
+
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from mcp_anywhere.database import MCPServer, MCPServerTool
 from mcp_anywhere.logging_config import get_logger
@@ -12,10 +13,9 @@ logger = get_logger(__name__)
 
 
 async def store_server_tools(
-    db_session: AsyncSession, server_config: "MCPServer", discovered_tools: List[Dict[str, Any]]
+    db_session: AsyncSession, server_config: "MCPServer", discovered_tools: list[dict[str, Any]]
 ) -> None:
-    """
-    Store discovered tools in the database using async session.
+    """Store discovered tools in the database using async session.
 
     Args:
         db_session: Async database session

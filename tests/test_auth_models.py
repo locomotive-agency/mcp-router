@@ -1,7 +1,8 @@
-import pytest
 from datetime import datetime
 
-from mcp_anywhere.auth.models import User, OAuth2Client
+import pytest
+
+from mcp_anywhere.auth.models import OAuth2Client, User
 
 
 @pytest.mark.asyncio

@@ -1,10 +1,11 @@
 """OAuth initialization utilities for setting up default users and clients."""
 
 import secrets
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mcp_anywhere.auth.models import User, OAuth2Client
+from mcp_anywhere.auth.models import OAuth2Client, User
 from mcp_anywhere.database import get_async_session
 from mcp_anywhere.logging_config import get_logger
 
@@ -14,8 +15,7 @@ logger = get_logger(__name__)
 async def create_default_admin_user(
     username: str = "admin", password: str = None, db_session: AsyncSession = None
 ) -> User:
-    """
-    Create default admin user if it doesn't exist.
+    """Create default admin user if it doesn't exist.
 
     Args:
         username: Admin username
@@ -63,8 +63,7 @@ async def create_default_oauth_client(
     scope: str = "read write",
     db_session: AsyncSession = None,
 ) -> OAuth2Client:
-    """
-    Create default OAuth client if it doesn't exist.
+    """Create default OAuth client if it doesn't exist.
 
     Args:
         client_id: OAuth client ID (if None, generates one)
@@ -121,8 +120,7 @@ async def initialize_oauth_data(
     client_secret: str = None,
     redirect_uri: str = "http://localhost:8000/auth/callback",
 ) -> tuple[User, OAuth2Client]:
-    """
-    Initialize default OAuth data (admin user and OAuth client).
+    """Initialize default OAuth data (admin user and OAuth client).
 
     Args:
         admin_username: Admin username

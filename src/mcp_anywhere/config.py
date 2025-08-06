@@ -1,8 +1,9 @@
 """Configuration settings for MCP Anywhere"""
 
 import os
-from dotenv import load_dotenv
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()

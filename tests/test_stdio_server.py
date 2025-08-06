@@ -5,9 +5,10 @@ This module tests the stdio transport server as specified in Phase 3
 of the engineering documentation.
 """
 
-import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 from starlette.applications import Starlette
 
 from mcp_anywhere.transport.stdio_server import run_stdio_server

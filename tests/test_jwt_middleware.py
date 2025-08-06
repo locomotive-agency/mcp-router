@@ -1,17 +1,16 @@
+from datetime import datetime, timedelta
+
+import jwt
 import pytest
 import pytest_asyncio
-import jwt
-from datetime import datetime, timedelta
-from unittest.mock import Mock, patch
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from mcp_anywhere.auth.middleware import JWTAuthMiddleware
-from mcp_anywhere.config import Config
 
 
 @pytest_asyncio.fixture

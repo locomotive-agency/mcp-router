@@ -7,7 +7,6 @@ the format across the application, including uvicorn and third-party libraries.
 import logging
 import sys
 import warnings
-from typing import Optional
 
 from loguru import logger
 
@@ -35,9 +34,9 @@ class InterceptHandler(logging.Handler):
 
 
 def configure_logging(
-    log_level: Optional[str] = None,
-    log_format: Optional[str] = None,
-    log_file: Optional[str] = None,
+    log_level: str | None = None,
+    log_format: str | None = None,
+    log_file: str | None = None,
     json_logs: bool = False,
 ) -> None:
     """Configure logging for the entire application using loguru."""

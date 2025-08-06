@@ -1,8 +1,7 @@
 """Test environment variable extraction and form handling."""
 
-import pytest
-from unittest.mock import patch, AsyncMock
 
+import pytest
 from src.mcp_anywhere.claude_analyzer import AsyncClaudeAnalyzer
 
 

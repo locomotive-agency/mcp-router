@@ -1,11 +1,9 @@
-import pytest
-import pytest_asyncio
-import jwt
 from datetime import datetime, timedelta
-from unittest.mock import patch
+
+import jwt
+import pytest
 
 from mcp_anywhere.auth.token_verifier import TokenVerifier
-from mcp_anywhere.config import Config
 
 
 @pytest.mark.asyncio

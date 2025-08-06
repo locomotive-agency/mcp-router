@@ -1,9 +1,8 @@
 """Test HTMX redirect header functionality."""
 
-import pytest
-from starlette.responses import HTMLResponse
-from starlette.requests import Request
 from unittest.mock import MagicMock
+
+from starlette.responses import HTMLResponse
 
 
 def test_htmx_redirect_logic():

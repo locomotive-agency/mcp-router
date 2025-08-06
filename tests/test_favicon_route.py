@@ -1,7 +1,7 @@
 """Test favicon route handling."""
 
-import pytest
 import httpx
+import pytest
 
 from mcp_anywhere.web.app import create_app
 

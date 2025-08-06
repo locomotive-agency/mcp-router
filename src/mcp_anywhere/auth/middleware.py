@@ -1,10 +1,10 @@
 """JWT Authentication Middleware for Starlette applications."""
 
 import fnmatch
-from typing import List, Optional, Dict, Any
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
 from mcp_anywhere.auth.token_verifier import TokenVerifier
@@ -19,13 +19,12 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: ASGIApp,
-        secret_key: Optional[str] = None,
-        protected_paths: List[str] = None,
-        required_scopes: List[str] = None,
-        skip_paths: List[str] = None,
+        secret_key: str | None = None,
+        protected_paths: list[str] = None,
+        required_scopes: list[str] = None,
+        skip_paths: list[str] = None,
     ):
-        """
-        Initialize JWT authentication middleware.
+        """Initialize JWT authentication middleware.
 
         Args:
             app: ASGI application
@@ -43,8 +42,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         logger.info(f"JWT Auth Middleware initialized with protected paths: {self.protected_paths}")
 
     def _should_protect_path(self, path: str) -> bool:
-        """
-        Check if path should be protected by JWT authentication.
+        """Check if path should be protected by JWT authentication.
 
         Args:
             path: Request path
@@ -67,8 +65,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
     def _create_auth_error_response(
         self, error: str, description: str = None, status_code: int = 401
     ) -> JSONResponse:
-        """
-        Create standardized authentication error response.
+        """Create standardized authentication error response.
 
         Args:
             error: Error code
@@ -85,8 +82,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         return JSONResponse(error_data, status_code=status_code)
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        """
-        Process request through JWT authentication middleware.
+        """Process request through JWT authentication middleware.
 
         Args:
             request: Starlette request object
@@ -153,12 +149,11 @@ class MCPProtectionMiddleware(JWTAuthMiddleware):
     def __init__(
         self,
         app: ASGIApp,
-        secret_key: Optional[str] = None,
+        secret_key: str | None = None,
         mcp_path: str = "/mcp",
-        required_scopes: List[str] = None,
+        required_scopes: list[str] = None,
     ):
-        """
-        Initialize MCP protection middleware.
+        """Initialize MCP protection middleware.
 
         Args:
             app: ASGI application
@@ -189,10 +184,9 @@ class MCPProtectionMiddleware(JWTAuthMiddleware):
 
 
 def create_mcp_auth_middleware(
-    secret_key: Optional[str] = None, mcp_path: str = "/mcp", required_scopes: List[str] = None
+    secret_key: str | None = None, mcp_path: str = "/mcp", required_scopes: list[str] = None
 ) -> type:
-    """
-    Factory function to create MCP authentication middleware class.
+    """Factory function to create MCP authentication middleware class.
 
     Args:
         secret_key: JWT secret key

@@ -1,11 +1,10 @@
+import os
+import tempfile
+
 import pytest
 import pytest_asyncio
-import tempfile
-import os
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from starlette.testclient import TestClient
 
-from mcp_anywhere.database import Base
 from mcp_anywhere.web.app import create_app
 
 
@@ -72,7 +71,8 @@ async def test_oauth_default_data_creation(temp_db_app):
         # Get database session
         async with app.state.get_async_session() as db_session:
             from sqlalchemy import select
-            from mcp_anywhere.auth.models import User, OAuth2Client
+
+            from mcp_anywhere.auth.models import OAuth2Client, User
             
             # Check that admin user was created
             stmt = select(User).where(User.username == "admin")

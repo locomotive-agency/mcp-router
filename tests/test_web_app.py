@@ -1,10 +1,9 @@
+import httpx
 import pytest
 import pytest_asyncio
-import httpx
 from starlette.applications import Starlette
 
 from mcp_anywhere.web.app import create_app
-from mcp_anywhere.database import MCPServer
 
 
 @pytest_asyncio.fixture

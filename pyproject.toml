@@ -41,8 +41,6 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.21.0",
-    "black>=23.7.0",
-    "flake8>=6.1.0",
     "mypy>=1.5.0",
 ]
 test = [
@@ -63,9 +61,22 @@ where = ["src"]
 [tool.setuptools.package-data]
 mcp_anywhere = ["templates/**/*.html", "static/**/*"]
 
-[tool.black]
+[tool.ruff]
 line-length = 100
-target-version = ["py311"]
+src = ["src"]
+output-format = "concise"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "N", "D", "ANN", "TRY", "PD", "RUF200", "UP", "G"]
+ignore = ["E501", "ANN003"]
+logger-objects = ["loguru.logger"]
+
+[tool.ruff.lint.extend-per-file-ignores]
+"__init__.py" = ["F401", "F403", "E402"]
+"tests/**/*.py" = ["D", "ANN"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.mypy]
 python_version = "3.11"
@@ -73,3 +84,8 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 check_untyped_defs = true 
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.7",
+]

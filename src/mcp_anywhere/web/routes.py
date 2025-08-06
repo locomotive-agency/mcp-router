@@ -1,19 +1,18 @@
-from starlette.routing import Route
+from pydantic import ValidationError
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
+from starlette.routing import Route
 from starlette.templating import Jinja2Templates
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
-from sqlalchemy.orm import selectinload
-from sqlalchemy.exc import IntegrityError
-from pydantic import ValidationError
 
-from mcp_anywhere.database import MCPServer, MCPServerTool, get_async_session
-from mcp_anywhere.web.forms import ServerFormData, AnalyzeFormData
-from mcp_anywhere.database_utils import store_server_tools
-from mcp_anywhere.container.manager import ContainerManager
 from mcp_anywhere.claude_analyzer import AsyncClaudeAnalyzer
+from mcp_anywhere.container.manager import ContainerManager
+from mcp_anywhere.database import MCPServer, MCPServerTool, get_async_session
+from mcp_anywhere.database_utils import store_server_tools
 from mcp_anywhere.logging_config import get_logger
+from mcp_anywhere.web.forms import AnalyzeFormData, ServerFormData
 
 logger = get_logger(__name__)
 templates = Jinja2Templates(directory="src/mcp_anywhere/web/templates")
@@ -55,8 +54,7 @@ def get_mcp_manager(request: Request):
 
 
 async def homepage(request: Request) -> HTMLResponse:
-    """
-    Renders the homepage, displaying a list of configured MCP servers.
+    """Renders the homepage, displaying a list of configured MCP servers.
     """
     try:
         async with get_async_session() as db_session:
@@ -83,8 +81,7 @@ async def homepage(request: Request) -> HTMLResponse:
 
 
 async def server_detail(request: Request) -> HTMLResponse:
-    """
-    Show server details including tools.
+    """Show server details including tools.
     """
     server_id = request.path_params["server_id"]
 
@@ -126,8 +123,7 @@ async def server_detail(request: Request) -> HTMLResponse:
 
 
 async def delete_server(request: Request) -> RedirectResponse:
-    """
-    Delete a server and remove it from MCP manager.
+    """Delete a server and remove it from MCP manager.
     """
     server_id = request.path_params["server_id"]
 
@@ -408,7 +404,7 @@ async def add_server_post(request: Request) -> HTMLResponse:
         logger.info(f"Analyze button clicked for URL: {form_data.get('github_url', '')}")
         try:
             analyze_data = AnalyzeFormData(github_url=form_data.get("github_url", ""))
-            logger.info(f"Form data validated successfully")
+            logger.info("Form data validated successfully")
 
             # Use the real Claude analyzer
             try:
@@ -416,7 +412,7 @@ async def add_server_post(request: Request) -> HTMLResponse:
                 analyzer = AsyncClaudeAnalyzer()
                 logger.info(f"Starting repository analysis for: {analyze_data.github_url}")
                 analysis = await analyzer.analyze_repository(analyze_data.github_url)
-                logger.info(f"Analysis completed successfully")
+                logger.info("Analysis completed successfully")
 
                 # Check if this is an HTMX request
                 if request.headers.get("HX-Request"):

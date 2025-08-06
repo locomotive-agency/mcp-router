@@ -1,30 +1,29 @@
-"""
-Manages container lifecycle for MCP servers in any language.
+"""Manages container lifecycle for MCP servers in any language.
 
 Supports:
 - npx: Node.js/JavaScript servers
 - uvx: Python servers
 """
 
-from typing import Dict, Any, Optional, List
 import json
 import os
 import shlex
 import time
+from typing import Any
 
 from docker import DockerClient
-from docker.errors import ImageNotFound, NotFound, APIError
+from docker.errors import APIError, ImageNotFound, NotFound
 from llm_sandbox import SandboxSession
 from sqlalchemy import select
 
 from mcp_anywhere.config import Config
-from mcp_anywhere.database_utils import store_server_tools
 from mcp_anywhere.database import (
     MCPServer,
     get_active_servers,
-    get_built_servers,
     get_async_session,
+    get_built_servers,
 )
+from mcp_anywhere.database_utils import store_server_tools
 from mcp_anywhere.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -35,7 +34,6 @@ class ContainerManager:
 
     def __init__(self):
         """Initialize container manager for MCP servers"""
-
         self.docker_host = Config.DOCKER_HOST
         # Get Python image from config
         self.python_image = Config.MCP_PYTHON_IMAGE
@@ -61,8 +59,7 @@ class ContainerManager:
         return f"mcp-{server_id}"
 
     def _cleanup_existing_container(self, container_name: str) -> None:
-        """
-        Clean up existing container with the same name.
+        """Clean up existing container with the same name.
 
         Args:
             container_name: Name of the container to clean up
@@ -105,7 +102,7 @@ class ContainerManager:
             except (APIError, ConnectionError, OSError) as e:
                 logger.error(f"Failed to pull image '{image_name}': {e}")
 
-    def _get_env_vars(self, server: MCPServer) -> Dict[str, str]:
+    def _get_env_vars(self, server: MCPServer) -> dict[str, str]:
         """Extract environment variables from server configuration"""
         env_vars = {}
         for env_var in server.env_variables:
@@ -154,7 +151,7 @@ class ContainerManager:
         # For other Python packages, return as-is since pip handles their own parsing
         return cmd
 
-    def _parse_start_command(self, server: MCPServer) -> List[str]:
+    def _parse_start_command(self, server: MCPServer) -> list[str]:
         """Parse start command into Docker command array."""
         cmd = server.start_command.strip()
 
@@ -180,7 +177,7 @@ class ContainerManager:
             # Fall back to simple split
             return cmd.split()
 
-    def test_server(self, server: MCPServer) -> Dict[str, Any]:
+    def test_server(self, server: MCPServer) -> dict[str, Any]:
         """Test server by verifying its Docker image exists and can start."""
         logger.info(f"Testing server: {server.name}")
         start_time = time.time()
@@ -365,7 +362,7 @@ class ContainerManager:
             logger.error(f"Failed to build image for server {server.name}: {e}")
             raise
 
-    def load_default_servers(self, json_file_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    def load_default_servers(self, json_file_path: str | None = None) -> list[dict[str, Any]]:
         """Load default server configurations from JSON file."""
         if json_file_path is None:
             json_file_path = Config.DEFAULT_SERVERS_FILE
@@ -375,7 +372,7 @@ class ContainerManager:
                 logger.warning(f"Default servers file not found: {json_file_path}")
                 return []
 
-            with open(json_file_path, "r", encoding="utf-8") as f:
+            with open(json_file_path, encoding="utf-8") as f:
                 servers_config = json.load(f)
 
             logger.info(
@@ -390,9 +387,8 @@ class ContainerManager:
             logger.error(f"Failed to load default servers from {json_file_path}: {e}")
             raise
 
-    async def ensure_default_servers(self, json_file_path: Optional[str] = None) -> None:
+    async def ensure_default_servers(self, json_file_path: str | None = None) -> None:
         """Ensure default servers exist in the database."""
-
         if json_file_path is None:
             json_file_path = Config.DEFAULT_SERVERS_FILE
 
@@ -432,7 +428,6 @@ class ContainerManager:
 
     async def initialize_and_build_servers(self) -> None:
         """Initialize MCP Anywhere resources: check Docker, ensure images, build servers."""
-
         logger.info("Initializing MCP Anywhere resources...")
 
         # 1. Check if Docker is running
@@ -493,7 +488,6 @@ class ContainerManager:
 
     async def mount_built_servers(self, mcp_manager) -> None:
         """Mount all successfully built servers to the router and discover tools."""
-
         built_servers = await get_built_servers()
         logger.debug(f"Found {len(built_servers)} servers with build_status='built'")
 

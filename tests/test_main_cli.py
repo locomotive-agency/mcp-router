@@ -5,10 +5,10 @@ This module tests the refactored __main__.py as specified in Phase 3
 of the engineering documentation.
 """
 
-import pytest
-import asyncio
-from unittest.mock import patch, AsyncMock, Mock
 import sys
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from mcp_anywhere.__main__ import main
 
