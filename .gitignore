@@ -170,3 +170,5 @@ data/
 .ruff_cache/
 .vscode/
 archive/
+engineering_plan.md
+claude.md
