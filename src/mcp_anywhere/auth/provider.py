@@ -38,8 +38,9 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         self.auth_codes = {}  # In-memory storage for demo, use DB in production
         self.access_tokens = {}  # Token storage
 
+    @staticmethod
     def _verify_pkce_challenge(
-        self, code_verifier: str, code_challenge: str, method: str = "S256"
+        code_verifier: str, code_challenge: str, method: str = "S256"
     ) -> bool:
         """Verify PKCE code challenge.
 
