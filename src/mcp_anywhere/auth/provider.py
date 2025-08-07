@@ -14,7 +14,7 @@ from mcp.server.auth.provider import (
     OAuthAuthorizationServerProvider,
     OAuthClientInformationFull,
     TokenError,
-    TokenErrorCode,
+    TokenErrorCode, AuthorizationCodeT,
 )
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -147,51 +147,45 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         return code
 
     async def exchange_authorization_code(
-        self,
-        code: str,
-        client_id: str,
-        client_secret: str | None,
-        redirect_uri: str,
-        code_verifier: str | None = None,
-    ) -> AccessToken | None:
+        self, client: OAuthClientInformationFull, authorization_code: AuthorizationCodeT) -> AccessToken | None:
         """Exchange authorization code for access token with PKCE support."""
         # Validate client credentials
         async with self.db_session_factory() as session:
-            stmt = select(OAuth2Client).where(OAuth2Client.client_id == client_id)
+            stmt = select(OAuth2Client).where(OAuth2Client.client_id == client.client_id)
             client = await session.scalar(stmt)
 
             if not client:
                 raise TokenError(TokenErrorCode.INVALID_CLIENT)
 
             # Only check client_secret for confidential clients (non-PKCE flows)
-            if client.is_confidential and client.client_secret != client_secret:
+            if client.is_confidential and client.client_secret != client.client_secret:
                 raise TokenError(TokenErrorCode.INVALID_CLIENT)
 
         # Validate authorization code
-        auth_code_data = self.auth_codes.get(code)
+        auth_code_data = self.auth_codes.get(authorization_code)
         if not auth_code_data:
             raise TokenError(TokenErrorCode.INVALID_GRANT)
 
         # Check expiration
         if time.time() > auth_code_data["expires_at"]:
-            del self.auth_codes[code]
+            del self.auth_codes[authorization_code]
             raise TokenError(TokenErrorCode.INVALID_GRANT)
 
         # Validate code parameters
         if (
-            auth_code_data["client_id"] != client_id
-            or auth_code_data["redirect_uri"] != redirect_uri
+            auth_code_data["client_id"] != client.client_id
+            or auth_code_data["redirect_uri"] != client.redirect_uri
         ):
             raise TokenError(TokenErrorCode.INVALID_GRANT)
 
         # Verify PKCE if code challenge was stored
         if auth_code_data.get("code_challenge"):
-            if not code_verifier:
+            if not client.code_verifier:
                 logger.warning("PKCE verification failed: missing code_verifier")
                 raise TokenError(TokenErrorCode.INVALID_GRANT)
 
             if not self._verify_pkce_challenge(
-                code_verifier,
+                client.code_verifier,
                 auth_code_data["code_challenge"],
                 auth_code_data.get("code_challenge_method", "S256"),
             ):
@@ -204,7 +198,7 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
 
         access_token = AccessToken(
             token=token,
-            client_id=client_id,
+            client_id=client.client_id,
             scopes=auth_code_data["scope"].split(),
             expires_at=expires_at,
             resource=f"{Config.SERVER_URL}/mcp",
@@ -214,7 +208,7 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         self.access_tokens[token] = access_token
 
         # Delete used authorization code
-        del self.auth_codes[code]
+        del self.auth_codes[authorization_code]
 
         return access_token
 
@@ -249,7 +243,7 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         """Register a new OAuth client (optional, can be disabled)."""
         # Extract fields from the Pydantic model with sensible defaults
         client_name = client_info.client_name or "Unknown Client"
-        redirect_uris = client_info.redirect_uris or []
+        redirect_uris = [str(url) for url in (client_info.redirect_uris or [])]
         grant_types = client_info.grant_types or ["authorization_code"]
         response_types = client_info.response_types or ["code"]
         scope = client_info.scope or "mcp:read mcp:write"
