@@ -612,19 +612,19 @@ async def handle_analyze_repository(request: Request, form_data) -> HTMLResponse
                 )
 
         except ConnectionError as e:
-            return await handle_claude_connection_error(request, analyze_data.github_url, e)
+            return await handle_claude_connection_error(request=request, github_url=analyze_data.github_url, error=e)
 
         except ValueError as e:
-            return await handle_claude_config_error(request, analyze_data.github_url, e)
+            return await handle_claude_config_error(request=request, github_url=analyze_data.github_url, error=e)
 
         except (RuntimeError, ValueError, ConnectionError, OSError) as e:
-            return await handle_claude_unexpected_error(request, analyze_data.github_url, e)
+            return await handle_claude_unexpected_error(request=request, github_url=analyze_data.github_url, error=e)
 
     except ValidationError as e:
-        return await handle_analyze_validation_error(request, form_data, e)
+        return await handle_analyze_validation_error(request=request, form_data=form_data, error=e)
 
     except (RuntimeError, ValueError, ConnectionError, ValidationError) as e:
-        return await handle_analyze_general_error(request, form_data, e)
+        return await handle_analyze_general_error(request=request, form_data=form_data, error=e)
 
 
 async def handle_save_server(request: Request, form_data) -> HTMLResponse:
