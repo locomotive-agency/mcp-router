@@ -2,6 +2,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
+from starlette.datastructures import FormData
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
@@ -216,49 +217,7 @@ async def edit_server_post(request: Request) -> HTMLResponse:
 
     try:
         # Handle environment variables from form (new indexed format)
-        env_variables = []
-
-        # First try the old format for backward compatibility
-        env_keys = form_data.getlist("env_keys[]")
-        for key in env_keys:
-            value = form_data.get(f"env_value_{key}", "")
-            description = form_data.get(f"env_desc_{key}", "")
-            if value:  # Only include env vars with values
-                env_variables.append(
-                    {"key": key, "value": value, "description": description}
-                )
-
-        # New indexed format from analysis result template
-        i = 0
-        while True:
-            key = form_data.get(f"env_key_{i}")
-            if key is None:
-                break
-            value = form_data.get(f"env_value_{i}", "")
-            description = form_data.get(f"env_desc_{i}", "")
-            required = form_data.get(f"env_required_{i}", "false").lower() == "true"
-
-            if key.strip():  # Only include env vars with non-empty keys
-                env_variables.append(
-                    {
-                        "key": key.strip(),
-                        "value": value,
-                        "description": description,
-                        "required": required,
-                    }
-                )
-            i += 1
-
-        # Validate form data
-        server_data = ServerFormData(
-            name=form_data.get("name", ""),
-            github_url=form_data.get("github_url", ""),
-            description=form_data.get("description", ""),
-            runtime_type=form_data.get("runtime_type", ""),
-            install_command=form_data.get("install_command", ""),
-            start_command=form_data.get("start_command", ""),
-            env_variables=env_variables,
-        )
+        server_data = await create_server_post_form_data(form_data)
 
         # Update server in database
         async with get_async_session() as db_session:
@@ -362,6 +321,52 @@ async def edit_server_post(request: Request) -> HTMLResponse:
             get_template_context(request, message="Error updating server"),
             status_code=500,
         )
+
+
+async def create_server_post_form_data(form_data: FormData) -> ServerFormData:
+    """Create ServerFormData from form data, handling both old and new formats."""
+    env_variables = []
+
+    # First try the old format for backward compatibility
+    env_keys = form_data.getlist("env_keys[]")
+    for key in env_keys:
+        value = form_data.get(f"env_value_{key}", "")
+        description = form_data.get(f"env_desc_{key}", "")
+        if value:  # Only include env vars with values
+            env_variables.append(
+                {"key": key, "value": value, "description": description}
+            )
+    # New indexed format from analysis result template
+    i = 0
+    while True:
+        key = form_data.get(f"env_key_{i}")
+        if key is None:
+            break
+        value = form_data.get(f"env_value_{i}", "")
+        description = form_data.get(f"env_desc_{i}", "")
+        required = form_data.get(f"env_required_{i}", "false").lower() == "true"
+
+        if key.strip():  # Only include env vars with non-empty keys
+            env_variables.append(
+                {
+                    "key": key.strip(),
+                    "value": value,
+                    "description": description,
+                    "required": required,
+                }
+            )
+        i += 1
+    # Validate form data
+    server_data = ServerFormData(
+        name=form_data.get("name", ""),
+        github_url=form_data.get("github_url", ""),
+        description=form_data.get("description", ""),
+        runtime_type=form_data.get("runtime_type", ""),
+        install_command=form_data.get("install_command", ""),
+        start_command=form_data.get("start_command", ""),
+        env_variables=env_variables,
+    )
+    return server_data
 
 
 async def toggle_tool(request: Request) -> HTMLResponse:
@@ -594,49 +599,7 @@ async def handle_save_server(request: Request, form_data) -> HTMLResponse:
     """Handle server save request."""
     try:
         # Handle environment variables from form (new indexed format)
-        env_variables = []
-
-        # First try the old format for backward compatibility
-        env_keys = form_data.getlist("env_keys[]")
-        for key in env_keys:
-            value = form_data.get(f"env_value_{key}", "")
-            description = form_data.get(f"env_desc_{key}", "")
-            if value:  # Only include env vars with values
-                env_variables.append(
-                    {"key": key, "value": value, "description": description}
-                )
-
-        # New indexed format from analysis result template
-        i = 0
-        while True:
-            key = form_data.get(f"env_key_{i}")
-            if key is None:
-                break
-            value = form_data.get(f"env_value_{i}", "")
-            description = form_data.get(f"env_desc_{i}", "")
-            required = form_data.get(f"env_required_{i}", "false").lower() == "true"
-
-            if key.strip():  # Only include env vars with non-empty keys
-                env_variables.append(
-                    {
-                        "key": key.strip(),
-                        "value": value,
-                        "description": description,
-                        "required": required,
-                    }
-                )
-            i += 1
-
-        # Validate form data
-        server_data = ServerFormData(
-            name=form_data.get("name", ""),
-            github_url=form_data.get("github_url", ""),
-            description=form_data.get("description", ""),
-            runtime_type=form_data.get("runtime_type", ""),
-            install_command=form_data.get("install_command", ""),
-            start_command=form_data.get("start_command", ""),
-            env_variables=env_variables,
-        )
+        server_data = await create_server_post_form_data(form_data)
 
         # Create server in database
         async with get_async_session() as db_session:
