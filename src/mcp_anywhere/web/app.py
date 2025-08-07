@@ -15,6 +15,7 @@ from mcp_anywhere.auth.routes import create_oauth_routes
 from mcp_anywhere.config import Config
 from mcp_anywhere.container.manager import ContainerManager
 from mcp_anywhere.core.mcp_manager import MCPManager
+from mcp_anywhere.core.middleware import ToolFilterMiddleware
 from mcp_anywhere.database import close_db, get_async_session, init_db
 from mcp_anywhere.logging_config import get_logger
 from mcp_anywhere.web import routes
@@ -103,6 +104,8 @@ All tools from mounted servers are available directly with prefixed names.
 You can use tools/list to see all available tools from all mounted servers.
 """,
     )
+
+    router.add_middleware(ToolFilterMiddleware())
 
     return MCPManager(router)
 

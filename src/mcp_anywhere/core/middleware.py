@@ -7,6 +7,7 @@ The ToolFilterMiddleware has been moved here and updated to use async-safe datab
 import json
 from typing import Any
 
+from fastmcp.server.middleware import Middleware
 from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -18,7 +19,7 @@ from mcp_anywhere.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class ToolFilterMiddleware(BaseHTTPMiddleware):
+class ToolFilterMiddleware(Middleware):
     """HTTP middleware that filters tools based on database enable/disable status.
 
     This middleware intercepts MCP tools/list responses and filters out disabled tools
@@ -66,12 +67,14 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
             # Return original response on error
             return response
 
-    def _is_mcp_tools_request(self, request: Request) -> bool:
+    @staticmethod
+    def _is_mcp_tools_request(request: Request) -> bool:
         """Check if this is an MCP tools/list request."""
         path = request.url.path
         return "/mcp" in path and ("tools" in path or "list" in path.lower())
 
-    def _is_json_response(self, response: Response) -> bool:
+    @staticmethod
+    def _is_json_response(response: Response) -> bool:
         """Check if the response is JSON."""
         content_type = response.headers.get("content-type", "")
         return "application/json" in content_type and response.status_code == 200
@@ -93,7 +96,8 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
             logger.error(f"Failed to query disabled tools from database: {e}")
             return set()
 
-    async def _get_disabled_tools_async(self) -> set[str]:
+    @staticmethod
+    async def _get_disabled_tools_async() -> set[str]:
         """Async method to query disabled tools from database.
 
         Returns:
@@ -207,7 +211,8 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
         tool_name = self._get_tool_name(tool)
         return tool_name in disabled_tools if tool_name else False
 
-    def _get_tool_name(self, tool: Any) -> str:
+    @staticmethod
+    def _get_tool_name(tool: Any) -> str:
         """Extract tool name from different possible formats.
 
         Args:
