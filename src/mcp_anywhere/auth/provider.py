@@ -12,6 +12,7 @@ from typing import Any
 from mcp.server.auth.provider import (
     AccessToken,
     OAuthAuthorizationServerProvider,
+    OAuthClientInformationFull,
     TokenError,
     TokenErrorCode,
 )
@@ -242,14 +243,16 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         return False
 
     async def register_client(
-        self,
-        client_name: str,
-        redirect_uris: list[str],
-        grant_types: list[str],
-        response_types: list[str],
-        scope: str,
+        self, client_info: OAuthClientInformationFull
     ) -> dict[str, Any]:
         """Register a new OAuth client (optional, can be disabled)."""
+        # Extract fields from the Pydantic model with sensible defaults
+        client_name = getattr(client_info, "client_name", "Unknown Client")
+        redirect_uris = getattr(client_info, "redirect_uris", [])
+        grant_types = getattr(client_info, "grant_types", ["authorization_code"])
+        response_types = getattr(client_info, "response_types", ["code"])
+        scope = getattr(client_info, "scope", "mcp:read mcp:write")
+        
         client_id = secrets.token_urlsafe(16)
         client_secret = secrets.token_urlsafe(32)
 
