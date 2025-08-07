@@ -418,6 +418,158 @@ async def toggle_tool(request: Request) -> HTMLResponse:
         )
 
 
+async def handle_claude_connection_error(
+    request: Request, github_url: str, error: ConnectionError
+) -> HTMLResponse:
+    """Handle Claude analysis connection failures with fallback."""
+    logger.warning(f"Claude analysis failed for {github_url}: {error}")
+    
+    # Fallback to basic analysis if Claude fails
+    analysis = {
+        "name": "analyzed-server",
+        "description": "Claude analysis unavailable - please fill manually",
+        "runtime_type": "docker",
+        "install_command": "",
+        "start_command": "echo 'placeholder'",
+    }
+
+    warning_msg = "Repository analysis failed. Please fill out the form manually."
+    
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            request,
+            "partials/analysis_result.html",
+            get_template_context(
+                request,
+                github_url=github_url,
+                analysis=analysis,
+                warning=warning_msg,
+            ),
+        )
+    else:
+        return templates.TemplateResponse(
+            request,
+            "servers/add.html",
+            get_template_context(
+                request,
+                github_url=github_url,
+                analysis=analysis,
+                warning=warning_msg,
+            ),
+        )
+
+
+async def handle_claude_config_error(
+    request: Request, github_url: str, error: ValueError
+) -> HTMLResponse:
+    """Handle Claude analyzer configuration errors."""
+    logger.error(f"Claude analyzer configuration error: {error}")
+    error_msg = f"Repository analysis is not configured: {str(error)}. Please check your ANTHROPIC_API_KEY."
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            request,
+            "partials/analysis_result.html",
+            get_template_context(
+                request, github_url=github_url, error=error_msg
+            ),
+        )
+    else:
+        return templates.TemplateResponse(
+            request,
+            "servers/add.html",
+            get_template_context(
+                request, github_url=github_url, error=error_msg
+            ),
+        )
+
+
+async def handle_claude_unexpected_error(
+    request: Request, github_url: str, error: Exception
+) -> HTMLResponse:
+    """Handle unexpected errors during Claude analysis."""
+    logger.error(f"Unexpected error during analysis: {error}")
+    error_msg = f"Analysis failed: {str(error)}"
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            request,
+            "partials/analysis_result.html",
+            get_template_context(
+                request, github_url=github_url, error=error_msg
+            ),
+        )
+    else:
+        return templates.TemplateResponse(
+            request,
+            "servers/add.html",
+            get_template_context(
+                request, github_url=github_url, error=error_msg
+            ),
+        )
+
+
+async def handle_analyze_validation_error(
+    request: Request, form_data, error: ValidationError
+) -> HTMLResponse:
+    """Handle form validation errors during analysis."""
+    logger.error(f"Form validation error: {error}")
+    errors = {}
+    for err in error.errors():
+        field = err["loc"][0]
+        errors[field] = [err["msg"]]
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            request,
+            "partials/analysis_result.html",
+            get_template_context(
+                request,
+                github_url=form_data.get("github_url", ""),
+                errors=errors,
+            ),
+        )
+    else:
+        return templates.TemplateResponse(
+            request,
+            "servers/add.html",
+            get_template_context(
+                request,
+                github_url=form_data.get("github_url", ""),
+                errors=errors,
+            ),
+        )
+
+
+async def handle_analyze_general_error(
+    request: Request, form_data, error: Exception
+) -> HTMLResponse:
+    """Handle general errors during analysis."""
+    logger.error(f"Unexpected error in analyze handler: {error}")
+    error_msg = f"Unexpected error: {str(error)}"
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            request,
+            "partials/analysis_result.html",
+            get_template_context(
+                request,
+                github_url=form_data.get("github_url", ""),
+                error=error_msg,
+            ),
+        )
+    else:
+        return templates.TemplateResponse(
+            request,
+            "servers/add.html",
+            get_template_context(
+                request,
+                github_url=form_data.get("github_url", ""),
+                error=error_msg,
+            ),
+        )
+
+
 async def handle_analyze_repository(request: Request, form_data) -> HTMLResponse:
     """Handle repository analysis request."""
     logger.info(
@@ -460,139 +612,19 @@ async def handle_analyze_repository(request: Request, form_data) -> HTMLResponse
                 )
 
         except ConnectionError as e:
-            logger.warning(
-                f"Claude analysis failed for {analyze_data.github_url}: {e}"
-            )
-            # Fallback to basic analysis if Claude fails
-            analysis = {
-                "name": "analyzed-server",
-                "description": "Claude analysis unavailable - please fill manually",
-                "runtime_type": "docker",
-                "install_command": "",
-                "start_command": "echo 'placeholder'",
-            }
-
-            # Check if this is an HTMX request
-            if request.headers.get("HX-Request"):
-                return templates.TemplateResponse(
-                    request,
-                    "partials/analysis_result.html",
-                    get_template_context(
-                        request,
-                        github_url=analyze_data.github_url,
-                        analysis=analysis,
-                        warning="Repository analysis failed. Please fill out the form manually.",
-                    ),
-                )
-            else:
-                return templates.TemplateResponse(
-                    request,
-                    "servers/add.html",
-                    get_template_context(
-                        request,
-                        github_url=analyze_data.github_url,
-                        analysis=analysis,
-                        warning="Repository analysis failed. Please fill out the form manually.",
-                    ),
-                )
+            return await handle_claude_connection_error(request, analyze_data.github_url, e)
 
         except ValueError as e:
-            # Handle missing API keys or invalid configuration
-            logger.error(f"Claude analyzer configuration error: {e}")
-            error_msg = f"Repository analysis is not configured: {str(e)}. Please check your ANTHROPIC_API_KEY."
-
-            if request.headers.get("HX-Request"):
-                return templates.TemplateResponse(
-                    request,
-                    "partials/analysis_result.html",
-                    get_template_context(
-                        request, github_url=analyze_data.github_url, error=error_msg
-                    ),
-                )
-            else:
-                return templates.TemplateResponse(
-                    request,
-                    "servers/add.html",
-                    get_template_context(
-                        request, github_url=analyze_data.github_url, error=error_msg
-                    ),
-                )
+            return await handle_claude_config_error(request, analyze_data.github_url, e)
 
         except (RuntimeError, ValueError, ConnectionError, OSError) as e:
-            # Handle any other unexpected errors
-            logger.error(f"Unexpected error during analysis: {e}")
-            error_msg = f"Analysis failed: {str(e)}"
-
-            if request.headers.get("HX-Request"):
-                return templates.TemplateResponse(
-                    request,
-                    "partials/analysis_result.html",
-                    get_template_context(
-                        request, github_url=analyze_data.github_url, error=error_msg
-                    ),
-                )
-            else:
-                return templates.TemplateResponse(
-                    request,
-                    "servers/add.html",
-                    get_template_context(
-                        request, github_url=analyze_data.github_url, error=error_msg
-                    ),
-                )
+            return await handle_claude_unexpected_error(request, analyze_data.github_url, e)
 
     except ValidationError as e:
-        logger.error(f"Form validation error: {e}")
-        errors = {}
-        for error in e.errors():
-            field = error["loc"][0]
-            errors[field] = [error["msg"]]
-
-        if request.headers.get("HX-Request"):
-            return templates.TemplateResponse(
-                request,
-                "partials/analysis_result.html",
-                get_template_context(
-                    request,
-                    github_url=form_data.get("github_url", ""),
-                    errors=errors,
-                ),
-            )
-        else:
-            return templates.TemplateResponse(
-                request,
-                "servers/add.html",
-                get_template_context(
-                    request,
-                    github_url=form_data.get("github_url", ""),
-                    errors=errors,
-                ),
-            )
+        return await handle_analyze_validation_error(request, form_data, e)
 
     except (RuntimeError, ValueError, ConnectionError, ValidationError) as e:
-        # Catch any other errors at the analyze level
-        logger.error(f"Unexpected error in analyze handler: {e}")
-        error_msg = f"Unexpected error: {str(e)}"
-
-        if request.headers.get("HX-Request"):
-            return templates.TemplateResponse(
-                request,
-                "partials/analysis_result.html",
-                get_template_context(
-                    request,
-                    github_url=form_data.get("github_url", ""),
-                    error=error_msg,
-                ),
-            )
-        else:
-            return templates.TemplateResponse(
-                request,
-                "servers/add.html",
-                get_template_context(
-                    request,
-                    github_url=form_data.get("github_url", ""),
-                    error=error_msg,
-                ),
-            )
+        return await handle_analyze_general_error(request, form_data, e)
 
 
 async def handle_save_server(request: Request, form_data) -> HTMLResponse:
