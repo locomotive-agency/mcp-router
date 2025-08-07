@@ -156,13 +156,13 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         async with self.db_session_factory() as session:
             logger.debug(client)
             stmt = select(OAuth2Client).where(OAuth2Client.client_id == client.client_id)
-            client = await session.scalar(stmt)
+            db_client = await session.scalar(stmt)
 
-            if not client:
+            if not db_client:
                 raise TokenError(TokenErrorCode.INVALID_CLIENT)
 
             # Only check client_secret for confidential clients (non-PKCE flows)
-            if client.is_confidential and client.client_secret != client.client_secret:
+            if db_client.is_confidential and db_client.client_secret != client.client_secret:
                 raise TokenError(TokenErrorCode.INVALID_CLIENT)
 
         # Validate authorization code
