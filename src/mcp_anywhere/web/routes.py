@@ -413,332 +413,342 @@ async def toggle_tool(request: Request) -> HTMLResponse:
         )
 
 
+async def handle_analyze_repository(request: Request, form_data) -> HTMLResponse:
+    """Handle repository analysis request."""
+    logger.info(
+        f"Analyze button clicked for URL: {form_data.get('github_url', '')}"
+    )
+    try:
+        analyze_data = AnalyzeFormData(github_url=form_data.get("github_url", ""))
+        logger.info("Form data validated successfully")
+
+        # Use the real Claude analyzer
+        try:
+            logger.info("Initializing AsyncClaudeAnalyzer...")
+            analyzer = AsyncClaudeAnalyzer()
+            logger.info(
+                f"Starting repository analysis for: {analyze_data.github_url}"
+            )
+            analysis = await analyzer.analyze_repository(analyze_data.github_url)
+            logger.info("Analysis completed successfully")
+
+            # Check if this is an HTMX request
+            if request.headers.get("HX-Request"):
+                return templates.TemplateResponse(
+                    request,
+                    "partials/analysis_result.html",
+                    get_template_context(
+                        request,
+                        github_url=analyze_data.github_url,
+                        analysis=analysis,
+                    ),
+                )
+            else:
+                return templates.TemplateResponse(
+                    request,
+                    "servers/add.html",
+                    get_template_context(
+                        request,
+                        github_url=analyze_data.github_url,
+                        analysis=analysis,
+                    ),
+                )
+
+        except ConnectionError as e:
+            logger.warning(
+                f"Claude analysis failed for {analyze_data.github_url}: {e}"
+            )
+            # Fallback to basic analysis if Claude fails
+            analysis = {
+                "name": "analyzed-server",
+                "description": "Claude analysis unavailable - please fill manually",
+                "runtime_type": "docker",
+                "install_command": "",
+                "start_command": "echo 'placeholder'",
+            }
+
+            # Check if this is an HTMX request
+            if request.headers.get("HX-Request"):
+                return templates.TemplateResponse(
+                    request,
+                    "partials/analysis_result.html",
+                    get_template_context(
+                        request,
+                        github_url=analyze_data.github_url,
+                        analysis=analysis,
+                        warning="Repository analysis failed. Please fill out the form manually.",
+                    ),
+                )
+            else:
+                return templates.TemplateResponse(
+                    request,
+                    "servers/add.html",
+                    get_template_context(
+                        request,
+                        github_url=analyze_data.github_url,
+                        analysis=analysis,
+                        warning="Repository analysis failed. Please fill out the form manually.",
+                    ),
+                )
+
+        except ValueError as e:
+            # Handle missing API keys or invalid configuration
+            logger.error(f"Claude analyzer configuration error: {e}")
+            error_msg = f"Repository analysis is not configured: {str(e)}. Please check your ANTHROPIC_API_KEY."
+
+            if request.headers.get("HX-Request"):
+                return templates.TemplateResponse(
+                    request,
+                    "partials/analysis_result.html",
+                    get_template_context(
+                        request, github_url=analyze_data.github_url, error=error_msg
+                    ),
+                )
+            else:
+                return templates.TemplateResponse(
+                    request,
+                    "servers/add.html",
+                    get_template_context(
+                        request, github_url=analyze_data.github_url, error=error_msg
+                    ),
+                )
+
+        except (RuntimeError, ValueError, ConnectionError, OSError) as e:
+            # Handle any other unexpected errors
+            logger.error(f"Unexpected error during analysis: {e}")
+            error_msg = f"Analysis failed: {str(e)}"
+
+            if request.headers.get("HX-Request"):
+                return templates.TemplateResponse(
+                    request,
+                    "partials/analysis_result.html",
+                    get_template_context(
+                        request, github_url=analyze_data.github_url, error=error_msg
+                    ),
+                )
+            else:
+                return templates.TemplateResponse(
+                    request,
+                    "servers/add.html",
+                    get_template_context(
+                        request, github_url=analyze_data.github_url, error=error_msg
+                    ),
+                )
+
+    except ValidationError as e:
+        logger.error(f"Form validation error: {e}")
+        errors = {}
+        for error in e.errors():
+            field = error["loc"][0]
+            errors[field] = [error["msg"]]
+
+        if request.headers.get("HX-Request"):
+            return templates.TemplateResponse(
+                request,
+                "partials/analysis_result.html",
+                get_template_context(
+                    request,
+                    github_url=form_data.get("github_url", ""),
+                    errors=errors,
+                ),
+            )
+        else:
+            return templates.TemplateResponse(
+                request,
+                "servers/add.html",
+                get_template_context(
+                    request,
+                    github_url=form_data.get("github_url", ""),
+                    errors=errors,
+                ),
+            )
+
+    except (RuntimeError, ValueError, ConnectionError, ValidationError) as e:
+        # Catch any other errors at the analyze level
+        logger.error(f"Unexpected error in analyze handler: {e}")
+        error_msg = f"Unexpected error: {str(e)}"
+
+        if request.headers.get("HX-Request"):
+            return templates.TemplateResponse(
+                request,
+                "partials/analysis_result.html",
+                get_template_context(
+                    request,
+                    github_url=form_data.get("github_url", ""),
+                    error=error_msg,
+                ),
+            )
+        else:
+            return templates.TemplateResponse(
+                request,
+                "servers/add.html",
+                get_template_context(
+                    request,
+                    github_url=form_data.get("github_url", ""),
+                    error=error_msg,
+                ),
+            )
+
+
+async def handle_save_server(request: Request, form_data) -> HTMLResponse:
+    """Handle server save request."""
+    try:
+        # Handle environment variables from form (new indexed format)
+        env_variables = []
+
+        # First try the old format for backward compatibility
+        env_keys = form_data.getlist("env_keys[]")
+        for key in env_keys:
+            value = form_data.get(f"env_value_{key}", "")
+            description = form_data.get(f"env_desc_{key}", "")
+            if value:  # Only include env vars with values
+                env_variables.append(
+                    {"key": key, "value": value, "description": description}
+                )
+
+        # New indexed format from analysis result template
+        i = 0
+        while True:
+            key = form_data.get(f"env_key_{i}")
+            if key is None:
+                break
+            value = form_data.get(f"env_value_{i}", "")
+            description = form_data.get(f"env_desc_{i}", "")
+            required = form_data.get(f"env_required_{i}", "false").lower() == "true"
+
+            if key.strip():  # Only include env vars with non-empty keys
+                env_variables.append(
+                    {
+                        "key": key.strip(),
+                        "value": value,
+                        "description": description,
+                        "required": required,
+                    }
+                )
+            i += 1
+
+        # Validate form data
+        server_data = ServerFormData(
+            name=form_data.get("name", ""),
+            github_url=form_data.get("github_url", ""),
+            description=form_data.get("description", ""),
+            runtime_type=form_data.get("runtime_type", ""),
+            install_command=form_data.get("install_command", ""),
+            start_command=form_data.get("start_command", ""),
+            env_variables=env_variables,
+        )
+
+        # Create server in database
+        async with get_async_session() as db_session:
+            server = MCPServer(
+                name=server_data.name,
+                github_url=server_data.github_url,
+                description=server_data.description,
+                runtime_type=server_data.runtime_type,
+                install_command=server_data.install_command or "",
+                start_command=server_data.start_command,
+                env_variables=server_data.env_variables,
+            )
+
+            db_session.add(server)
+            await db_session.commit()
+            await db_session.refresh(server)  # Get the generated ID
+
+            try:
+                # Update build status
+                server.build_status = "building"
+                await db_session.commit()
+
+                # Build the Docker image
+                container_manager = ContainerManager()
+                image_tag = container_manager.build_server_image(server)
+
+                # Update server with success
+                server.build_status = "built"
+                server.image_tag = image_tag
+                server.build_error = None
+                await db_session.commit()
+
+                # Add server to MCP manager and get tools
+                mcp_manager = get_mcp_manager(request)
+                if mcp_manager:
+                    # Clean up any existing container before adding
+                    container_name = container_manager._get_container_name(
+                        server.id
+                    )
+                    container_manager._cleanup_existing_container(container_name)
+                    discovered_tools = await mcp_manager.add_server(server)
+                    await store_server_tools(db_session, server, discovered_tools)
+
+                logger.info(f'Server "{server.name}" added and built successfully!')
+
+            except (RuntimeError, ValueError, ConnectionError, OSError) as e:
+                logger.error(f"Failed to build image for {server.name}: {e}")
+                server.build_status = "failed"
+                server.build_error = str(e)
+                await db_session.commit()
+
+            # Redirect to home page (HTMX compatible)
+            if request.headers.get("HX-Request"):
+                response = HTMLResponse("", status_code=200)
+                response.headers["HX-Redirect"] = "/"
+                return response
+            else:
+                return RedirectResponse(url="/", status_code=302)
+
+    except ValidationError as e:
+        errors = {}
+        for error in e.errors():
+            field = error["loc"][0]
+            errors[field] = [error["msg"]]
+
+        return templates.TemplateResponse(
+            request,
+            "servers/add.html",
+            get_template_context(request, form_data=form_data, errors=errors),
+        )
+
+    except IntegrityError:
+        return templates.TemplateResponse(
+            request,
+            "servers/add.html",
+            get_template_context(
+                request,
+                form_data=form_data,
+                error="A server with this name already exists.",
+            ),
+        )
+
+    except (
+        RuntimeError,
+        ValueError,
+        ConnectionError,
+        ValidationError,
+        IntegrityError,
+    ) as e:
+        logger.error(f"Error saving server: {e}")
+        return templates.TemplateResponse(
+            request,
+            "servers/add.html",
+            get_template_context(
+                request,
+                form_data=form_data,
+                error="Error saving server. Please try again.",
+            ),
+        )
+
+
 async def add_server_post(request: Request) -> HTMLResponse:
     """Handle add server form submission."""
     form_data = await request.form()
 
     # Handle analyze button
     if "analyze" in form_data:
-        logger.info(
-            f"Analyze button clicked for URL: {form_data.get('github_url', '')}"
-        )
-        try:
-            analyze_data = AnalyzeFormData(github_url=form_data.get("github_url", ""))
-            logger.info("Form data validated successfully")
-
-            # Use the real Claude analyzer
-            try:
-                logger.info("Initializing AsyncClaudeAnalyzer...")
-                analyzer = AsyncClaudeAnalyzer()
-                logger.info(
-                    f"Starting repository analysis for: {analyze_data.github_url}"
-                )
-                analysis = await analyzer.analyze_repository(analyze_data.github_url)
-                logger.info("Analysis completed successfully")
-
-                # Check if this is an HTMX request
-                if request.headers.get("HX-Request"):
-                    return templates.TemplateResponse(
-                        request,
-                        "partials/analysis_result.html",
-                        get_template_context(
-                            request,
-                            github_url=analyze_data.github_url,
-                            analysis=analysis,
-                        ),
-                    )
-                else:
-                    return templates.TemplateResponse(
-                        request,
-                        "servers/add.html",
-                        get_template_context(
-                            request,
-                            github_url=analyze_data.github_url,
-                            analysis=analysis,
-                        ),
-                    )
-
-            except ConnectionError as e:
-                logger.warning(
-                    f"Claude analysis failed for {analyze_data.github_url}: {e}"
-                )
-                # Fallback to basic analysis if Claude fails
-                analysis = {
-                    "name": "analyzed-server",
-                    "description": "Claude analysis unavailable - please fill manually",
-                    "runtime_type": "docker",
-                    "install_command": "",
-                    "start_command": "echo 'placeholder'",
-                }
-
-                # Check if this is an HTMX request
-                if request.headers.get("HX-Request"):
-                    return templates.TemplateResponse(
-                        request,
-                        "partials/analysis_result.html",
-                        get_template_context(
-                            request,
-                            github_url=analyze_data.github_url,
-                            analysis=analysis,
-                            warning="Repository analysis failed. Please fill out the form manually.",
-                        ),
-                    )
-                else:
-                    return templates.TemplateResponse(
-                        request,
-                        "servers/add.html",
-                        get_template_context(
-                            request,
-                            github_url=analyze_data.github_url,
-                            analysis=analysis,
-                            warning="Repository analysis failed. Please fill out the form manually.",
-                        ),
-                    )
-
-            except ValueError as e:
-                # Handle missing API keys or invalid configuration
-                logger.error(f"Claude analyzer configuration error: {e}")
-                error_msg = f"Repository analysis is not configured: {str(e)}. Please check your ANTHROPIC_API_KEY."
-
-                if request.headers.get("HX-Request"):
-                    return templates.TemplateResponse(
-                        request,
-                        "partials/analysis_result.html",
-                        get_template_context(
-                            request, github_url=analyze_data.github_url, error=error_msg
-                        ),
-                    )
-                else:
-                    return templates.TemplateResponse(
-                        request,
-                        "servers/add.html",
-                        get_template_context(
-                            request, github_url=analyze_data.github_url, error=error_msg
-                        ),
-                    )
-
-            except (RuntimeError, ValueError, ConnectionError, OSError) as e:
-                # Handle any other unexpected errors
-                logger.error(f"Unexpected error during analysis: {e}")
-                error_msg = f"Analysis failed: {str(e)}"
-
-                if request.headers.get("HX-Request"):
-                    return templates.TemplateResponse(
-                        request,
-                        "partials/analysis_result.html",
-                        get_template_context(
-                            request, github_url=analyze_data.github_url, error=error_msg
-                        ),
-                    )
-                else:
-                    return templates.TemplateResponse(
-                        request,
-                        "servers/add.html",
-                        get_template_context(
-                            request, github_url=analyze_data.github_url, error=error_msg
-                        ),
-                    )
-
-        except ValidationError as e:
-            logger.error(f"Form validation error: {e}")
-            errors = {}
-            for error in e.errors():
-                field = error["loc"][0]
-                errors[field] = [error["msg"]]
-
-            if request.headers.get("HX-Request"):
-                return templates.TemplateResponse(
-                    request,
-                    "partials/analysis_result.html",
-                    get_template_context(
-                        request,
-                        github_url=form_data.get("github_url", ""),
-                        errors=errors,
-                    ),
-                )
-            else:
-                return templates.TemplateResponse(
-                    request,
-                    "servers/add.html",
-                    get_template_context(
-                        request,
-                        github_url=form_data.get("github_url", ""),
-                        errors=errors,
-                    ),
-                )
-
-        except (RuntimeError, ValueError, ConnectionError, ValidationError) as e:
-            # Catch any other errors at the analyze level
-            logger.error(f"Unexpected error in analyze handler: {e}")
-            error_msg = f"Unexpected error: {str(e)}"
-
-            if request.headers.get("HX-Request"):
-                return templates.TemplateResponse(
-                    request,
-                    "partials/analysis_result.html",
-                    get_template_context(
-                        request,
-                        github_url=form_data.get("github_url", ""),
-                        error=error_msg,
-                    ),
-                )
-            else:
-                return templates.TemplateResponse(
-                    request,
-                    "servers/add.html",
-                    get_template_context(
-                        request,
-                        github_url=form_data.get("github_url", ""),
-                        error=error_msg,
-                    ),
-                )
+        return await handle_analyze_repository(request, form_data)
 
     # Handle save button
     elif "save" in form_data:
-        try:
-            # Handle environment variables from form (new indexed format)
-            env_variables = []
-
-            # First try the old format for backward compatibility
-            env_keys = form_data.getlist("env_keys[]")
-            for key in env_keys:
-                value = form_data.get(f"env_value_{key}", "")
-                description = form_data.get(f"env_desc_{key}", "")
-                if value:  # Only include env vars with values
-                    env_variables.append(
-                        {"key": key, "value": value, "description": description}
-                    )
-
-            # New indexed format from analysis result template
-            i = 0
-            while True:
-                key = form_data.get(f"env_key_{i}")
-                if key is None:
-                    break
-                value = form_data.get(f"env_value_{i}", "")
-                description = form_data.get(f"env_desc_{i}", "")
-                required = form_data.get(f"env_required_{i}", "false").lower() == "true"
-
-                if key.strip():  # Only include env vars with non-empty keys
-                    env_variables.append(
-                        {
-                            "key": key.strip(),
-                            "value": value,
-                            "description": description,
-                            "required": required,
-                        }
-                    )
-                i += 1
-
-            # Validate form data
-            server_data = ServerFormData(
-                name=form_data.get("name", ""),
-                github_url=form_data.get("github_url", ""),
-                description=form_data.get("description", ""),
-                runtime_type=form_data.get("runtime_type", ""),
-                install_command=form_data.get("install_command", ""),
-                start_command=form_data.get("start_command", ""),
-                env_variables=env_variables,
-            )
-
-            # Create server in database
-            async with get_async_session() as db_session:
-                server = MCPServer(
-                    name=server_data.name,
-                    github_url=server_data.github_url,
-                    description=server_data.description,
-                    runtime_type=server_data.runtime_type,
-                    install_command=server_data.install_command or "",
-                    start_command=server_data.start_command,
-                    env_variables=server_data.env_variables,
-                )
-
-                db_session.add(server)
-                await db_session.commit()
-                await db_session.refresh(server)  # Get the generated ID
-
-                try:
-                    # Update build status
-                    server.build_status = "building"
-                    await db_session.commit()
-
-                    # Build the Docker image
-                    container_manager = ContainerManager()
-                    image_tag = container_manager.build_server_image(server)
-
-                    # Update server with success
-                    server.build_status = "built"
-                    server.image_tag = image_tag
-                    server.build_error = None
-                    await db_session.commit()
-
-                    # Add server to MCP manager and get tools
-                    mcp_manager = get_mcp_manager(request)
-                    if mcp_manager:
-                        # Clean up any existing container before adding
-                        container_name = container_manager._get_container_name(
-                            server.id
-                        )
-                        container_manager._cleanup_existing_container(container_name)
-                        discovered_tools = await mcp_manager.add_server(server)
-                        await store_server_tools(db_session, server, discovered_tools)
-
-                    logger.info(f'Server "{server.name}" added and built successfully!')
-
-                except (RuntimeError, ValueError, ConnectionError, OSError) as e:
-                    logger.error(f"Failed to build image for {server.name}: {e}")
-                    server.build_status = "failed"
-                    server.build_error = str(e)
-                    await db_session.commit()
-
-                # Redirect to home page (HTMX compatible)
-                if request.headers.get("HX-Request"):
-                    response = HTMLResponse("", status_code=200)
-                    response.headers["HX-Redirect"] = "/"
-                    return response
-                else:
-                    return RedirectResponse(url="/", status_code=302)
-
-        except ValidationError as e:
-            errors = {}
-            for error in e.errors():
-                field = error["loc"][0]
-                errors[field] = [error["msg"]]
-
-            return templates.TemplateResponse(
-                request,
-                "servers/add.html",
-                get_template_context(request, form_data=form_data, errors=errors),
-            )
-
-        except IntegrityError:
-            return templates.TemplateResponse(
-                request,
-                "servers/add.html",
-                get_template_context(
-                    request,
-                    form_data=form_data,
-                    error="A server with this name already exists.",
-                ),
-            )
-
-        except (
-            RuntimeError,
-            ValueError,
-            ConnectionError,
-            ValidationError,
-            IntegrityError,
-        ) as e:
-            logger.error(f"Error saving server: {e}")
-            return templates.TemplateResponse(
-                request,
-                "servers/add.html",
-                get_template_context(
-                    request,
-                    form_data=form_data,
-                    error="Error saving server. Please try again.",
-                ),
-            )
+        return await handle_save_server(request, form_data)
 
     # Invalid form submission
     return templates.TemplateResponse(
