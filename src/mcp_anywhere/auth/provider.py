@@ -84,6 +84,8 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
             # Validate client
             stmt = select(OAuth2Client).where(OAuth2Client.client_id == client_id)
             client = await session.scalar(stmt)
+            logger.debug(request)
+            logger.debug(client_id)
 
             if not client:
                 return False, "invalid_client"
@@ -147,10 +149,12 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
         return code
 
     async def exchange_authorization_code(
-        self, client: OAuthClientInformationFull, authorization_code: AuthorizationCodeT) -> AccessToken | None:
+        self, client: OAuthClientInformationFull, authorization_code: AuthorizationCodeT
+    ) -> AccessToken | None:
         """Exchange authorization code for access token with PKCE support."""
         # Validate client credentials
         async with self.db_session_factory() as session:
+            logger.debug(client)
             stmt = select(OAuth2Client).where(OAuth2Client.client_id == client.client_id)
             client = await session.scalar(stmt)
 
