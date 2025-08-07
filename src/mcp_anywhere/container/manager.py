@@ -542,7 +542,7 @@ class ContainerManager:
                             container_name = self._get_container_name(server.id)
                             self.reused_containers.add(container_name)
                             server.build_status = "built"
-                            server.build_logs = f"Reused existing healthy container"
+                            server.build_logs = "Reused existing healthy container"
                             await session.commit()
                             continue
 

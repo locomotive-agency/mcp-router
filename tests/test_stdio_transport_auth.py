@@ -5,12 +5,13 @@ This test ensures that when running in STDIO mode, the MCPProtectionMiddleware
 is not applied since MCP communication happens over STDIO, not HTTP.
 """
 
-import pytest
 import os
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
-from starlette.testclient import TestClient
+
+import pytest
 from starlette.applications import Starlette
+from starlette.testclient import TestClient
 
 from mcp_anywhere.web.app import create_app
 

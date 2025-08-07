@@ -1,7 +1,6 @@
 """Base middleware for path-based protection."""
 
 import fnmatch
-from typing import List
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
@@ -21,8 +20,8 @@ class BasePathProtectionMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: ASGIApp,
-        protected_paths: List[str] = None,
-        skip_paths: List[str] = None,
+        protected_paths: list[str] = None,
+        skip_paths: list[str] = None,
     ):
         """Initialize base path protection middleware.
 

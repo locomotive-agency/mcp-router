@@ -9,8 +9,8 @@ os.environ["FASTMCP_DISABLE_BANNER"] = "1"
 
 import contextlib
 import io
-import sys
 import logging
+import sys
 
 from fastmcp import FastMCP
 from sqlalchemy import select
@@ -18,8 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from mcp_anywhere.config import Config
-from mcp_anywhere.core.mcp_manager import create_mcp_config
 from mcp_anywhere.container.manager import ContainerManager
+from mcp_anywhere.core.mcp_manager import create_mcp_config
 from mcp_anywhere.database import MCPServer
 
 # Completely disable logging for clean stdio

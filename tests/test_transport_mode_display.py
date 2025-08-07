@@ -5,11 +5,10 @@ This test ensures that when the server is started in STDIO or HTTP mode,
 the web UI correctly displays the transport mode in the dashboard.
 """
 
-import pytest
 from contextlib import asynccontextmanager
-from unittest.mock import MagicMock, AsyncMock, patch
-from starlette.testclient import TestClient
-from starlette.applications import Starlette
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from mcp_anywhere.web.app import create_app
 
@@ -72,6 +71,7 @@ def test_transport_mode_passed_to_template_context():
     Test that transport mode is included in the template context.
     """
     from starlette.requests import Request
+
     from mcp_anywhere.web.routes import get_template_context
 
     # Create a mock request with app state

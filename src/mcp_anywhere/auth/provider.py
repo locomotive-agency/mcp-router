@@ -2,8 +2,8 @@
 Uses the MCP auth module for spec-compliant OAuth 2.0 flows with PKCE support.
 """
 
-import hashlib
 import base64
+import hashlib
 import secrets
 import time
 from collections.abc import Awaitable, Callable
@@ -11,10 +11,11 @@ from typing import Any
 
 from mcp.server.auth.provider import (
     AccessToken,
+    AuthorizationCodeT,
     OAuthAuthorizationServerProvider,
     OAuthClientInformationFull,
     TokenError,
-    TokenErrorCode, AuthorizationCodeT,
+    TokenErrorCode,
 )
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

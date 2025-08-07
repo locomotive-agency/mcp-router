@@ -2,9 +2,8 @@
 Provides all required endpoints including .well-known discovery.
 """
 
-import time
 
-from mcp.server.auth.routes import cors_middleware, create_auth_routes
+from mcp.server.auth.routes import create_auth_routes
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 from sqlalchemy import select
 from starlette.requests import Request
@@ -12,15 +11,14 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.routing import Route
 from starlette.templating import Jinja2Templates
 
-from mcp_anywhere.auth.provider import MCPAnywhereAuthProvider
 from mcp_anywhere.auth.models import User
+from mcp_anywhere.auth.provider import MCPAnywhereAuthProvider
 from mcp_anywhere.config import Config
 from mcp_anywhere.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 # Templates for login/consent pages
-import os
 from pathlib import Path
 
 # Get the correct template directory path

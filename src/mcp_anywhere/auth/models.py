@@ -1,6 +1,6 @@
 """Authentication and authorization models for OAuth 2.0 implementation."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
