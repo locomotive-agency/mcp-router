@@ -98,48 +98,71 @@ class MCPServerTool(Base):
         return f"<MCPServerTool {self.tool_name}>"
 
 
-# Database session management
-_async_engine = None
-_async_session_factory = None
+class DatabaseManager:
+    """Manages database engine and session factory lifecycle."""
+
+    def __init__(self):
+        self._engine = None
+        self._session_factory = None
+
+    async def initialize(self):
+        """Initialize the async database."""
+        if self._engine is None:
+            # Create engine - use SQLALCHEMY_DATABASE_URI from config
+            db_url = Config.SQLALCHEMY_DATABASE_URI.replace(
+                "sqlite://", "sqlite+aiosqlite://"
+            )
+            self._engine = create_async_engine(db_url)
+
+            # Create session factory
+            self._session_factory = async_sessionmaker(
+                self._engine, class_=AsyncSession, expire_on_commit=False
+            )
+
+            # Create tables
+            async with self._engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+
+            logger.info("Async database initialized")
+
+    def get_session(self) -> AsyncSession:
+        """Get an async database session."""
+        if self._session_factory is None:
+            raise RuntimeError("Database not initialized. Call initialize() first.")
+        return self._session_factory()
+
+    async def close(self):
+        """Close the database connection."""
+        if self._engine:
+            await self._engine.dispose()
+            self._engine = None
+            self._session_factory = None
+            logger.info("Database connection closed")
+
+    @property
+    def is_initialized(self) -> bool:
+        """Check if database is initialized."""
+        return self._engine is not None
 
 
+# Create a single instance
+db_manager = DatabaseManager()
+
+
+# Database session management - backward compatibility functions
 async def init_db():
     """Initialize the async database"""
-    global _async_engine, _async_session_factory
-
-    if _async_engine is None:
-        # Create engine - use SQLALCHEMY_DATABASE_URI from config
-        db_url = Config.SQLALCHEMY_DATABASE_URI.replace(
-            "sqlite://", "sqlite+aiosqlite://"
-        )
-        _async_engine = create_async_engine(db_url)
-
-        # Create session factory
-        _async_session_factory = async_sessionmaker(
-            _async_engine, class_=AsyncSession, expire_on_commit=False
-        )
-
-        # Create tables
-        async with _async_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
-        logger.info("Async database initialized")
+    await db_manager.initialize()
 
 
 def get_async_session() -> AsyncSession:
     """Get an async database session"""
-    if _async_session_factory is None:
-        raise RuntimeError("Database not initialized. Call init_db() first.")
-    return _async_session_factory()
+    return db_manager.get_session()
 
 
 async def close_db():
     """Close the database connection"""
-    global _async_engine
-    if _async_engine:
-        await _async_engine.dispose()
-        _async_engine = None
-        logger.info("Database connection closed")
+    await db_manager.close()
 
 
 # Async helper functions to replace Flask-SQLAlchemy equivalents
