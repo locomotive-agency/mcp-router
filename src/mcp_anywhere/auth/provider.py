@@ -248,11 +248,11 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
     ) -> dict[str, Any]:
         """Register a new OAuth client (optional, can be disabled)."""
         # Extract fields from the Pydantic model with sensible defaults
-        client_name = getattr(client_info, "client_name", "Unknown Client")
-        redirect_uris = getattr(client_info, "redirect_uris", [])
-        grant_types = getattr(client_info, "grant_types", ["authorization_code"])
-        response_types = getattr(client_info, "response_types", ["code"])
-        scope = getattr(client_info, "scope", "mcp:read mcp:write")
+        client_name = client_info.client_name or "Unknown Client"
+        redirect_uris = client_info.redirect_uris or []
+        grant_types = client_info.grant_types or ["authorization_code"]
+        response_types = client_info.response_types or ["code"]
+        scope = client_info.scope or "mcp:read mcp:write"
         
         client_id = secrets.token_urlsafe(16)
         client_secret = secrets.token_urlsafe(32)
