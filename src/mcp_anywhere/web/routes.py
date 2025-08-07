@@ -126,7 +126,7 @@ async def server_detail(request: Request) -> HTMLResponse:
         )
 
 
-async def delete_server(request: Request) -> RedirectResponse:
+async def delete_server(request: Request) -> RedirectResponse | HTMLResponse:
     """Delete a server and remove it from MCP manager."""
     server_id = request.path_params["server_id"]
 
