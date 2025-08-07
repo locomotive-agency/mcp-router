@@ -30,7 +30,9 @@ async def test_homepage_loads(app: Starlette):
     This is correct behavior as the homepage is protected by session auth middleware.
     """
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test", follow_redirects=False
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+        follow_redirects=False,
     ) as client:
         response = await client.get("/")
 

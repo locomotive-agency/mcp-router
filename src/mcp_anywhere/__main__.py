@@ -1,7 +1,7 @@
-"""Main command-line entry point for MCP Anywhere.
+"""Command-line interface for MCP Anywhere.
 
-This module acts as the main command-line entry point as specified in Phase 3
-of the engineering documentation.
+Provides the main entry point for running MCP Anywhere in various modes
+including HTTP server, STDIO server, and client connection modes.
 """
 
 import argparse
@@ -27,42 +27,49 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # Add subcommands
-    subparsers = parser.add_subparsers(dest="command", help="Available commands", required=True)
+    subparsers = parser.add_subparsers(
+        dest="command", help="Available commands", required=True
+    )
 
     # Serve command - starts management server with MCP transport options
     serve_parser = subparsers.add_parser(
-        "serve", help="Start the MCP Anywhere server (management UI + MCP transport)"
+        "serve", help="Start the MCP Anywhere server with specified transport mode"
     )
 
     serve_subparsers = serve_parser.add_subparsers(
-        dest="transport", help="MCP transport mode for client connections", required=True
+        dest="transport",
+        help="MCP transport mode for client connections",
+        required=True,
     )
 
-    # HTTP transport - Management UI + MCP over HTTP
+    # HTTP transport mode
     http_parser = serve_subparsers.add_parser(
-        "http", help="Run with HTTP transport (Web UI at /, MCP endpoint at /mcp with OAuth)"
+        "http",
+        help="HTTP transport mode with OAuth 2.0 authentication for production deployments",
     )
-    http_parser.add_argument("--host", type=str, default="0.0.0.0")
-    http_parser.add_argument("--port", type=int, default=8000)
+    http_parser.add_argument("--host", type=str, default="0.0.0.0", help="Host address to bind")
+    http_parser.add_argument("--port", type=int, default=8000, help="Port number to bind")
 
-    # STDIO transport - Management UI + MCP over STDIO
+    # STDIO transport mode
     stdio_parser = serve_subparsers.add_parser(
-        "stdio", help="Run with STDIO transport (Web UI at /, MCP over stdio without OAuth)"
+        "stdio",
+        help="STDIO transport mode for local Claude Desktop integration",
     )
-    stdio_parser.add_argument("--host", type=str, default="0.0.0.0")
-    stdio_parser.add_argument("--port", type=int, default=8000)
+    stdio_parser.add_argument("--host", type=str, default="0.0.0.0", help="Web interface host")
+    stdio_parser.add_argument("--port", type=int, default=8000, help="Web interface port")
 
-    # Connect command - for MCP clients
+    # Connect command for MCP clients
     connect_parser = subparsers.add_parser(
-        "connect", help="Connect as MCP client via STDIO (lightweight mode)"
+        "connect", help="Connect as an MCP client via STDIO for direct tool access"
     )
-    # No arguments needed - runs in stdio mode only
 
-    # Reset subcommand
+    # Reset command
     reset_parser = subparsers.add_parser(
-        "reset", help="Reset MCP Anywhere data (clears database and keys)"
+        "reset", help="Reset application data including database and configuration"
     )
-    reset_parser.add_argument("--confirm", action="store_true", help="Skip confirmation prompt")
+    reset_parser.add_argument(
+        "--confirm", action="store_true", help="Skip confirmation prompt"
+    )
 
     return parser
 
@@ -82,12 +89,14 @@ def reset_data(confirm: bool = False) -> None:
     if not confirm:
         print(f"This will permanently delete all MCP Anywhere data in: {data_dir}")
         print("This includes:")
-        print("  - Database (all servers, users, configurations)")
-        print("  - OAuth keys and tokens")
-        print("  - Any cached data")
+        print("  - Database (all servers, users, OAuth configurations)")
+        print("  - OAuth 2.0 keys and tokens")
+        print("  - Container build cache and logs")
         print()
 
-        response = input("Are you sure you want to continue? (yes/no): ").strip().lower()
+        response = (
+            input("Are you sure you want to continue? (yes/no): ").strip().lower()
+        )
         if response not in ("yes", "y"):
             print("Reset cancelled.")
             return
@@ -96,14 +105,16 @@ def reset_data(confirm: bool = False) -> None:
         # Remove the entire data directory
         if data_dir.exists():
             shutil.rmtree(data_dir)
-            print(f"Successfully removed data directory: {data_dir}")
+            print(f"Data directory removed: {data_dir}")
 
         # Recreate empty data directory
         data_dir.mkdir(exist_ok=True)
-        print(f"Created fresh data directory: {data_dir}")
+        print(f"Data directory created: {data_dir}")
 
-        print("\nMCP Anywhere data has been reset successfully!")
-        print("Next startup will initialize with fresh database and new login credentials.")
+        print("\nData reset completed.")
+        print(
+            "The application will initialize with a fresh database on next startup."
+        )
 
     except (OSError, PermissionError, FileNotFoundError) as e:
         print(f"Error during reset: {e}")

@@ -7,7 +7,12 @@ from typing import Any
 
 import httpx
 from anthropic import Anthropic, AnthropicError
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from mcp_anywhere.config import Config
 from mcp_anywhere.logging_config import get_logger
@@ -30,7 +35,9 @@ class ClaudeAnalyzer:
         """Analyze a GitHub repository and return a structured configuration."""
         match = re.match(r"https://github\.com/([^/]+)/([^/]+)", github_url)
         if not match:
-            raise ValueError("Invalid GitHub URL format. Expected: https://github.com/owner/repo")
+            raise ValueError(
+                "Invalid GitHub URL format. Expected: https://github.com/owner/repo"
+            )
 
         owner, repo = match.groups()
 
@@ -40,7 +47,9 @@ class ClaudeAnalyzer:
             pyproject = self._fetch_file(owner, repo, "pyproject.toml")
         except httpx.HTTPStatusError as e:
             logger.error(f"GitHub API error: {e}")
-            raise ConnectionError(f"Failed to fetch files from GitHub: {e.response.status_code}")
+            raise ConnectionError(
+                f"Failed to fetch files from GitHub: {e.response.status_code}"
+            )
 
         prompt = self._build_prompt(github_url, readme, package_json, pyproject)
 
@@ -183,7 +192,9 @@ ENV_VARS:
                     # Extract key (required)
                     key_part = parts[0].split(":", 1)
                     if len(key_part) < 2:
-                        logger.warning(f"Could not parse env var line (missing key): {line}")
+                        logger.warning(
+                            f"Could not parse env var line (missing key): {line}"
+                        )
                         continue
                     key = key_part[1].strip()
 
@@ -193,7 +204,9 @@ ENV_VARS:
                         desc = parts[1].split(":", 1)[1].strip()
                     elif len(parts) > 1:
                         # Line has comma but no DESC: - this is malformed
-                        logger.warning(f"Could not parse env var line (malformed DESC): {line}")
+                        logger.warning(
+                            f"Could not parse env var line (malformed DESC): {line}"
+                        )
                         continue
 
                     # Extract required flag (optional, defaults to true)
@@ -226,7 +239,9 @@ class AsyncClaudeAnalyzer:
         """Analyze a GitHub repository and return a structured configuration."""
         match = re.match(r"https://github\.com/([^/]+)/([^/]+)", github_url)
         if not match:
-            raise ValueError("Invalid GitHub URL format. Expected: https://github.com/owner/repo")
+            raise ValueError(
+                "Invalid GitHub URL format. Expected: https://github.com/owner/repo"
+            )
 
         owner, repo = match.groups()
 
@@ -242,7 +257,10 @@ class AsyncClaudeAnalyzer:
 
             # Check for critical errors (non-404 HTTP errors)
             for result in results:
-                if isinstance(result, httpx.HTTPStatusError) and result.response.status_code != 404:
+                if (
+                    isinstance(result, httpx.HTTPStatusError)
+                    and result.response.status_code != 404
+                ):
                     logger.error(f"GitHub API error: {result}")
                     raise ConnectionError(
                         f"Failed to fetch files from GitHub: {result.response.status_code}"
@@ -407,7 +425,9 @@ ENV_VARS:
                     # Extract key (required)
                     key_part = parts[0].split(":", 1)
                     if len(key_part) < 2:
-                        logger.warning(f"Could not parse env var line (missing key): {line}")
+                        logger.warning(
+                            f"Could not parse env var line (missing key): {line}"
+                        )
                         continue
                     key = key_part[1].strip()
 
@@ -417,7 +437,9 @@ ENV_VARS:
                         desc = parts[1].split(":", 1)[1].strip()
                     elif len(parts) > 1:
                         # Line has comma but no DESC: - this is malformed
-                        logger.warning(f"Could not parse env var line (malformed DESC): {line}")
+                        logger.warning(
+                            f"Could not parse env var line (malformed DESC): {line}"
+                        )
                         continue
 
                     # Extract required flag (optional, defaults to true)

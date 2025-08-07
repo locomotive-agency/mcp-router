@@ -89,7 +89,9 @@ async def test_jwt_middleware_allows_public_routes(test_app_with_auth: Starlette
 
 
 @pytest.mark.asyncio
-async def test_jwt_middleware_blocks_protected_without_token(test_app_with_auth: Starlette):
+async def test_jwt_middleware_blocks_protected_without_token(
+    test_app_with_auth: Starlette,
+):
     """Test that JWT middleware blocks access to protected routes without token."""
     with TestClient(test_app_with_auth) as client:
         response = client.get("/protected")
@@ -133,7 +135,9 @@ async def test_jwt_middleware_blocks_invalid_token(test_app_with_auth: Starlette
 
 
 @pytest.mark.asyncio
-async def test_jwt_middleware_blocks_malformed_auth_header(test_app_with_auth: Starlette):
+async def test_jwt_middleware_blocks_malformed_auth_header(
+    test_app_with_auth: Starlette,
+):
     """Test that JWT middleware blocks malformed Authorization headers."""
     with TestClient(test_app_with_auth) as client:
         headers = {"Authorization": "Basic dXNlcjpwYXNz"}  # Not Bearer token

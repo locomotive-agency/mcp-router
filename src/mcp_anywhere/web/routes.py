@@ -75,7 +75,9 @@ async def homepage(request: Request) -> HTMLResponse:
         # Log error and show empty server list
         logger.error(f"Error loading servers: {e}")
         return templates.TemplateResponse(
-            request, "index.html", get_template_context(request, servers=[], error=str(e))
+            request,
+            "index.html",
+            get_template_context(request, servers=[], error=str(e)),
         )
 
 
@@ -116,7 +118,10 @@ async def server_detail(request: Request) -> HTMLResponse:
     except (RuntimeError, ValueError, ConnectionError) as e:
         logger.error(f"Error loading server details for {server_id}: {e}")
         return templates.TemplateResponse(
-            request, "500.html", {"message": "Error loading server details"}, status_code=500
+            request,
+            "500.html",
+            {"message": "Error loading server details"},
+            status_code=500,
         )
 
 
@@ -164,7 +169,9 @@ async def delete_server(request: Request) -> RedirectResponse:
 
 async def add_server_get(request: Request) -> HTMLResponse:
     """Display the add server form."""
-    return templates.TemplateResponse(request, "servers/add.html", get_template_context(request))
+    return templates.TemplateResponse(
+        request, "servers/add.html", get_template_context(request)
+    )
 
 
 async def edit_server_get(request: Request) -> HTMLResponse:
@@ -182,7 +189,9 @@ async def edit_server_get(request: Request) -> HTMLResponse:
                 return templates.TemplateResponse(
                     request,
                     "404.html",
-                    get_template_context(request, message=f"Server '{server_id}' not found"),
+                    get_template_context(
+                        request, message=f"Server '{server_id}' not found"
+                    ),
                     status_code=404,
                 )
 
@@ -215,7 +224,9 @@ async def edit_server_post(request: Request) -> HTMLResponse:
             value = form_data.get(f"env_value_{key}", "")
             description = form_data.get(f"env_desc_{key}", "")
             if value:  # Only include env vars with values
-                env_variables.append({"key": key, "value": value, "description": description})
+                env_variables.append(
+                    {"key": key, "value": value, "description": description}
+                )
 
         # New indexed format from analysis result template
         i = 0
@@ -337,7 +348,13 @@ async def edit_server_post(request: Request) -> HTMLResponse:
             get_template_context(request, server=server, errors=errors),
         )
 
-    except (RuntimeError, ValueError, ConnectionError, ValidationError, IntegrityError) as e:
+    except (
+        RuntimeError,
+        ValueError,
+        ConnectionError,
+        ValidationError,
+        IntegrityError,
+    ) as e:
         logger.error(f"Error updating server {server_id}: {e}")
         return templates.TemplateResponse(
             request,
@@ -365,7 +382,9 @@ async def toggle_tool(request: Request) -> HTMLResponse:
                 return templates.TemplateResponse(
                     request,
                     "404.html",
-                    get_template_context(request, message=f"Tool '{tool_id}' not found"),
+                    get_template_context(
+                        request, message=f"Tool '{tool_id}' not found"
+                    ),
                     status_code=404,
                 )
 
@@ -373,7 +392,9 @@ async def toggle_tool(request: Request) -> HTMLResponse:
             tool.is_enabled = not tool.is_enabled
             await db_session.commit()
 
-            logger.info(f'Tool "{tool.tool_name}" {"enabled" if tool.is_enabled else "disabled"}')
+            logger.info(
+                f'Tool "{tool.tool_name}" {"enabled" if tool.is_enabled else "disabled"}'
+            )
 
         # Return just the updated toggle switch HTML for HTMX
         return templates.TemplateResponse(
@@ -398,7 +419,9 @@ async def add_server_post(request: Request) -> HTMLResponse:
 
     # Handle analyze button
     if "analyze" in form_data:
-        logger.info(f"Analyze button clicked for URL: {form_data.get('github_url', '')}")
+        logger.info(
+            f"Analyze button clicked for URL: {form_data.get('github_url', '')}"
+        )
         try:
             analyze_data = AnalyzeFormData(github_url=form_data.get("github_url", ""))
             logger.info("Form data validated successfully")
@@ -407,7 +430,9 @@ async def add_server_post(request: Request) -> HTMLResponse:
             try:
                 logger.info("Initializing AsyncClaudeAnalyzer...")
                 analyzer = AsyncClaudeAnalyzer()
-                logger.info(f"Starting repository analysis for: {analyze_data.github_url}")
+                logger.info(
+                    f"Starting repository analysis for: {analyze_data.github_url}"
+                )
                 analysis = await analyzer.analyze_repository(analyze_data.github_url)
                 logger.info("Analysis completed successfully")
 
@@ -417,7 +442,9 @@ async def add_server_post(request: Request) -> HTMLResponse:
                         request,
                         "partials/analysis_result.html",
                         get_template_context(
-                            request, github_url=analyze_data.github_url, analysis=analysis
+                            request,
+                            github_url=analyze_data.github_url,
+                            analysis=analysis,
                         ),
                     )
                 else:
@@ -425,12 +452,16 @@ async def add_server_post(request: Request) -> HTMLResponse:
                         request,
                         "servers/add.html",
                         get_template_context(
-                            request, github_url=analyze_data.github_url, analysis=analysis
+                            request,
+                            github_url=analyze_data.github_url,
+                            analysis=analysis,
                         ),
                     )
 
             except ConnectionError as e:
-                logger.warning(f"Claude analysis failed for {analyze_data.github_url}: {e}")
+                logger.warning(
+                    f"Claude analysis failed for {analyze_data.github_url}: {e}"
+                )
                 # Fallback to basic analysis if Claude fails
                 analysis = {
                     "name": "analyzed-server",
@@ -520,7 +551,9 @@ async def add_server_post(request: Request) -> HTMLResponse:
                     request,
                     "partials/analysis_result.html",
                     get_template_context(
-                        request, github_url=form_data.get("github_url", ""), errors=errors
+                        request,
+                        github_url=form_data.get("github_url", ""),
+                        errors=errors,
                     ),
                 )
             else:
@@ -528,7 +561,9 @@ async def add_server_post(request: Request) -> HTMLResponse:
                     request,
                     "servers/add.html",
                     get_template_context(
-                        request, github_url=form_data.get("github_url", ""), errors=errors
+                        request,
+                        github_url=form_data.get("github_url", ""),
+                        errors=errors,
                     ),
                 )
 
@@ -542,7 +577,9 @@ async def add_server_post(request: Request) -> HTMLResponse:
                     request,
                     "partials/analysis_result.html",
                     get_template_context(
-                        request, github_url=form_data.get("github_url", ""), error=error_msg
+                        request,
+                        github_url=form_data.get("github_url", ""),
+                        error=error_msg,
                     ),
                 )
             else:
@@ -550,7 +587,9 @@ async def add_server_post(request: Request) -> HTMLResponse:
                     request,
                     "servers/add.html",
                     get_template_context(
-                        request, github_url=form_data.get("github_url", ""), error=error_msg
+                        request,
+                        github_url=form_data.get("github_url", ""),
+                        error=error_msg,
                     ),
                 )
 
@@ -566,7 +605,9 @@ async def add_server_post(request: Request) -> HTMLResponse:
                 value = form_data.get(f"env_value_{key}", "")
                 description = form_data.get(f"env_desc_{key}", "")
                 if value:  # Only include env vars with values
-                    env_variables.append({"key": key, "value": value, "description": description})
+                    env_variables.append(
+                        {"key": key, "value": value, "description": description}
+                    )
 
             # New indexed format from analysis result template
             i = 0
@@ -635,7 +676,9 @@ async def add_server_post(request: Request) -> HTMLResponse:
                     mcp_manager = get_mcp_manager(request)
                     if mcp_manager:
                         # Clean up any existing container before adding
-                        container_name = container_manager._get_container_name(server.id)
+                        container_name = container_manager._get_container_name(
+                            server.id
+                        )
                         container_manager._cleanup_existing_container(container_name)
                         discovered_tools = await mcp_manager.add_server(server)
                         await store_server_tools(db_session, server, discovered_tools)
@@ -673,17 +716,27 @@ async def add_server_post(request: Request) -> HTMLResponse:
                 request,
                 "servers/add.html",
                 get_template_context(
-                    request, form_data=form_data, error="A server with this name already exists."
+                    request,
+                    form_data=form_data,
+                    error="A server with this name already exists.",
                 ),
             )
 
-        except (RuntimeError, ValueError, ConnectionError, ValidationError, IntegrityError) as e:
+        except (
+            RuntimeError,
+            ValueError,
+            ConnectionError,
+            ValidationError,
+            IntegrityError,
+        ) as e:
             logger.error(f"Error saving server: {e}")
             return templates.TemplateResponse(
                 request,
                 "servers/add.html",
                 get_template_context(
-                    request, form_data=form_data, error="Error saving server. Please try again."
+                    request,
+                    form_data=form_data,
+                    error="Error saving server. Please try again.",
                 ),
             )
 
@@ -721,7 +774,9 @@ routes = [
     Route("/servers/{server_id}", endpoint=server_detail, methods=["GET"]),
     Route("/servers/{server_id}/edit", endpoint=edit_server, methods=["GET", "POST"]),
     Route(
-        "/servers/{server_id}/tools/{tool_id}/toggle", endpoint=toggle_tool, methods=["POST", "GET"]
+        "/servers/{server_id}/tools/{tool_id}/toggle",
+        endpoint=toggle_tool,
+        methods=["POST", "GET"],
     ),
     Route("/servers/{server_id}/delete", endpoint=delete_server, methods=["POST"]),
 ]

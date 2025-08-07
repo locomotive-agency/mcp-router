@@ -7,7 +7,9 @@ from mcp_anywhere.logging_config import configure_logging, get_logger
 from mcp_anywhere.web.app import create_app
 
 
-async def run_http_server(host: str = "0.0.0.0", port: int = 8000, log_level: str = "info") -> None:
+async def run_http_server(
+    host: str = "0.0.0.0", port: int = 8000, log_level: str = "info"
+) -> None:
     """Run the MCP Anywhere as an HTTP web server using uvicorn.
 
     Args:

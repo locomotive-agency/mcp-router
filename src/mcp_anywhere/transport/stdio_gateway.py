@@ -7,7 +7,9 @@ import os
 
 os.environ["FASTMCP_DISABLE_BANNER"] = "1"
 
-
+import contextlib
+import io
+import sys
 import logging
 
 from fastmcp import FastMCP
@@ -16,7 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from mcp_anywhere.config import Config
-from mcp_anywhere.core.mcp_manager import create_gateway_config
+from mcp_anywhere.core.mcp_manager import create_mcp_config
+from mcp_anywhere.container.manager import ContainerManager
 from mcp_anywhere.database import MCPServer
 
 # Completely disable logging for clean stdio
@@ -52,12 +55,16 @@ async def run_connect_gateway() -> None:
             max_overflow=0,
         )
 
-        AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        AsyncSessionLocal = sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
 
         servers: list[MCPServer] = []
         async with AsyncSessionLocal() as session:
             # Read all configured servers
-            result = await session.execute(select(MCPServer).where(MCPServer.is_active == True))
+            result = await session.execute(
+                select(MCPServer).where(MCPServer.is_active == True)
+            )
             servers = result.scalars().all()
 
             # Eagerly load relationships to avoid lazy loading issues
@@ -81,22 +88,27 @@ async def run_connect_gateway() -> None:
             instructions="Unified gateway for Model Context Protocol servers",
         )
 
-        # 3. Generate proxy configuration for existing containers
-        proxy_config = create_gateway_config(servers)
-
-        if not proxy_config.get("mcpServers"):
-            # Silently return if no servers configured
-            return
+        # 3. Create container manager for health checks
+        container_manager = ContainerManager()
 
         # 4. Mount each server as a proxy with its unique prefix
         for server in servers:
             server_id = server.id  # 8-character unique ID
 
-            # Create individual proxy config for this server
-            single_config = create_gateway_config([server])
+            # Get both configuration options
+            config_options = create_mcp_config(server)
 
-            if not single_config.get("mcpServers"):
+            if not config_options["new"] and not config_options["existing"]:
                 continue
+
+            # Check container health and select appropriate config
+            if container_manager._is_container_healthy(server):
+                server_config_dict = config_options["existing"]
+            else:
+                raise RuntimeError(f"Container {server.name} is not healthy")
+
+            # Create proxy configuration in expected format
+            single_config = {"mcpServers": {server.name: server_config_dict}}
 
             # Create proxy instance
             proxy = FastMCP.as_proxy(single_config)
@@ -108,9 +120,6 @@ async def run_connect_gateway() -> None:
 
         # 5. Run the stdio transport
         # Redirect stderr to suppress all output from underlying MCP servers
-        import contextlib
-        import io
-        import sys
 
         # Suppress all stderr output to keep MCP protocol clean
         with contextlib.redirect_stderr(io.StringIO()):

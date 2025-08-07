@@ -3,7 +3,11 @@
 from typing import Any
 
 import jwt
-from jwt.exceptions import ExpiredSignatureError, InvalidSignatureError, InvalidTokenError
+from jwt.exceptions import (
+    ExpiredSignatureError,
+    InvalidSignatureError,
+    InvalidTokenError,
+)
 
 from mcp_anywhere.config import Config
 from mcp_anywhere.logging_config import get_logger
@@ -92,7 +96,9 @@ class TokenVerifier:
 
         return token
 
-    def verify_bearer_token(self, authorization_header: str | None) -> dict[str, Any] | None:
+    def verify_bearer_token(
+        self, authorization_header: str | None
+    ) -> dict[str, Any] | None:
         """Extract and verify bearer token from Authorization header.
 
         Args:
@@ -120,7 +126,9 @@ class TokenVerifier:
         token_scopes = token_payload.get("scope", "").split()
         return required_scope in token_scopes
 
-    def has_any_scope(self, token_payload: dict[str, Any], required_scopes: list) -> bool:
+    def has_any_scope(
+        self, token_payload: dict[str, Any], required_scopes: list
+    ) -> bool:
         """Check if token has any of the required scopes.
 
         Args:
@@ -134,7 +142,9 @@ class TokenVerifier:
         required_scopes_set = set(required_scopes)
         return bool(token_scopes.intersection(required_scopes_set))
 
-    def has_all_scopes(self, token_payload: dict[str, Any], required_scopes: list) -> bool:
+    def has_all_scopes(
+        self, token_payload: dict[str, Any], required_scopes: list
+    ) -> bool:
         """Check if token has all required scopes.
 
         Args:

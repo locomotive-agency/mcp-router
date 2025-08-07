@@ -51,7 +51,6 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.21.0",
-    "pytest-flask>=1.2.0",
     "pytest-mock>=3.10.0",
     "respx>=0.20.0",
     "mypy>=1.5.0"
@@ -76,6 +75,9 @@ logger-objects = ["loguru.logger"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.mypy]
 python_version = "3.11"

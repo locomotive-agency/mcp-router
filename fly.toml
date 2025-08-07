@@ -14,10 +14,9 @@ kill_timeout = '5s'
 [env]
   DATA_DIR = '/.data'
   DOCKER_HOST = 'unix:///var/run/docker.sock'
-  FLASK_PORT = '8000'
-  MCP_HOST = '0.0.0.0'
-  MCP_AUTH_TYPE = 'oauth'
-  MCP_TRANSPORT = 'http'
+  WEB_PORT = '8000'
+  MCP_PATH = '/mcp'
+  LOG_LEVEL = 'INFO'
 
 [[mounts]]
   source = 'mcp_anywhere_data'
@@ -58,7 +57,7 @@ kill_timeout = '5s'
 # No separate service needed due to the new dual transport architecture
 
 [processes]
-  app = 'tini -s -- python -m mcp_router --clear-db'
+  app = 'python -m mcp_anywhere serve http'
 
 [[vm]]
   memory = '4gb'

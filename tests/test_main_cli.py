@@ -19,7 +19,9 @@ async def test_main_http_command():
     Test that 'mcp-anywhere serve http --port 8000' calls run_http_server correctly.
     """
     with (
-        patch("mcp_anywhere.__main__.run_http_server", new_callable=AsyncMock) as mock_http_server,
+        patch(
+            "mcp_anywhere.__main__.run_http_server", new_callable=AsyncMock
+        ) as mock_http_server,
         patch("sys.argv", ["mcp-anywhere", "serve", "http", "--port", "8000"]),
     ):
         await main()
@@ -51,7 +53,9 @@ async def test_main_http_default_port():
     Test that HTTP mode uses default port 8000 when not specified.
     """
     with (
-        patch("mcp_anywhere.__main__.run_http_server", new_callable=AsyncMock) as mock_http_server,
+        patch(
+            "mcp_anywhere.__main__.run_http_server", new_callable=AsyncMock
+        ) as mock_http_server,
         patch("sys.argv", ["mcp-anywhere", "serve", "http"]),
     ):
         await main()
@@ -83,9 +87,12 @@ async def test_main_custom_host():
     Test that custom host can be specified.
     """
     with (
-        patch("mcp_anywhere.__main__.run_http_server", new_callable=AsyncMock) as mock_http_server,
         patch(
-            "sys.argv", ["mcp-anywhere", "serve", "http", "--host", "127.0.0.1", "--port", "9000"]
+            "mcp_anywhere.__main__.run_http_server", new_callable=AsyncMock
+        ) as mock_http_server,
+        patch(
+            "sys.argv",
+            ["mcp-anywhere", "serve", "http", "--host", "127.0.0.1", "--port", "9000"],
         ),
     ):
         await main()
@@ -178,12 +185,14 @@ def test_main_entry_point():
         patch("__main__.__name__", "__main__"),
     ):
         # Import and execute the main block
-        exec("""
+        exec(
+            """
 if __name__ == "__main__":
     import asyncio
     from mcp_anywhere.__main__ import main
     asyncio.run(main())
-        """)
+        """
+        )
 
         # Verify asyncio.run was called
         # Note: This test verifies the pattern, actual execution is mocked

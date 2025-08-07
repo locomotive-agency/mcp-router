@@ -1,18 +1,16 @@
 """Session-based authentication middleware for web UI routes."""
 
-import fnmatch
-
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.types import ASGIApp
 
+from mcp_anywhere.core.base_middleware import BasePathProtectionMiddleware
 from mcp_anywhere.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-class SessionAuthMiddleware(BaseHTTPMiddleware):
+class SessionAuthMiddleware(BasePathProtectionMiddleware):
     """Session-based authentication middleware for protecting web UI routes."""
 
     def __init__(
@@ -30,40 +28,24 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
             skip_paths: List of path patterns to skip authentication
             login_url: URL to redirect to for login
         """
-        super().__init__(app)
-        self.protected_paths = protected_paths or ["/", "/servers", "/servers/*"]
-        self.skip_paths = skip_paths or [
-            "/auth/*",
-            "/static/*",
-            "/favicon.ico",
-            "/mcp/*",  # MCP API has its own JWT middleware
-        ]
+        # Initialize base class with path patterns
+        super().__init__(
+            app=app,
+            protected_paths=protected_paths or ["/", "/servers", "/servers/*"],
+            skip_paths=skip_paths
+            or [
+                "/auth/*",
+                "/static/*",
+                "/favicon.ico",
+                "/mcp/*",  # MCP API has its own JWT middleware
+            ],
+        )
+
         self.login_url = login_url
 
         logger.info(
             f"Session Auth Middleware initialized with protected paths: {self.protected_paths}"
         )
-
-    def _should_protect_path(self, path: str) -> bool:
-        """Check if a path should be protected by authentication.
-
-        Args:
-            path: Request path to check
-
-        Returns:
-            True if path should be protected, False otherwise
-        """
-        # First check if path should be skipped
-        for skip_pattern in self.skip_paths:
-            if fnmatch.fnmatch(path, skip_pattern):
-                return False
-
-        # Then check if path matches protected patterns
-        for protected_pattern in self.protected_paths:
-            if fnmatch.fnmatch(path, protected_pattern):
-                return True
-
-        return False
 
     def _is_authenticated(self, request: Request) -> bool:
         """Check if user is authenticated via session.
@@ -96,7 +78,9 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
 
         # Path is protected, check for valid session
         if not self._is_authenticated(request):
-            logger.info(f"Unauthenticated access to protected path: {path}, redirecting to login")
+            logger.info(
+                f"Unauthenticated access to protected path: {path}, redirecting to login"
+            )
             # Redirect to login page
             return RedirectResponse(url=self.login_url, status_code=302)
 

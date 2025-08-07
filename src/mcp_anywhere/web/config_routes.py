@@ -74,7 +74,9 @@ async def config_download(request: Request) -> Response:
     return Response(
         content=config_json,
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=claude_desktop_config.json"},
+        headers={
+            "Content-Disposition": "attachment; filename=claude_desktop_config.json"
+        },
     )
 
 

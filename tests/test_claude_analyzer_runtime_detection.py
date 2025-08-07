@@ -73,9 +73,7 @@ def test_runtime_type_mapping():
     assert result["runtime_type"] == "npx"
 
     # Test uvx -> uvx (keep as is for container manager)
-    response_uvx = (
-        "RUNTIME: uvx\nINSTALL: pip install test\nSTART: uvx test\nNAME: test\nDESCRIPTION: test"
-    )
+    response_uvx = "RUNTIME: uvx\nINSTALL: pip install test\nSTART: uvx test\nNAME: test\nDESCRIPTION: test"
     result = analyzer._parse_claude_response(response_uvx)
     assert result["runtime_type"] == "uvx"
 
@@ -104,4 +102,6 @@ ENV_VARS:
     assert result["env_variables"][0]["key"] == "API_KEY"
     assert result["env_variables"][0]["required"] is True
     assert result["env_variables"][1]["key"] == "OPTIONAL_VAR"
-    assert result["env_variables"][1]["required"] is True  # Default to true if not specified
+    assert (
+        result["env_variables"][1]["required"] is True
+    )  # Default to true if not specified

@@ -85,7 +85,9 @@ async def test_tool_filter_middleware_filters_disabled_tools():
         # Setup database mock
         mock_db = AsyncMock(spec=AsyncSession)
         mock_session.return_value.__aenter__.return_value = mock_db
-        mock_db.execute.return_value.scalars.return_value.all.return_value = mock_disabled_tools
+        mock_db.execute.return_value.scalars.return_value.all.return_value = (
+            mock_disabled_tools
+        )
 
         response = client.post("/mcp/tools/list")
 
@@ -111,14 +113,18 @@ async def test_get_disabled_tools_from_database():
         # Setup database mock
         mock_db = AsyncMock(spec=AsyncSession)
         mock_session.return_value.__aenter__.return_value = mock_db
-        mock_db.execute.return_value.scalars.return_value.all.return_value = mock_disabled_tools
+        mock_db.execute.return_value.scalars.return_value.all.return_value = (
+            mock_disabled_tools
+        )
 
         # Create a mock request with run_in_threadpool method
         mock_request = Mock()
         mock_request.run_in_threadpool = AsyncMock(return_value={"tool1", "tool2"})
 
         # Test the _get_disabled_tools method through run_in_threadpool
-        disabled_tools = await mock_request.run_in_threadpool(middleware._get_disabled_tools_sync)
+        disabled_tools = await mock_request.run_in_threadpool(
+            middleware._get_disabled_tools_sync
+        )
 
         assert disabled_tools == {"tool1", "tool2"}
 

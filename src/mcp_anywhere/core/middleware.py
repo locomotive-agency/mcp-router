@@ -49,7 +49,9 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
 
         try:
             # Get disabled tools from database using threadpool
-            disabled_tools = await request.run_in_threadpool(self._get_disabled_tools_sync)
+            disabled_tools = await request.run_in_threadpool(
+                self._get_disabled_tools_sync
+            )
 
             if not disabled_tools:
                 logger.debug("No disabled tools found, returning original response")
@@ -101,7 +103,9 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
 
         async with get_async_session() as db_session:
             # Query for disabled tools
-            stmt = select(MCPServerTool.tool_name).where(MCPServerTool.is_enabled == False)
+            stmt = select(MCPServerTool.tool_name).where(
+                MCPServerTool.is_enabled == False
+            )
             result = await db_session.execute(stmt)
             disabled_tool_names = result.scalars().all()
 
@@ -113,7 +117,9 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
 
         return disabled_tools
 
-    async def _filter_response(self, response: Response, disabled_tools: set[str]) -> Response:
+    async def _filter_response(
+        self, response: Response, disabled_tools: set[str]
+    ) -> Response:
         """Filter tools from the response body.
 
         Args:
@@ -135,7 +141,9 @@ class ToolFilterMiddleware(BaseHTTPMiddleware):
             # Filter tools if present
             if isinstance(response_data, dict) and "tools" in response_data:
                 original_count = len(response_data["tools"])
-                response_data["tools"] = self._filter_tools(response_data["tools"], disabled_tools)
+                response_data["tools"] = self._filter_tools(
+                    response_data["tools"], disabled_tools
+                )
                 filtered_count = len(response_data["tools"])
 
                 logger.info(

@@ -60,7 +60,7 @@ async def create_default_oauth_client(
     client_id: str = None,
     client_secret: str = None,
     redirect_uri: str = "http://localhost:8000/auth/callback",
-    scope: str = "read write",
+    scope: str = "mcp:read mcp:write",
     db_session: AsyncSession = None,
 ) -> OAuth2Client:
     """Create default OAuth client if it doesn't exist.
@@ -83,10 +83,10 @@ async def create_default_oauth_client(
 
     # Generate client credentials if not provided
     if not client_id:
-        client_id = f"mcp-anywhere-{secrets.token_urlsafe(8)}"
+        client_id = "test-client"  # Use consistent default client_id
 
     if not client_secret:
-        client_secret = secrets.token_urlsafe(32)
+        client_secret = "test-secret"  # Use consistent default for testing
 
     # Check if client already exists
     stmt = select(OAuth2Client).where(OAuth2Client.client_id == client_id)
@@ -99,7 +99,10 @@ async def create_default_oauth_client(
 
     # Create OAuth client
     oauth_client = OAuth2Client(
-        client_id=client_id, client_secret=client_secret, redirect_uri=redirect_uri, scope=scope
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uri=redirect_uri,
+        scope=scope,
     )
 
     db_session.add(oauth_client)

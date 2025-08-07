@@ -12,7 +12,7 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.routing import Route
 from starlette.templating import Jinja2Templates
 
-from mcp_anywhere.auth.mcp_provider import MCPAnywhereAuthProvider
+from mcp_anywhere.auth.provider import MCPAnywhereAuthProvider
 from mcp_anywhere.auth.models import User
 from mcp_anywhere.config import Config
 from mcp_anywhere.logging_config import get_logger
@@ -20,7 +20,12 @@ from mcp_anywhere.logging_config import get_logger
 logger = get_logger(__name__)
 
 # Templates for login/consent pages
-templates = Jinja2Templates(directory="src/mcp_anywhere/web/templates")
+import os
+from pathlib import Path
+
+# Get the correct template directory path
+template_dir = Path(__file__).parent.parent / "web" / "templates"
+templates = Jinja2Templates(directory=str(template_dir))
 
 
 async def login_page(request: Request) -> HTMLResponse:
@@ -50,7 +55,9 @@ async def handle_login(request: Request) -> RedirectResponse:
             return RedirectResponse(url=next_url, status_code=302)
 
     # Login failed
-    return RedirectResponse(url="/auth/login?error=invalid_credentials", status_code=302)
+    return RedirectResponse(
+        url="/auth/login?error=invalid_credentials", status_code=302
+    )
 
 
 async def consent_page(request: Request) -> HTMLResponse:
@@ -84,7 +91,9 @@ async def handle_consent(request: Request) -> RedirectResponse:
 
     if action == "allow":
         # Generate authorization code
-        code = await provider.create_authorization_code(request=request, **oauth_request)
+        code = await provider.create_authorization_code(
+            request=request, **oauth_request
+        )
 
         # Build redirect URL
         redirect_uri = oauth_request["redirect_uri"]
@@ -108,26 +117,24 @@ async def handle_consent(request: Request) -> RedirectResponse:
     return RedirectResponse(url=redirect_url, status_code=302)
 
 
-def create_oauth_routes(get_async_session) -> list[Route]:
-    """Create all OAuth routes using MCP SDK.
+async def handle_logout(request: Request) -> RedirectResponse:
+    """Process logout and clear session."""
+    # Clear all session data
+    request.session.clear()
+    logger.info("User logged out successfully")
+    return RedirectResponse(url="/auth/login", status_code=302)
 
-    This includes:
-    - /.well-known/oauth-authorization-server
-    - /.well-known/oauth-protected-resource
-    - /auth/authorize
-    - /auth/token
-    - /auth/introspect
-    - /auth/revoke
-    - /auth/register (optional)
-    """
+
+def create_oauth_routes(get_async_session) -> list[Route]:
+    """Create all OAuth routes using MCP SDK."""
     # Create provider instance
     provider = MCPAnywhereAuthProvider(get_async_session)
 
-    # Configure auth settings
+    # Configure auth settings - use SERVER_URL as issuer (simple)
     auth_settings = AuthSettings(
         issuer_url=str(Config.SERVER_URL),
         client_registration_options=ClientRegistrationOptions(
-            enabled=False,  # Disable dynamic registration for security
+            enabled=True,
             valid_scopes=["mcp:read", "mcp:write"],
             default_scopes=["mcp:read"],
         ),
@@ -135,7 +142,7 @@ def create_oauth_routes(get_async_session) -> list[Route]:
         service_documentation_url=f"{Config.SERVER_URL}/docs",
     )
 
-    # Create MCP SDK auth routes (includes .well-known endpoints)
+    # Create MCP SDK auth routes - use as-is
     mcp_routes = create_auth_routes(
         provider=provider,
         issuer_url=auth_settings.issuer_url,
@@ -144,46 +151,30 @@ def create_oauth_routes(get_async_session) -> list[Route]:
         revocation_options=auth_settings.revocation_options,
     )
 
-    # Add our custom login/consent UI routes
-    custom_routes = [
-        Route("/auth/login", endpoint=login_page, methods=["GET"]),
-        Route("/auth/login", endpoint=handle_login, methods=["POST"]),
-        Route("/auth/consent", endpoint=consent_page, methods=["GET"]),
-        Route("/auth/consent", endpoint=handle_consent, methods=["POST"]),
-    ]
-
-    # Add introspection endpoint for resource servers
-    async def introspect_endpoint(request: Request) -> JSONResponse:
-        """Token introspection endpoint (RFC 7662)."""
-        form = await request.form()
-        token = form.get("token")
-
-        if not token:
-            return JSONResponse({"active": False})
-
-        access_token = await provider.introspect_token(token)
-
-        if not access_token:
-            return JSONResponse({"active": False})
-
+    # Add only the missing protected resource endpoint that MCP SDK doesn't provide
+    async def protected_resource_metadata(request: Request) -> JSONResponse:
+        base_url = str(request.base_url).rstrip("/")
         return JSONResponse(
             {
-                "active": True,
-                "client_id": access_token.client_id,
-                "scope": " ".join(access_token.scopes),
-                "exp": access_token.expires_at,
-                "iat": int(time.time()),
-                "token_type": "Bearer",
-                "aud": access_token.resource,
+                "resource": f"{base_url}/mcp",
+                "authorization_servers": [base_url],
+                "jwks_uri": f"{base_url}/.well-known/jwks.json",
+                "bearer_methods_supported": ["header"],
+                "scopes_supported": ["mcp:read", "mcp:write"],
             }
         )
 
-    custom_routes.append(
+    mcp_routes.append(
         Route(
-            "/auth/introspect",
-            endpoint=cors_middleware(introspect_endpoint, ["POST", "OPTIONS"]),
-            methods=["POST", "OPTIONS"],
+            "/.well-known/oauth-protected-resource",
+            endpoint=protected_resource_metadata,
+            methods=["GET"],
         )
     )
 
-    return mcp_routes + custom_routes
+    # Add essential auth UI routes
+    mcp_routes.append(Route("/auth/login", endpoint=login_page, methods=["GET"]))
+    mcp_routes.append(Route("/auth/login", endpoint=handle_login, methods=["POST"]))
+    mcp_routes.append(Route("/auth/logout", endpoint=handle_logout, methods=["POST"]))
+
+    return mcp_routes

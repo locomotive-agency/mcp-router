@@ -64,9 +64,13 @@ def test_config_download_stdio_mode(app_stdio):
         assert "args" in server_config
 
         # Should use python command for STDIO
-        assert "python" in server_config["command"] or "python3" in server_config["command"]
+        assert (
+            "python" in server_config["command"]
+            or "python3" in server_config["command"]
+        )
         assert "mcp_anywhere" in " ".join(server_config["args"])
         assert "connect" in server_config["args"]
+
 
 def test_config_view_stdio_mode(app_stdio):
     """
@@ -143,4 +147,6 @@ def test_config_json_structure():
     optional_fields = ["env", "cwd"]
     for field in optional_fields:
         if field in server:
-            assert isinstance(server.get(field), dict) or isinstance(server.get(field), str)
+            assert isinstance(server.get(field), dict) or isinstance(
+                server.get(field), str
+            )

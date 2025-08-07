@@ -11,94 +11,70 @@ from mcp_anywhere.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def create_mcp_config(servers: list["MCPServer"]) -> dict[str, Any]:
-    """Convert database servers to MCP proxy configuration format."""
-    config = {"mcpServers": {}}
-    container_manager = ContainerManager()
-
-    for server in servers:
-        # Docker image tag built by container_manager
-        image_tag = container_manager.get_image_tag(server)
-
-        # Extract environment variables
-        env_args = []
-        for env_var in server.env_variables:
-            if env_var.get("value"):
-                key = env_var["key"]
-                value = env_var["value"]
-                env_args.extend(["-e", f"{key}={value}"])
-
-        # Use container manager's parsing logic for commands
-        run_command = container_manager._parse_start_command(server)
-
-        if not run_command:
-            logger.warning(f"No start command for server {server.name}, skipping")
-            continue
-
-        # Docker command that FastMCP will execute
-        config["mcpServers"][server.name] = {
-            "command": "docker",
-            "args": [
-                "run",
-                "--rm",  # Remove container after exit
-                "-i",  # Interactive (for stdio)
-                "--name",
-                f"mcp-{server.id}",  # Container name
-                "--memory",
-                "512m",  # Memory limit
-                "--cpus",
-                "0.5",  # CPU limit
-                *env_args,  # Environment variables
-                image_tag,  # Our pre-built image
-                *run_command,  # The actual MCP command
-            ],
-            "env": {},  # Already passed via docker -e
-            "transport": "stdio",
-        }
-
-    return config
-
-
-def create_gateway_config(servers: list["MCPServer"]) -> dict[str, Any]:
-    """Create MCP proxy configuration for the lightweight gateway.
-
-    This connects to existing running containers instead of creating new ones.
-    Containers should already be created and running by the management server.
+def create_mcp_config(server: "MCPServer") -> dict[str, dict[str, Any]]:
+    """Create MCP proxy configuration for both new and existing containers.
 
     Args:
-        servers: List of MCPServer instances from database
+        server: Single MCPServer instance from database
 
     Returns:
-        Dict containing MCP server configurations for existing containers
+        Dict containing both 'new' and 'existing' configuration options
     """
-    config = {"mcpServers": {}}
     container_manager = ContainerManager()
 
-    for server in servers:
-        # Check if container is already running
-        container_name = f"mcp-{server.id}"
+    # Use container manager's parsing logic for commands
+    run_command = container_manager._parse_start_command(server)
 
-        # Use docker exec to connect to existing container instead of docker run
-        run_command = container_manager._parse_start_command(server)
+    if not run_command:
+        logger.warning(f"No start command for server {server.name}")
+        return {"new": {}, "existing": {}}
 
-        if not run_command:
-            logger.warning(f"No start command for server {server.name}, skipping")
-            continue
+    # Configuration for existing container (docker exec)
+    container_name = container_manager._get_container_name(server.id)
+    existing_config = {
+        "command": "docker",
+        "args": [
+            "exec",
+            "-i",  # Interactive (for stdio)
+            container_name,  # Connect to existing container
+            *run_command,  # The actual MCP command
+        ],
+        "env": {},
+        "transport": "stdio",
+    }
 
-        # Connect to existing container via docker exec
-        config["mcpServers"][server.name] = {
-            "command": "docker",
-            "args": [
-                "exec",
-                "-i",  # Interactive (for stdio)
-                container_name,  # Existing container name
-                *run_command,  # The actual MCP command
-            ],
-            "env": {},
-            "transport": "stdio",
-        }
+    # Configuration for new container (docker run)
+    image_tag = container_manager.get_image_tag(server)
 
-    return config
+    # Extract environment variables
+    env_args = []
+    for env_var in server.env_variables:
+        if env_var.get("value"):
+            key = env_var["key"]
+            value = env_var["value"]
+            env_args.extend(["-e", f"{key}={value}"])
+
+    new_config = {
+        "command": "docker",
+        "args": [
+            "run",
+            "--rm",  # Remove container after exit
+            "-i",  # Interactive (for stdio)
+            "--name",
+            container_name,  # Container name
+            "--memory",
+            "512m",  # Memory limit
+            "--cpus",
+            "0.5",  # CPU limit
+            *env_args,  # Environment variables
+            image_tag,  # Our pre-built image
+            *run_command,  # The actual MCP command
+        ],
+        "env": {},  # Already passed via docker -e
+        "transport": "stdio",
+    }
+
+    return {"new": new_config, "existing": existing_config}
 
 
 class MCPManager:
@@ -124,11 +100,25 @@ class MCPManager:
             List of discovered tools from the server
         """
         try:
-            # Create proxy configuration for this single server
-            proxy_config = create_mcp_config([server_config])
+            # Get both configuration options
+            config_options = create_mcp_config(server_config)
 
-            if not proxy_config["mcpServers"]:
-                raise RuntimeError(f"Failed to create proxy config for {server_config.name}")
+            if not config_options["new"] and not config_options["existing"]:
+                raise RuntimeError(
+                    f"Failed to create proxy config for {server_config.name}"
+                )
+
+            # Check container health and select appropriate config
+            container_manager = ContainerManager()
+            if container_manager._is_container_healthy(server_config):
+                server_config_dict = config_options["existing"]
+                logger.debug(f"Using existing container for {server_config.name}")
+            else:
+                server_config_dict = config_options["new"]
+                logger.debug(f"Using new container for {server_config.name}")
+
+            # Create proxy configuration in expected format
+            proxy_config = {"mcpServers": {server_config.name: server_config_dict}}
 
             # Create FastMCP proxy for the server
             proxy = FastMCP.as_proxy(proxy_config)
@@ -182,7 +172,9 @@ class MCPManager:
             # Remove from our tracking
             del self.mounted_servers[server_id]
 
-            logger.info(f"Successfully unmounted server '{server_id}' from all managers")
+            logger.info(
+                f"Successfully unmounted server '{server_id}' from all managers"
+            )
 
         except (RuntimeError, ValueError, KeyError) as e:
             logger.error(f"Failed to remove server '{server_id}': {e}")
@@ -206,9 +198,13 @@ class MCPManager:
             # Convert tools to the format expected by the database
             discovered_tools = []
             for key, tool in tools.items():
-                discovered_tools.append({"name": key, "description": tool.description or ""})
+                discovered_tools.append(
+                    {"name": key, "description": tool.description or ""}
+                )
 
-            logger.info(f"Discovered {len(discovered_tools)} tools for server '{server_id}'")
+            logger.info(
+                f"Discovered {len(discovered_tools)} tools for server '{server_id}'"
+            )
             return discovered_tools
 
         except (RuntimeError, ValueError, ConnectionError, AttributeError) as e:

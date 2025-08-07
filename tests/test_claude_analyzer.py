@@ -80,7 +80,9 @@ ENV_VARS:
             mock_anthropic.messages.create.return_value = mock_message
 
             # Test the analysis
-            result = await analyzer.analyze_repository("https://github.com/example/mcp-server")
+            result = await analyzer.analyze_repository(
+                "https://github.com/example/mcp-server"
+            )
 
     # Verify the result
     assert result["runtime_type"] == "npx"
@@ -110,7 +112,9 @@ async def test_analyze_repository_github_api_error(analyzer):
     mock_response = Mock()
     mock_response.status_code = 500
     mock_request = Mock()
-    error = httpx.HTTPStatusError("Server Error", request=mock_request, response=mock_response)
+    error = httpx.HTTPStatusError(
+        "Server Error", request=mock_request, response=mock_response
+    )
 
     with patch.object(analyzer, "_fetch_file", side_effect=error):
         with pytest.raises(ConnectionError, match="Failed to fetch files from GitHub"):
@@ -128,7 +132,9 @@ async def test_analyze_repository_claude_api_error(analyzer):
         mock_client_class.return_value.__aexit__.return_value = None
 
         mock_response = Mock()
-        mock_response.json.return_value = {"content": "dGVzdA=="}  # "test" base64 encoded
+        mock_response.json.return_value = {
+            "content": "dGVzdA=="
+        }  # "test" base64 encoded
         mock_response.raise_for_status = Mock()
         mock_client.get.return_value = mock_response
 
@@ -138,7 +144,9 @@ async def test_analyze_repository_claude_api_error(analyzer):
 
             mock_call_claude.side_effect = AnthropicError("API Error")
 
-            with pytest.raises(ConnectionError, match="Failed to get analysis from Claude"):
+            with pytest.raises(
+                ConnectionError, match="Failed to get analysis from Claude"
+            ):
                 await analyzer.analyze_repository("https://github.com/example/repo")
 
 
@@ -196,7 +204,9 @@ ENV_VARS:
 - KEY: API_TOKEN, DESC: Token for market data API, REQUIRED: true
 - KEY: CACHE_SIZE, DESC: Number of requests to cache, REQUIRED: false"""
 
-    analyzer = AsyncClaudeAnalyzer.__new__(AsyncClaudeAnalyzer)  # Create without __init__
+    analyzer = AsyncClaudeAnalyzer.__new__(
+        AsyncClaudeAnalyzer
+    )  # Create without __init__
     result = analyzer._parse_claude_response(response_text)
 
     assert result["runtime_type"] == "uvx"

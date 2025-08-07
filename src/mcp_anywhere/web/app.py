@@ -3,13 +3,16 @@ from contextlib import asynccontextmanager
 from fastmcp import FastMCP
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
 from mcp_anywhere.auth.initialization import initialize_oauth_data
-from mcp_anywhere.auth.mcp_provider import MCPAnywhereAuthProvider
-from mcp_anywhere.auth.mcp_routes import create_oauth_routes
+from mcp_anywhere.auth.provider import MCPAnywhereAuthProvider
+from mcp_anywhere.auth.routes import create_oauth_routes
 from mcp_anywhere.config import Config
 from mcp_anywhere.container.manager import ContainerManager
 from mcp_anywhere.core.mcp_manager import MCPManager
@@ -20,6 +23,73 @@ from mcp_anywhere.web.config_routes import config_routes
 from mcp_anywhere.web.middleware import SessionAuthMiddleware
 
 logger = get_logger(__name__)
+
+
+class RedirectMiddleware(BaseHTTPMiddleware):
+    """Middleware to redirect /mcp to /mcp/"""
+
+    async def dispatch(self, request: Request, call_next):
+        mcp_path = Config.MCP_PATH
+        if request.url.path == mcp_path:
+            return RedirectResponse(url=f"{mcp_path}/")
+
+        # If it's a .well-known path with /mcp, strip it for correct routing
+        if ".well-known" in request.url.path and request.url.path.endswith(mcp_path):
+            new_path = request.url.path[: -len(mcp_path)]
+            request.scope["path"] = new_path
+
+        return await call_next(request)
+
+
+class MCPAuthMiddleware(BaseHTTPMiddleware):
+    """ASGI middleware that handles authentication for MCP endpoints"""
+
+    async def dispatch(self, request: Request, call_next):
+        # Only apply authentication to MCP endpoints (exact path or subpaths)
+        path = request.url.path
+        mcp_path = Config.MCP_PATH.rstrip("/")
+
+        # Get out early if not an MCP endpoint or if it's a .well-known path
+        if not path.startswith(mcp_path) or ".well-known" in path:
+            return await call_next(request)
+
+        # Get authorization header
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                {
+                    "error": "Authorization required",
+                    "error_description": "Bearer token required",
+                },
+                status_code=401,
+            )
+
+        token = auth_header[7:]  # Remove 'Bearer ' prefix
+
+        # Get OAuth provider from app state
+        oauth_provider = getattr(request.app.state, "oauth_provider", None)
+        if not oauth_provider:
+            return JSONResponse(
+                {
+                    "error": "Authentication configuration error",
+                    "error_description": "OAuth provider not initialized",
+                },
+                status_code=500,
+            )
+
+        # Validate OAuth token
+        payload = await oauth_provider.verify_token(token)
+        if not payload:
+            return JSONResponse(
+                {
+                    "error": "Invalid token",
+                    "error_description": "Token is invalid or expired",
+                },
+                status_code=401,
+            )
+
+        # Authentication successful, proceed with request
+        return await call_next(request)
 
 
 async def create_mcp_manager() -> MCPManager:
@@ -53,8 +123,9 @@ def create_lifespan(transport_mode: str):
             logger.info(
                 f"OAuth initialized - Admin: {admin_user.username}, Client: {oauth_client.client_id}"
             )
-        except (RuntimeError, ValueError, OSError) as e:
+        except Exception as e:
             logger.error(f"Failed to initialize OAuth data: {e}")
+            logger.exception("Full exception details:")
             raise
 
         # Add database session function to app state
@@ -79,6 +150,17 @@ def create_lifespan(transport_mode: str):
         await container_manager.mount_built_servers(mcp_manager)
         logger.info("Built servers mounted to MCP manager")
 
+        # Create and mount FastMCP HTTP app for HTTP mode
+        if transport_mode == "http":
+            # Create the FastMCP HTTP app using path="/" to avoid double-mounting
+            # Since it will be mounted at /mcp in the main Starlette app
+            mcp_http_app = mcp_manager.router.http_app(path="/")
+            app.state.mcp_http_app = mcp_http_app
+
+            # Mount the FastMCP app at the MCP path
+            app.router.mount(Config.MCP_PATH, mcp_http_app)
+            logger.info(f"FastMCP HTTP app mounted at {Config.MCP_PATH}")
+
         yield
 
         # Clean up resources on shutdown
@@ -101,25 +183,41 @@ def create_app(transport_mode: str = "http") -> Starlette:
         Middleware(SessionAuthMiddleware),
     ]
 
-    # Create routes
-    app_routes = [
-        # Mount("/static", app=StaticFiles(directory="src/mcp_anywhere/web/static"), name="static"),
-        # Add config routes (for Claude Desktop integration)
-        *config_routes,
-        # Add web routes
-        Mount("/", routes=routes.routes, name="web"),
-    ]
-
-    # Add OAuth routes for HTTP mode
+    # Add MCP-specific middleware for HTTP mode
     if transport_mode == "http":
-        # Create OAuth routes using MCP SDK
-        oauth_routes = create_oauth_routes(get_async_session)
-        app_routes.extend(oauth_routes)
+        middleware.extend(
+            [
+                Middleware(RedirectMiddleware),
+                Middleware(MCPAuthMiddleware),
+            ]
+        )
 
-        # Mount MCP endpoint with OAuth protection
+    # Create routes - ORDER MATTERS!
+    app_routes = []
 
-        # Note: The MCP endpoint will be added after app creation since we need app.state.mcp_manager
+    # Add OAuth routes FIRST for HTTP mode (before catch-all web mount)
+    if transport_mode == "http":
+        try:
+            # Create OAuth routes using MCP SDK - simple approach
+            oauth_routes = create_oauth_routes(get_async_session)
+            app_routes.extend(oauth_routes)
+            logger.info(f"Added {len(oauth_routes)} OAuth routes")
+        except Exception as e:
+            logger.error(f"Failed to create OAuth routes: {e}")
+            logger.exception("OAuth route creation error:")
 
+    # Add other routes
+    app_routes.extend(
+        [
+            # Mount("/static", app=StaticFiles(directory="src/mcp_anywhere/web/static"), name="static"),
+            # Add config routes (for Claude Desktop integration)
+            *config_routes,
+            # Add web routes LAST (catch-all mount)
+            Mount("/", routes=routes.routes, name="web"),
+        ]
+    )
+
+    # Create the main app with lifespan
     app = Starlette(
         debug=True,
         lifespan=create_lifespan(transport_mode),
@@ -131,3 +229,8 @@ def create_app(transport_mode: str = "http") -> Starlette:
     app.state.transport_mode = transport_mode
 
     return app
+
+
+async def create_asgi_app(transport_mode: str = "http") -> Starlette:
+    """Create the ASGI application with FastMCP mounting for HTTP mode."""
+    return create_app(transport_mode)

@@ -15,4 +15,10 @@ COPY . .
 RUN mkdir -p .data && chown -R www-data:www-data .data
 
 EXPOSE 8000
-CMD ["uvicorn", "mcp_anywhere.web.app:create_app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Install tini for proper signal handling
+RUN apt-get update && apt-get install -y tini && rm -rf /var/lib/apt/lists/*
+
+# Use tini as entrypoint and our CLI as the command
+ENTRYPOINT ["tini", "-s", "--"]
+CMD ["python", "-m", "mcp_anywhere", "serve", "http"]

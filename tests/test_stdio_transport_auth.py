@@ -56,7 +56,7 @@ def app_http():
 def test_stdio_mode_no_jwt_on_mcp_endpoints(app_stdio):
     """
     Test that in STDIO mode, /mcp endpoints don't require JWT authentication.
-    
+
     In STDIO mode, MCP communication happens through standard input/output,
     not HTTP, so JWT authentication on /mcp endpoints is not needed.
     """
@@ -64,7 +64,7 @@ def test_stdio_mode_no_jwt_on_mcp_endpoints(app_stdio):
         # Try to access an MCP endpoint without authentication
         # In STDIO mode, this should NOT return 401
         response = client.get("/mcp/tools/list")
-        
+
         # Since there's no actual MCP handler mounted at /mcp in STDIO mode,
         # we should get a 404, not a 401 (which would indicate auth requirement)
         assert response.status_code == 404, (
@@ -73,23 +73,22 @@ def test_stdio_mode_no_jwt_on_mcp_endpoints(app_stdio):
         )
 
 
-
-
 def test_stdio_mode_web_ui_still_protected(app_stdio):
     """
     Test that in STDIO mode, web UI endpoints still require session authentication.
-    
+
     Even in STDIO mode, the web UI should be protected by session-based auth.
     """
     with TestClient(app_stdio, follow_redirects=False) as client:
         # Try to access protected web UI endpoint without session
         response = client.get("/servers")
-        
+
         # Should redirect to login
-        assert response.status_code in [302, 303], (
-            f"Expected redirect to login, got {response.status_code}"
-        )
-        
+        assert response.status_code in [
+            302,
+            303,
+        ], f"Expected redirect to login, got {response.status_code}"
+
         # Check redirect location
         assert "location" in response.headers
         assert "/auth/login" in response.headers["location"]
