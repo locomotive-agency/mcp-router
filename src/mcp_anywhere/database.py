@@ -173,21 +173,4 @@ async def get_built_servers(session: AsyncSession | None = None) -> list[MCPServ
             return result.scalars().all()
 
 
-async def get_server_by_id(
-    server_id: str, session: AsyncSession | None = None
-) -> MCPServer | None:
-    """Get server by ID (async helper function)."""
-    if session:
-        # Use provided session
-        stmt = select(MCPServer).where(MCPServer.id == server_id)
-        result = await session.execute(stmt)
-        return result.scalar_one_or_none()
-    else:
-        # Create own session
-        async with get_async_session() as session:
-            stmt = select(MCPServer).where(MCPServer.id == server_id)
-            result = await session.execute(stmt)
-            return result.scalar_one_or_none()
-
-
 # Import auth models after Base is defined to avoid circular imports
