@@ -47,16 +47,16 @@ def create_parser() -> argparse.ArgumentParser:
         "http",
         help="HTTP transport mode with OAuth 2.0 authentication for production deployments",
     )
-    http_parser.add_argument("--host", type=str, default="0.0.0.0", help="Host address to bind")
-    http_parser.add_argument("--port", type=int, default=8000, help="Port number to bind")
+    http_parser.add_argument("--host", type=str, default=Config.DEFAULT_HOST, help="Host address to bind")
+    http_parser.add_argument("--port", type=int, default=Config.DEFAULT_PORT, help="Port number to bind")
 
     # STDIO transport mode
     stdio_parser = serve_subparsers.add_parser(
         "stdio",
         help="STDIO transport mode for local Claude Desktop integration",
     )
-    stdio_parser.add_argument("--host", type=str, default="0.0.0.0", help="Web interface host")
-    stdio_parser.add_argument("--port", type=int, default=8000, help="Web interface port")
+    stdio_parser.add_argument("--host", type=str, default=Config.DEFAULT_HOST, help="Web interface host")
+    stdio_parser.add_argument("--port", type=int, default=Config.DEFAULT_PORT, help="Web interface port")
 
     # Connect command for MCP clients
     connect_parser = subparsers.add_parser(

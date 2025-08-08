@@ -1,7 +1,8 @@
 """Session-based authentication middleware for web UI routes."""
 
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.types import ASGIApp
 
 from mcp_anywhere.core.base_middleware import BasePathProtectionMiddleware
@@ -88,4 +89,71 @@ class SessionAuthMiddleware(BasePathProtectionMiddleware):
         logger.debug(f"Authenticated session access to path: {path}")
 
         # User is authenticated, continue to next middleware
+        return await call_next(request)
+
+
+class RedirectMiddleware(BaseHTTPMiddleware):
+    """Middleware to redirect MCP mount path to its trailing-slash variant."""
+
+    async def dispatch(self, request: Request, call_next):
+        mcp_mount_path = Config.MCP_PATH_MOUNT
+        if request.url.path == mcp_mount_path:
+            return RedirectResponse(url=f"{Config.MCP_PATH_PREFIX}")
+
+        # If it's a .well-known path with /mcp, strip it for correct routing
+        if ".well-known" in request.url.path and request.url.path.endswith(mcp_mount_path):
+            new_path = request.url.path[: -len(mcp_mount_path)]
+            request.scope["path"] = new_path
+
+        return await call_next(request)
+
+
+class MCPAuthMiddleware(BaseHTTPMiddleware):
+    """ASGI middleware that handles authentication for MCP endpoints"""
+
+    async def dispatch(self, request: Request, call_next):
+        # Only apply authentication to MCP endpoints (exact path or subpaths)
+        path = request.url.path
+        mcp_path = Config.MCP_PATH_MOUNT
+
+        # Get out early if not an MCP endpoint or if it's a .well-known path
+        if not path.startswith(mcp_path) or ".well-known" in path:
+            return await call_next(request)
+
+        # Get authorization header
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                {
+                    "error": "Authorization required",
+                    "error_description": "Bearer token required",
+                },
+                status_code=401,
+            )
+
+        token = auth_header[7:]  # Remove 'Bearer ' prefix
+
+        # Get OAuth provider from app state
+        oauth_provider = getattr(request.app.state, "oauth_provider", None)
+        if not oauth_provider:
+            return JSONResponse(
+                {
+                    "error": "Authentication configuration error",
+                    "error_description": "OAuth provider not initialized",
+                },
+                status_code=500,
+            )
+
+        # Validate OAuth token via introspection
+        access_token = await oauth_provider.introspect_token(token)
+        if not access_token:
+            return JSONResponse(
+                {
+                    "error": "Invalid token",
+                    "error_description": "Token is invalid or expired",
+                },
+                status_code=401,
+            )
+
+        # Authentication successful, proceed with request
         return await call_next(request)

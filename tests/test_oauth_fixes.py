@@ -145,16 +145,17 @@ class TestOAuthFixes:
         assert hasattr(csrf, 'cleanup_expired')
         assert callable(csrf.cleanup_expired)
         
-        # Should be able to get active state count
-        assert csrf.get_active_state_count() == 0
+        # Check that internal states storage exists (implementation detail)
+        assert hasattr(csrf, '_states')
+        assert len(csrf._states) == 0
         
         # Generate a state to test cleanup works
         state = csrf.generate_state("client_123", "http://localhost:3000/callback")
-        assert csrf.get_active_state_count() == 1
+        assert len(csrf._states) == 1
         
         # Cleanup shouldn't remove non-expired states
         csrf.cleanup_expired()
-        assert csrf.get_active_state_count() == 1
+        assert len(csrf._states) == 1
 
 
 if __name__ == "__main__":

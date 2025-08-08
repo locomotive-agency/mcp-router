@@ -8,15 +8,20 @@ from mcp_anywhere.web.app import create_app
 
 
 async def run_http_server(
-    host: str = "0.0.0.0", port: int = 8000
+    host: str = None, port: int = None
 ) -> None:
     """Run the MCP Anywhere as an HTTP web server using uvicorn.
 
     Args:
-        host: Host address to bind to
-        port: Port number to bind to
-        log_level: Logging level for uvicorn
+        host: Host address to bind to (defaults to Config.DEFAULT_HOST)
+        port: Port number to bind to (defaults to Config.DEFAULT_PORT)
     """
+    # Use Config defaults if not provided
+    if host is None:
+        host = Config.DEFAULT_HOST
+    if port is None:
+        port = Config.DEFAULT_PORT
+    
     # Configure logging for HTTP server mode
     configure_logging(
         log_level=Config.LOG_LEVEL,

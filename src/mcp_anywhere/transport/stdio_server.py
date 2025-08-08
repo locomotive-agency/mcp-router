@@ -16,13 +16,19 @@ from mcp_anywhere.logging_config import configure_logging, get_logger
 from mcp_anywhere.web.app import create_app
 
 
-async def run_stdio_server(host: str = "0.0.0.0", port: int = 8000) -> None:
+async def run_stdio_server(host: str = None, port: int = None) -> None:
     """Run MCP Anywhere with the admin UI only (no MCP over STDIO).
 
     Args:
-        host: Host address for the web UI
-        port: Port number for the web UI
+        host: Host address for the web UI (defaults to Config.DEFAULT_HOST)
+        port: Port number for the web UI (defaults to Config.DEFAULT_PORT)
     """
+    # Use Config defaults if not provided
+    if host is None:
+        host = Config.DEFAULT_HOST
+    if port is None:
+        port = Config.DEFAULT_PORT
+    
     # Configure logging for STDIO admin UI mode
     configure_logging(
         log_level=Config.LOG_LEVEL,

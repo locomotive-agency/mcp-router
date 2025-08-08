@@ -237,21 +237,3 @@ class TestCSRFProtection:
         with pytest.raises(ValueError, match="redirect_uri cannot be empty"):
             csrf_protection.generate_state("test_client", "")
 
-    def test_get_active_state_count(
-        self, csrf_protection: CSRFProtection
-    ) -> None:
-        """get_active_state_count should return correct count of active states."""
-        assert csrf_protection.get_active_state_count() == 0
-        
-        # Generate some states
-        csrf_protection.generate_state("client1", "uri1")
-        csrf_protection.generate_state("client2", "uri2")
-        
-        assert csrf_protection.get_active_state_count() == 2
-        
-        # Validate one state (should be consumed)
-        csrf_protection.validate_state(
-            list(csrf_protection._states.keys())[0], "client1", "uri1"
-        )
-        
-        assert csrf_protection.get_active_state_count() == 1

@@ -30,7 +30,12 @@ class Config:
     # Session settings
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
-    WEB_PORT = int(os.environ.get("WEB_PORT", "8000"))
+    # Server settings
+    DEFAULT_HOST = os.environ.get("DEFAULT_HOST", "0.0.0.0")
+    DEFAULT_PORT = int(os.environ.get("DEFAULT_PORT", "8000"))
+    
+    # Legacy WEB_PORT for backward compatibility (deprecated - use DEFAULT_PORT)
+    WEB_PORT = int(os.environ.get("WEB_PORT", str(DEFAULT_PORT)))
 
     # JWT settings for OAuth
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", SECRET_KEY)
@@ -65,8 +70,10 @@ class Config:
     MCP_PATH_PREFIX = MCP_PATH if MCP_PATH.endswith("/") else (MCP_PATH + "/")
 
     # Server URL - configurable for different environments
+    # Construct default SERVER_URL from DEFAULT_HOST and DEFAULT_PORT
+    _default_host_for_url = "localhost" if DEFAULT_HOST in ("0.0.0.0", "") else DEFAULT_HOST
     SERVER_URL = os.environ.get(
-        "SERVER_URL", f"http://localhost:{os.environ.get('WEB_PORT', '8000')}"
+        "SERVER_URL", f"http://{_default_host_for_url}:{DEFAULT_PORT}"
     )
 
     # Logging settings

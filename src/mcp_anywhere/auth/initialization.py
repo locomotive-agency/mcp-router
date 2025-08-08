@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mcp_anywhere.auth.models import OAuth2Client, User
+from mcp_anywhere.config import Config
 from mcp_anywhere.database import get_async_session
 from mcp_anywhere.logging_config import get_logger
 
@@ -59,7 +60,7 @@ async def create_default_admin_user(
 async def create_default_oauth_client(
     client_id: str = None,
     client_secret: str = None,
-    redirect_uri: str = "http://localhost:8000/auth/callback",
+    redirect_uri: str = None,
     scope: str = "mcp:read mcp:write",
     db_session: AsyncSession = None,
 ) -> OAuth2Client:
@@ -68,13 +69,17 @@ async def create_default_oauth_client(
     Args:
         client_id: OAuth client ID (if None, generates one)
         client_secret: OAuth client secret (if None, generates one)
-        redirect_uri: Redirect URI for OAuth flow
+        redirect_uri: Redirect URI for OAuth flow (if None, uses Config.SERVER_URL)
         scope: Allowed scopes for the client
         db_session: Database session (if None, creates one)
 
     Returns:
         OAuth2Client object for the default client
     """
+    # Use Config.SERVER_URL for redirect_uri if not provided
+    if redirect_uri is None:
+        redirect_uri = f"{Config.SERVER_URL}/auth/callback"
+    
     if not db_session:
         async with get_async_session() as session:
             return await create_default_oauth_client(
@@ -121,7 +126,7 @@ async def initialize_oauth_data(
     admin_password: str = None,
     client_id: str = None,
     client_secret: str = None,
-    redirect_uri: str = "http://localhost:8000/auth/callback",
+    redirect_uri: str = None,
 ) -> tuple[User, OAuth2Client]:
     """Initialize default OAuth data (admin user and OAuth client).
 
@@ -130,11 +135,15 @@ async def initialize_oauth_data(
         admin_password: Admin password (if None, generates random)
         client_id: OAuth client ID (if None, generates)
         client_secret: OAuth client secret (if None, generates)
-        redirect_uri: OAuth redirect URI
+        redirect_uri: OAuth redirect URI (if None, uses Config.SERVER_URL)
 
     Returns:
         Tuple of (admin_user, oauth_client)
     """
+    # Use Config.SERVER_URL for redirect_uri if not provided
+    if redirect_uri is None:
+        redirect_uri = f"{Config.SERVER_URL}/auth/callback"
+    
     async with get_async_session() as db_session:
         # Create admin user
         admin_user = await create_default_admin_user(

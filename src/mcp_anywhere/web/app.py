@@ -4,10 +4,9 @@ from contextlib import asynccontextmanager
 from fastmcp import FastMCP
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, RedirectResponse
+from starlette.responses import RedirectResponse
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
@@ -23,77 +22,9 @@ from mcp_anywhere.database import close_db, get_async_session, init_db
 from mcp_anywhere.logging_config import get_logger
 from mcp_anywhere.web import routes
 from mcp_anywhere.web.config_routes import config_routes
-from mcp_anywhere.web.middleware import SessionAuthMiddleware
+from mcp_anywhere.web.middleware import SessionAuthMiddleware, RedirectMiddleware, MCPAuthMiddleware
 
 logger = get_logger(__name__)
-
-
-class RedirectMiddleware(BaseHTTPMiddleware):
-    """Middleware to redirect MCP mount path to its trailing-slash variant."""
-
-    async def dispatch(self, request: Request, call_next):
-        mcp_mount_path = Config.MCP_PATH_MOUNT
-        if request.url.path == mcp_mount_path:
-            return RedirectResponse(url=f"{Config.MCP_PATH_PREFIX}")
-
-        # If it's a .well-known path with /mcp, strip it for correct routing
-        if ".well-known" in request.url.path and request.url.path.endswith(mcp_mount_path):
-            new_path = request.url.path[: -len(mcp_mount_path)]
-            request.scope["path"] = new_path
-
-        return await call_next(request)
-
-
-class MCPAuthMiddleware(BaseHTTPMiddleware):
-    """ASGI middleware that handles authentication for MCP endpoints"""
-
-    async def dispatch(self, request: Request, call_next):
-        # Only apply authentication to MCP endpoints (exact path or subpaths)
-        path = request.url.path
-        mcp_path = Config.MCP_PATH_MOUNT
-
-        # Get out early if not an MCP endpoint or if it's a .well-known path
-        if not path.startswith(mcp_path) or ".well-known" in path:
-            return await call_next(request)
-
-        # Get authorization header
-        auth_header = request.headers.get("authorization", "")
-        if not auth_header.startswith("Bearer "):
-            return JSONResponse(
-                {
-                    "error": "Authorization required",
-                    "error_description": "Bearer token required",
-                },
-                status_code=401,
-            )
-
-        token = auth_header[7:]  # Remove 'Bearer ' prefix
-
-        # Get OAuth provider from app state
-        oauth_provider = getattr(request.app.state, "oauth_provider", None)
-        if not oauth_provider:
-            return JSONResponse(
-                {
-                    "error": "Authentication configuration error",
-                    "error_description": "OAuth provider not initialized",
-                },
-                status_code=500,
-            )
-
-        # Validate OAuth token via introspection
-        access_token = await oauth_provider.introspect_token(token)
-        if not access_token:
-            return JSONResponse(
-                {
-                    "error": "Invalid token",
-                    "error_description": "Token is invalid or expired",
-                },
-                status_code=401,
-            )
-
-        # Authentication successful, proceed with request
-        return await call_next(request)
-## Removed temporary MCP HTTP exception logger used for diagnostics
 
 
 async def create_mcp_manager() -> MCPManager:
@@ -176,11 +107,12 @@ def create_lifespan(transport_mode: str):
         if transport_mode == "http":
             # Create the FastMCP HTTP app using path="/" to avoid double-mounting
             # Since it will be mounted at MCP path in the main Starlette app
-            mcp_http_app = mcp_manager.router.http_app(path="/")
+            mcp_http_app = mcp_manager.router.http_app(path="/", transport="http")
+
             app.state.mcp_http_app = mcp_http_app
 
             # Mount the FastMCP app at the MCP path
-            app.router.mount(Config.MCP_PATH_MOUNT, mcp_http_app)
+            app.mount(Config.MCP_PATH_MOUNT, mcp_http_app)
             logger.info(f"FastMCP HTTP app mounted at {Config.MCP_PATH_MOUNT}")
 
         yield
