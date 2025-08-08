@@ -113,34 +113,6 @@ class TokenVerifier:
 
         return self.verify(token)
 
-    def has_scope(self, token_payload: dict[str, Any], required_scope: str) -> bool:
-        """Check if token has required scope.
-
-        Args:
-            token_payload: Decoded JWT token payload
-            required_scope: Required scope string
-
-        Returns:
-            True if token has required scope, False otherwise
-        """
-        token_scopes = token_payload.get("scope", "").split()
-        return required_scope in token_scopes
-
-    def has_any_scope(
-        self, token_payload: dict[str, Any], required_scopes: list
-    ) -> bool:
-        """Check if token has any of the required scopes.
-
-        Args:
-            token_payload: Decoded JWT token payload
-            required_scopes: List of required scope strings
-
-        Returns:
-            True if token has any required scope, False otherwise
-        """
-        token_scopes = set(token_payload.get("scope", "").split())
-        required_scopes_set = set(required_scopes)
-        return bool(token_scopes.intersection(required_scopes_set))
 
     def has_all_scopes(
         self, token_payload: dict[str, Any], required_scopes: list

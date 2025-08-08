@@ -199,13 +199,3 @@ class CSRFProtection:
             
         if expired_states:
             logger.info(f"Cleaned up {len(expired_states)} expired CSRF states")
-    
-    def get_active_state_count(self) -> int:
-        """Get the number of active (non-expired) states.
-        
-        Useful for monitoring and debugging. Does not perform cleanup.
-        
-        Returns:
-            Number of active state parameters
-        """
-        return len(self._states)
