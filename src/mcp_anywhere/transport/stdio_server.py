@@ -28,7 +28,7 @@ async def run_stdio_server(host: str = None, port: int = None) -> None:
         host = Config.DEFAULT_HOST
     if port is None:
         port = Config.DEFAULT_PORT
-    
+
     # Configure logging for STDIO admin UI mode
     configure_logging(
         log_level=Config.LOG_LEVEL,
@@ -47,12 +47,14 @@ async def run_stdio_server(host: str = None, port: int = None) -> None:
         app = await create_app(transport_mode="stdio")
 
         # Configure uvicorn for the web UI
-        config = uvicorn.Config(app, host=host, port=port, log_level=Config.LOG_LEVEL.lower())
+        config = uvicorn.Config(
+            app, host=host, port=port, log_level=Config.LOG_LEVEL.lower()
+        )
         server = uvicorn.Server(config=config)
 
         # Run the server
         await server.serve()
 
     except (RuntimeError, ValueError, OSError) as e:
-        logger.error(f"Failed to start STDIO admin UI server: {e}")
+        logger.exception(f"Failed to start STDIO admin UI server: {e}")
         raise

@@ -5,12 +5,10 @@ This module tests the moved and refactored ToolFilterMiddleware as specified
 in Phase 3 of the engineering documentation.
 """
 
-from unittest.mock import AsyncMock, Mock, MagicMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import Response, StreamingResponse
-import json
 
 from mcp_anywhere.core.middleware import ToolFilterMiddleware
 
@@ -42,7 +40,9 @@ async def test_tool_filter_middleware_passthrough_when_no_disabled_tools():
 
     # No disabled tools
     with patch.object(
-        ToolFilterMiddleware, "_get_disabled_tools_async", new=AsyncMock(return_value=set())
+        ToolFilterMiddleware,
+        "_get_disabled_tools_async",
+        new=AsyncMock(return_value=set()),
     ):
         result = await middleware.on_list_tools(mock_context, mock_call_next)
         assert result == tools
@@ -67,10 +67,15 @@ async def test_tool_filter_middleware_filters_disabled_tools():
     mock_call_next = AsyncMock(return_value=tools)
 
     with patch.object(
-        ToolFilterMiddleware, "_get_disabled_tools_async", new=AsyncMock(return_value={"disabled_tool"})
+        ToolFilterMiddleware,
+        "_get_disabled_tools_async",
+        new=AsyncMock(return_value={"disabled_tool"}),
     ):
         filtered = await middleware.on_list_tools(mock_context, mock_call_next)
-        tool_names = {t["name"] if isinstance(t, dict) else getattr(t, "name", "") for t in filtered}
+        tool_names = {
+            t["name"] if isinstance(t, dict) else getattr(t, "name", "")
+            for t in filtered
+        }
         assert "disabled_tool" not in tool_names
         mock_call_next.assert_called_once_with(mock_context)
 
@@ -81,7 +86,7 @@ async def test_get_disabled_tools_from_database():
     Test that disabled tools are correctly queried from the database.
     """
     # Create mock disabled tools
-    mock_disabled_tools = [
+    [
         Mock(tool_name="tool1", is_enabled=False),
         Mock(tool_name="tool2", is_enabled=False),
     ]
@@ -119,7 +124,9 @@ async def test_middleware_handles_database_errors():
     mock_call_next = AsyncMock(return_value=tools)
 
     with patch.object(
-        ToolFilterMiddleware, "_get_disabled_tools_async", new=AsyncMock(side_effect=Exception("DB failure"))
+        ToolFilterMiddleware,
+        "_get_disabled_tools_async",
+        new=AsyncMock(side_effect=Exception("DB failure")),
     ):
         result = await middleware.on_list_tools(mock_context, mock_call_next)
         assert result == tools

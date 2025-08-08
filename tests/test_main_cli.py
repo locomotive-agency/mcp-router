@@ -163,7 +163,7 @@ async def test_main_error_handling():
             "mcp_anywhere.__main__.run_http_server",
             new_callable=AsyncMock,
             side_effect=ValueError("Server error"),
-        ) as mock_http_server,
+        ),
         patch("sys.argv", ["mcp-anywhere", "serve", "http"]),
         patch("builtins.print") as mock_print,
         patch("sys.exit") as mock_exit,
@@ -180,8 +180,8 @@ def test_main_entry_point():
     Test that the module can be run as a script using asyncio.run().
     """
     with (
-        patch("mcp_anywhere.__main__.main", new_callable=AsyncMock) as mock_main,
-        patch("asyncio.run") as mock_asyncio_run,
+        patch("mcp_anywhere.__main__.main", new_callable=AsyncMock),
+        patch("asyncio.run"),
         patch("__main__.__name__", "__main__"),
     ):
         # Import and execute the main block

@@ -1,4 +1,3 @@
-import pytest
 from contextlib import asynccontextmanager
 
 from starlette.applications import Starlette
@@ -42,4 +41,3 @@ def test_mcp_redirects_to_trailing_slash():
     resp = client.get("/mcp")
     assert resp.status_code in (301, 302, 307, 308)
     assert resp.headers.get("location", "").endswith("/mcp/")
-

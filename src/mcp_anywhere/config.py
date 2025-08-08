@@ -1,4 +1,4 @@
-"""Configuration settings for MCP Anywhere"""
+"""Configuration settings for MCP Anywhere."""
 
 import os
 from pathlib import Path
@@ -22,7 +22,7 @@ DATA_DIR.mkdir(exist_ok=True)
 
 
 class Config:
-    """Configuration class"""
+    """Configuration class."""
 
     # Data directory setting
     DATA_DIR = DATA_DIR
@@ -33,7 +33,7 @@ class Config:
     # Server settings
     DEFAULT_HOST = os.environ.get("DEFAULT_HOST", "0.0.0.0")
     DEFAULT_PORT = int(os.environ.get("DEFAULT_PORT", "8000"))
-    
+
     # Legacy WEB_PORT for backward compatibility (deprecated - use DEFAULT_PORT)
     WEB_PORT = int(os.environ.get("WEB_PORT", str(DEFAULT_PORT)))
 
@@ -71,7 +71,9 @@ class Config:
 
     # Server URL - configurable for different environments
     # Construct default SERVER_URL from DEFAULT_HOST and DEFAULT_PORT
-    _default_host_for_url = "localhost" if DEFAULT_HOST in ("0.0.0.0", "") else DEFAULT_HOST
+    _default_host_for_url = (
+        "localhost" if DEFAULT_HOST in ("0.0.0.0", "") else DEFAULT_HOST
+    )
     SERVER_URL = os.environ.get(
         "SERVER_URL", f"http://{_default_host_for_url}:{DEFAULT_PORT}"
     )

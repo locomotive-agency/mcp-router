@@ -47,19 +47,27 @@ def create_parser() -> argparse.ArgumentParser:
         "http",
         help="HTTP transport mode with OAuth 2.0 authentication for production deployments",
     )
-    http_parser.add_argument("--host", type=str, default=Config.DEFAULT_HOST, help="Host address to bind")
-    http_parser.add_argument("--port", type=int, default=Config.DEFAULT_PORT, help="Port number to bind")
+    http_parser.add_argument(
+        "--host", type=str, default=Config.DEFAULT_HOST, help="Host address to bind"
+    )
+    http_parser.add_argument(
+        "--port", type=int, default=Config.DEFAULT_PORT, help="Port number to bind"
+    )
 
     # STDIO transport mode
     stdio_parser = serve_subparsers.add_parser(
         "stdio",
         help="STDIO transport mode for local Claude Desktop integration",
     )
-    stdio_parser.add_argument("--host", type=str, default=Config.DEFAULT_HOST, help="Web interface host")
-    stdio_parser.add_argument("--port", type=int, default=Config.DEFAULT_PORT, help="Web interface port")
+    stdio_parser.add_argument(
+        "--host", type=str, default=Config.DEFAULT_HOST, help="Web interface host"
+    )
+    stdio_parser.add_argument(
+        "--port", type=int, default=Config.DEFAULT_PORT, help="Web interface port"
+    )
 
     # Connect command for MCP clients
-    connect_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "connect", help="Connect as an MCP client via STDIO for direct tool access"
     )
 
@@ -112,9 +120,7 @@ def reset_data(confirm: bool = False) -> None:
         print(f"Data directory created: {data_dir}")
 
         print("\nData reset completed.")
-        print(
-            "The application will initialize with a fresh database on next startup."
-        )
+        print("The application will initialize with a fresh database on next startup.")
 
     except (OSError, PermissionError, FileNotFoundError) as e:
         print(f"Error during reset: {e}")

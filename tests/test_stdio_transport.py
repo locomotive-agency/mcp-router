@@ -1,5 +1,6 @@
+from unittest.mock import ANY, AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import AsyncMock, Mock, patch, ANY
 from starlette.applications import Starlette
 
 from mcp_anywhere.transport.stdio_server import run_stdio_server
@@ -56,4 +57,3 @@ async def test_run_stdio_server_handles_server_errors():
 
         with pytest.raises(Exception, match="Server startup failed"):
             await run_stdio_server(host="0.0.0.0", port=8000)
-

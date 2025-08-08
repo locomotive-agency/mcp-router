@@ -22,7 +22,7 @@ templates = Jinja2Templates(directory="src/mcp_anywhere/web/templates")
 class CurrentUser:
     """Simple current user object for template context."""
 
-    def __init__(self, user_id: str = None, username: str = None):
+    def __init__(self, user_id: str = None, username: str = None) -> None:
         self.user_id = user_id
         self.username = username
         self.is_authenticated = bool(user_id)
@@ -62,7 +62,7 @@ async def homepage(request: Request) -> HTMLResponse:
             stmt = (
                 select(MCPServer)
                 .options(selectinload(MCPServer.tools))
-                .where(MCPServer.is_active == True)
+                .where(MCPServer.is_active)
                 .order_by(MCPServer.name)
             )
             result = await db_session.execute(stmt)
@@ -74,7 +74,7 @@ async def homepage(request: Request) -> HTMLResponse:
 
     except (RuntimeError, ValueError, ConnectionError) as e:
         # Log error and show empty server list
-        logger.error(f"Error loading servers: {e}")
+        logger.exception(f"Error loading servers: {e}")
         return templates.TemplateResponse(
             request,
             "index.html",
@@ -117,7 +117,7 @@ async def server_detail(request: Request) -> HTMLResponse:
         )
 
     except (RuntimeError, ValueError, ConnectionError) as e:
-        logger.error(f"Error loading server details for {server_id}: {e}")
+        logger.exception(f"Error loading server details for {server_id}: {e}")
         return templates.TemplateResponse(
             request,
             "500.html",
@@ -162,7 +162,7 @@ async def delete_server(request: Request) -> RedirectResponse | HTMLResponse:
         return RedirectResponse(url="/", status_code=302)
 
     except (RuntimeError, ValueError, ConnectionError, IntegrityError) as e:
-        logger.error(f"Error deleting server {server_id}: {e}")
+        logger.exception(f"Error deleting server {server_id}: {e}")
         return templates.TemplateResponse(
             request, "500.html", {"message": "Error deleting server"}, status_code=500
         )
@@ -201,7 +201,7 @@ async def edit_server_get(request: Request) -> HTMLResponse:
         )
 
     except (RuntimeError, ValueError, ConnectionError) as e:
-        logger.error(f"Error loading server {server_id} for edit: {e}")
+        logger.exception(f"Error loading server {server_id} for edit: {e}")
         return templates.TemplateResponse(
             request,
             "500.html",
@@ -276,7 +276,7 @@ async def edit_server_post(request: Request) -> HTMLResponse:
                 logger.info(f'Server "{server.name}" rebuilt successfully after edit!')
 
             except (RuntimeError, ValueError, ConnectionError, OSError) as e:
-                logger.error(f"Failed to rebuild image for {server.name}: {e}")
+                logger.exception(f"Failed to rebuild image for {server.name}: {e}")
                 server.build_status = "failed"
                 server.build_error = str(e)
                 await db_session.commit()
@@ -314,7 +314,7 @@ async def edit_server_post(request: Request) -> HTMLResponse:
         ValidationError,
         IntegrityError,
     ) as e:
-        logger.error(f"Error updating server {server_id}: {e}")
+        logger.exception(f"Error updating server {server_id}: {e}")
         return templates.TemplateResponse(
             request,
             "500.html",
@@ -409,7 +409,7 @@ async def toggle_tool(request: Request) -> HTMLResponse:
         )
 
     except (RuntimeError, ValueError, ConnectionError, IntegrityError) as e:
-        logger.error(f"Error toggling tool {tool_id}: {e}")
+        logger.exception(f"Error toggling tool {tool_id}: {e}")
         return templates.TemplateResponse(
             request,
             "500.html",
@@ -423,7 +423,7 @@ async def handle_claude_connection_error(
 ) -> HTMLResponse:
     """Handle Claude analysis connection failures with fallback."""
     logger.warning(f"Claude analysis failed for {github_url}: {error}")
-    
+
     # Fallback to basic analysis if Claude fails
     analysis = {
         "name": "analyzed-server",
@@ -434,7 +434,7 @@ async def handle_claude_connection_error(
     }
 
     warning_msg = "Repository analysis failed. Please fill out the form manually."
-    
+
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
             request,
@@ -470,17 +470,13 @@ async def handle_claude_config_error(
         return templates.TemplateResponse(
             request,
             "partials/analysis_result.html",
-            get_template_context(
-                request, github_url=github_url, error=error_msg
-            ),
+            get_template_context(request, github_url=github_url, error=error_msg),
         )
     else:
         return templates.TemplateResponse(
             request,
             "servers/add.html",
-            get_template_context(
-                request, github_url=github_url, error=error_msg
-            ),
+            get_template_context(request, github_url=github_url, error=error_msg),
         )
 
 
@@ -495,17 +491,13 @@ async def handle_claude_unexpected_error(
         return templates.TemplateResponse(
             request,
             "partials/analysis_result.html",
-            get_template_context(
-                request, github_url=github_url, error=error_msg
-            ),
+            get_template_context(request, github_url=github_url, error=error_msg),
         )
     else:
         return templates.TemplateResponse(
             request,
             "servers/add.html",
-            get_template_context(
-                request, github_url=github_url, error=error_msg
-            ),
+            get_template_context(request, github_url=github_url, error=error_msg),
         )
 
 
@@ -572,9 +564,7 @@ async def handle_analyze_general_error(
 
 async def handle_analyze_repository(request: Request, form_data) -> HTMLResponse:
     """Handle repository analysis request."""
-    logger.info(
-        f"Analyze button clicked for URL: {form_data.get('github_url', '')}"
-    )
+    logger.info(f"Analyze button clicked for URL: {form_data.get('github_url', '')}")
     try:
         analyze_data = AnalyzeFormData(github_url=form_data.get("github_url", ""))
         logger.info("Form data validated successfully")
@@ -583,9 +573,7 @@ async def handle_analyze_repository(request: Request, form_data) -> HTMLResponse
         try:
             logger.info("Initializing AsyncClaudeAnalyzer...")
             analyzer = AsyncClaudeAnalyzer()
-            logger.info(
-                f"Starting repository analysis for: {analyze_data.github_url}"
-            )
+            logger.info(f"Starting repository analysis for: {analyze_data.github_url}")
             analysis = await analyzer.analyze_repository(analyze_data.github_url)
             logger.info("Analysis completed successfully")
 
@@ -612,19 +600,29 @@ async def handle_analyze_repository(request: Request, form_data) -> HTMLResponse
                 )
 
         except ConnectionError as e:
-            return await handle_claude_connection_error(request=request, github_url=analyze_data.github_url, error=e)
+            return await handle_claude_connection_error(
+                request=request, github_url=analyze_data.github_url, error=e
+            )
 
         except ValueError as e:
-            return await handle_claude_config_error(request=request, github_url=analyze_data.github_url, error=e)
+            return await handle_claude_config_error(
+                request=request, github_url=analyze_data.github_url, error=e
+            )
 
         except (RuntimeError, ValueError, ConnectionError, OSError) as e:
-            return await handle_claude_unexpected_error(request=request, github_url=analyze_data.github_url, error=e)
+            return await handle_claude_unexpected_error(
+                request=request, github_url=analyze_data.github_url, error=e
+            )
 
     except ValidationError as e:
-        return await handle_analyze_validation_error(request=request, form_data=form_data, error=e)
+        return await handle_analyze_validation_error(
+            request=request, form_data=form_data, error=e
+        )
 
     except (RuntimeError, ValueError, ConnectionError, ValidationError) as e:
-        return await handle_analyze_general_error(request=request, form_data=form_data, error=e)
+        return await handle_analyze_general_error(
+            request=request, form_data=form_data, error=e
+        )
 
 
 async def handle_save_server(request: Request, form_data) -> HTMLResponse:
@@ -668,9 +666,7 @@ async def handle_save_server(request: Request, form_data) -> HTMLResponse:
                 mcp_manager = get_mcp_manager(request)
                 if mcp_manager:
                     # Clean up any existing container before adding
-                    container_name = container_manager._get_container_name(
-                        server.id
-                    )
+                    container_name = container_manager._get_container_name(server.id)
                     container_manager._cleanup_existing_container(container_name)
                     discovered_tools = await mcp_manager.add_server(server)
                     await store_server_tools(db_session, server, discovered_tools)
@@ -678,7 +674,7 @@ async def handle_save_server(request: Request, form_data) -> HTMLResponse:
                 logger.info(f'Server "{server.name}" added and built successfully!')
 
             except (RuntimeError, ValueError, ConnectionError, OSError) as e:
-                logger.error(f"Failed to build image for {server.name}: {e}")
+                logger.exception(f"Failed to build image for {server.name}: {e}")
                 server.build_status = "failed"
                 server.build_error = str(e)
                 await db_session.commit()
@@ -721,7 +717,7 @@ async def handle_save_server(request: Request, form_data) -> HTMLResponse:
         ValidationError,
         IntegrityError,
     ) as e:
-        logger.error(f"Error saving server: {e}")
+        logger.exception(f"Error saving server: {e}")
         return templates.TemplateResponse(
             request,
             "servers/add.html",

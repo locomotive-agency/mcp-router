@@ -6,7 +6,7 @@ the web UI correctly displays the transport mode in the dashboard.
 """
 
 from contextlib import asynccontextmanager
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

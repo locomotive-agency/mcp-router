@@ -7,9 +7,7 @@ from mcp_anywhere.logging_config import configure_logging, get_logger
 from mcp_anywhere.web.app import create_app
 
 
-async def run_http_server(
-    host: str = None, port: int = None
-) -> None:
+async def run_http_server(host: str = None, port: int = None) -> None:
     """Run the MCP Anywhere as an HTTP web server using uvicorn.
 
     Args:
@@ -21,7 +19,7 @@ async def run_http_server(
         host = Config.DEFAULT_HOST
     if port is None:
         port = Config.DEFAULT_PORT
-    
+
     # Configure logging for HTTP server mode
     configure_logging(
         log_level=Config.LOG_LEVEL,
@@ -33,14 +31,18 @@ async def run_http_server(
     logger = get_logger(__name__)
     logger.info("Starting MCP Anywhere Server with HTTP transport")
     logger.info(f"Web UI: http://{host}:{port}/")
-    logger.info(f"MCP Endpoint: http://{host}:{port}{Config.MCP_PATH_MOUNT} (with OAuth)")
+    logger.info(
+        f"MCP Endpoint: http://{host}:{port}{Config.MCP_PATH_MOUNT} (with OAuth)"
+    )
 
     try:
         # Create the Starlette application with http transport mode
         app = await create_app(transport_mode="http")
 
         # Create uvicorn server configuration
-        config = uvicorn.Config(app, host=host, port=port, log_level=Config.LOG_LEVEL.lower())
+        config = uvicorn.Config(
+            app, host=host, port=port, log_level=Config.LOG_LEVEL.lower()
+        )
 
         # Create and run the server
         server = uvicorn.Server(config)

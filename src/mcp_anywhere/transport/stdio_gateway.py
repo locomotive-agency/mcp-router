@@ -62,9 +62,7 @@ async def run_connect_gateway() -> None:
         servers: list[MCPServer] = []
         async with AsyncSessionLocal() as session:
             # Read all configured servers
-            result = await session.execute(
-                select(MCPServer).where(MCPServer.is_active == True)
-            )
+            result = await session.execute(select(MCPServer).where(MCPServer.is_active))
             servers = result.scalars().all()
 
             # Eagerly load relationships to avoid lazy loading issues

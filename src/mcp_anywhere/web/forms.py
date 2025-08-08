@@ -1,4 +1,4 @@
-"""Pydantic models for form validation"""
+"""Pydantic models for form validation."""
 
 import re
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class ServerFormData(BaseModel):
-    """Form data for adding/editing MCP servers"""
+    """Form data for adding/editing MCP servers."""
 
     name: str = Field(..., min_length=2, max_length=100)
     github_url: str = Field(..., max_length=500)
@@ -51,7 +51,7 @@ class ServerFormData(BaseModel):
 
 
 class AnalyzeFormData(BaseModel):
-    """Form data for analyzing a GitHub repository"""
+    """Form data for analyzing a GitHub repository."""
 
     github_url: str = Field(..., max_length=500)
 

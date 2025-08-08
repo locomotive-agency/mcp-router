@@ -8,7 +8,6 @@ Supports:
 import json
 import os
 import shlex
-import time
 from typing import Any
 
 import docker
@@ -31,10 +30,10 @@ logger = get_logger(__name__)
 
 
 class ContainerManager:
-    """Manages container lifecycle with language-agnostic sandbox support"""
+    """Manages container lifecycle with language-agnostic sandbox support."""
 
-    def __init__(self):
-        """Initialize container manager for MCP servers"""
+    def __init__(self) -> None:
+        """Initialize container manager for MCP servers."""
         self.docker_host = Config.DOCKER_HOST
         # Get Python image from config
         self.python_image = Config.MCP_PYTHON_IMAGE
@@ -138,7 +137,7 @@ class ContainerManager:
             # Container doesn't exist, nothing to clean up
             logger.debug(f"No existing container found with name '{container_name}'")
         except APIError as e:
-            logger.error(
+            logger.exception(
                 f"Docker API error while cleaning up container '{container_name}': {e}"
             )
 
@@ -153,10 +152,10 @@ class ContainerManager:
                 self.docker_client.images.pull(image_name)
                 logger.info(f"Successfully pulled image '{image_name}'.")
             except (APIError, ConnectionError, OSError) as e:
-                logger.error(f"Failed to pull image '{image_name}': {e}")
+                logger.exception(f"Failed to pull image '{image_name}': {e}")
 
     def _get_env_vars(self, server: MCPServer) -> dict[str, str]:
-        """Extract environment variables from server configuration"""
+        """Extract environment variables from server configuration."""
         env_vars = {}
         for env_var in server.env_variables:
             if env_var.get("value"):
@@ -226,7 +225,7 @@ class ContainerManager:
 
         except ValueError as e:
             # shlex parsing failed (e.g., unmatched quotes)
-            logger.error(f"Failed to parse command '{cmd}': {e}")
+            logger.exception(f"Failed to parse command '{cmd}': {e}")
             # Fall back to simple split
             return cmd.split()
 
@@ -331,7 +330,7 @@ class ContainerManager:
             return image_tag
 
         except (APIError, OSError, RuntimeError) as e:
-            logger.error(f"Failed to build image for server {server.name}: {e}")
+            logger.exception(f"Failed to build image for server {server.name}: {e}")
             raise
 
     def load_default_servers(
@@ -355,10 +354,12 @@ class ContainerManager:
             return servers_config
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON file {json_file_path}: {e}")
+            logger.exception(f"Failed to parse JSON file {json_file_path}: {e}")
             raise
         except (FileNotFoundError, PermissionError, OSError) as e:
-            logger.error(f"Failed to load default servers from {json_file_path}: {e}")
+            logger.exception(
+                f"Failed to load default servers from {json_file_path}: {e}"
+            )
             raise
 
     async def ensure_default_servers(self, json_file_path: str | None = None) -> None:
@@ -399,7 +400,7 @@ class ContainerManager:
                 logger.info("Default servers ensured in database")
 
         except (RuntimeError, ValueError, OSError) as e:
-            logger.error(f"Failed to ensure default servers: {e}")
+            logger.exception(f"Failed to ensure default servers: {e}")
             raise
 
     async def initialize_and_build_servers(self) -> None:
@@ -421,7 +422,7 @@ class ContainerManager:
             self._ensure_image_exists(Config.MCP_PYTHON_IMAGE)
             logger.info("Base Docker images are available.")
         except (APIError, OSError, RuntimeError) as e:
-            logger.error(
+            logger.exception(
                 f"Failed to ensure base images: {e}. Please check your Docker setup."
             )
             raise
@@ -430,7 +431,7 @@ class ContainerManager:
         try:
             await self.ensure_default_servers()
         except (RuntimeError, ValueError, OSError) as e:
-            logger.error(f"Failed to ensure default servers: {e}")
+            logger.exception(f"Failed to ensure default servers: {e}")
             raise
 
         # 4. Find all active servers and ensure they are ready (reuse or rebuild)
@@ -471,7 +472,7 @@ class ContainerManager:
                             f"Server {server.name} build_status set to: {server.build_status}"
                         )
                     except (APIError, OSError, RuntimeError, ValueError) as e:
-                        logger.error(f"Failed to build {server.name}: {e}")
+                        logger.exception(f"Failed to build {server.name}: {e}")
                         server.build_status = "failed"
                         server.build_logs = str(e)
                         await session.commit()
@@ -509,6 +510,6 @@ class ContainerManager:
                             f"Successfully mounted server '{server.name}' with {len(discovered_tools)} tools"
                         )
                     except (RuntimeError, ValueError, ConnectionError) as e:
-                        logger.error(f"Failed to mount server '{server.name}': {e}")
+                        logger.exception(f"Failed to mount server '{server.name}': {e}")
         else:
             logger.info("No built servers to mount.")

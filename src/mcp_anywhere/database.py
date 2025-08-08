@@ -1,4 +1,4 @@
-"""Database models for MCP Anywhere with async support"""
+"""Database models for MCP Anywhere with async support."""
 
 import uuid
 from datetime import datetime
@@ -16,12 +16,12 @@ logger = get_logger(__name__)
 
 
 def generate_id() -> str:
-    """Generate a unique 8-character ID"""
+    """Generate a unique 8-character ID."""
     return str(uuid.uuid4())[:8]
 
 
 class MCPServer(Base):
-    """Model for MCP server configurations"""
+    """Model for MCP server configurations."""
 
     __tablename__ = "mcp_servers"
 
@@ -52,11 +52,11 @@ class MCPServer(Base):
         back_populates="server", cascade="all, delete-orphan"
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<MCPServer {self.name}>"
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation"""
+        """Convert to dictionary representation."""
         return {
             "id": self.id,
             "name": self.name,
@@ -75,7 +75,7 @@ class MCPServer(Base):
 
 
 class MCPServerTool(Base):
-    """Model for MCP server tools"""
+    """Model for MCP server tools."""
 
     __tablename__ = "mcp_server_tools"
 
@@ -94,18 +94,18 @@ class MCPServerTool(Base):
     # Relationship back to server
     server: Mapped["MCPServer"] = relationship(back_populates="tools")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<MCPServerTool {self.tool_name}>"
 
 
 class DatabaseManager:
     """Manages database engine and session factory lifecycle."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._engine = None
         self._session_factory = None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the async database."""
         if self._engine is None:
             # Create engine - use SQLALCHEMY_DATABASE_URI from config
@@ -131,7 +131,7 @@ class DatabaseManager:
             raise RuntimeError("Database not initialized. Call initialize() first.")
         return self._session_factory()
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the database connection."""
         if self._engine:
             await self._engine.dispose()
@@ -150,18 +150,18 @@ db_manager = DatabaseManager()
 
 
 # Database session management - backward compatibility functions
-async def init_db():
-    """Initialize the async database"""
+async def init_db() -> None:
+    """Initialize the async database."""
     await db_manager.initialize()
 
 
 def get_async_session() -> AsyncSession:
-    """Get an async database session"""
+    """Get an async database session."""
     return db_manager.get_session()
 
 
-async def close_db():
-    """Close the database connection"""
+async def close_db() -> None:
+    """Close the database connection."""
     await db_manager.close()
 
 
@@ -170,13 +170,13 @@ async def get_active_servers(session: AsyncSession | None = None) -> list[MCPSer
     """Get all active servers (async equivalent of Flask-SQLAlchemy function)."""
     if session:
         # Use provided session
-        stmt = select(MCPServer).where(MCPServer.is_active == True)
+        stmt = select(MCPServer).where(MCPServer.is_active)
         result = await session.execute(stmt)
         return result.scalars().all()
     else:
         # Create own session
         async with get_async_session() as session:
-            stmt = select(MCPServer).where(MCPServer.is_active == True)
+            stmt = select(MCPServer).where(MCPServer.is_active)
             result = await session.execute(stmt)
             return result.scalars().all()
 

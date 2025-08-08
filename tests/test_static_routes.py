@@ -7,7 +7,11 @@ from mcp_anywhere.web.app import create_app
 
 def _has_static_mount(app) -> bool:
     for route in app.routes:
-        if isinstance(route, Mount) and route.path == "/static" and isinstance(route.app, StaticFiles):
+        if (
+            isinstance(route, Mount)
+            and route.path == "/static"
+            and isinstance(route.app, StaticFiles)
+        ):
             return True
     return False
 
@@ -22,4 +26,3 @@ async def test_static_mount_present_in_http_mode():
 async def test_static_mount_present_in_stdio_mode():
     app = await create_app(transport_mode="stdio")
     assert _has_static_mount(app)
-

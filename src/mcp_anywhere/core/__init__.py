@@ -1,4 +1,4 @@
-"""Core MCP Anywhere functionality"""
+"""Core MCP Anywhere functionality."""
 
 from .mcp_manager import MCPManager
 

@@ -1,4 +1,4 @@
-"""MCP Manager for handling dynamic server mounting and unmounting"""
+"""MCP Manager for handling dynamic server mounting and unmounting."""
 
 from typing import Any
 
@@ -84,7 +84,7 @@ class MCPManager:
     add and remove MCP servers at runtime using FastMCP's mount() capability.
     """
 
-    def __init__(self, router: FastMCP):
+    def __init__(self, router: FastMCP) -> None:
         """Initialize the MCP manager with a router."""
         self.router = router
         self.mounted_servers: dict[str, FastMCP] = {}
@@ -138,7 +138,7 @@ class MCPManager:
             return await self._discover_server_tools(server_config.id)
 
         except (RuntimeError, ValueError, ConnectionError, OSError) as e:
-            logger.error(f"Failed to add server '{server_config.name}': {e}")
+            logger.exception(f"Failed to add server '{server_config.name}': {e}")
             raise
 
     def remove_server(self, server_id: str) -> None:
@@ -177,7 +177,7 @@ class MCPManager:
             )
 
         except (RuntimeError, ValueError, KeyError) as e:
-            logger.error(f"Failed to remove server '{server_id}': {e}")
+            logger.exception(f"Failed to remove server '{server_id}': {e}")
             raise
 
     async def _discover_server_tools(self, server_id: str) -> list[dict[str, Any]]:
@@ -208,5 +208,5 @@ class MCPManager:
             return discovered_tools
 
         except (RuntimeError, ValueError, ConnectionError, AttributeError) as e:
-            logger.error(f"Failed to discover tools for server '{server_id}': {e}")
+            logger.exception(f"Failed to discover tools for server '{server_id}': {e}")
             return []

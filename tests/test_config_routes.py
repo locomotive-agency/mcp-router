@@ -6,7 +6,7 @@ integration with Claude Desktop.
 """
 
 from contextlib import asynccontextmanager
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from starlette.testclient import TestClient

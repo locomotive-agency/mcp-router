@@ -38,11 +38,11 @@ class ToolFilterMiddleware(Middleware):
         """
         # Get the tools from the next middleware in the chain
         tools = await call_next(context)
-        
+
         try:
             disabled_tools = await self._get_disabled_tools_async()
         except Exception as exc:  # Do not fail tool listing on DB errors
-            logger.error(f"Tool filtering skipped due to DB error: {exc}")
+            logger.exception(f"Tool filtering skipped due to DB error: {exc}")
             return tools
 
         if not disabled_tools:
@@ -63,7 +63,7 @@ class ToolFilterMiddleware(Middleware):
         """
         disabled: set[str] = set()
         async with get_async_session() as db_session:
-            stmt = select(MCPServerTool.tool_name).where(MCPServerTool.is_enabled == False)
+            stmt = select(MCPServerTool.tool_name).where(not MCPServerTool.is_enabled)
             result = await db_session.execute(stmt)
             for name in result.scalars().all():
                 disabled.add(name)
@@ -95,7 +95,7 @@ class ToolFilterMiddleware(Middleware):
     @staticmethod
     def _get_tool_name(tool: Any) -> str:
         if hasattr(tool, "name"):
-            return getattr(tool, "name")
+            return tool.name
         if isinstance(tool, dict) and "name" in tool:
             return tool["name"]
         return ""

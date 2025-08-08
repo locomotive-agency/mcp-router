@@ -79,7 +79,7 @@ async def create_default_oauth_client(
     # Use Config.SERVER_URL for redirect_uri if not provided
     if redirect_uri is None:
         redirect_uri = f"{Config.SERVER_URL}/auth/callback"
-    
+
     if not db_session:
         async with get_async_session() as session:
             return await create_default_oauth_client(
@@ -143,7 +143,7 @@ async def initialize_oauth_data(
     # Use Config.SERVER_URL for redirect_uri if not provided
     if redirect_uri is None:
         redirect_uri = f"{Config.SERVER_URL}/auth/callback"
-    
+
     async with get_async_session() as db_session:
         # Create admin user
         admin_user = await create_default_admin_user(

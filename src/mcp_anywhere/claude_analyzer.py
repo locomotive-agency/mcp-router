@@ -1,4 +1,4 @@
-"""Analyzes GitHub repositories to extract MCP server configuration using Claude"""
+"""Analyzes GitHub repositories to extract MCP server configuration using Claude."""
 
 import asyncio
 import base64
@@ -21,9 +21,11 @@ logger = get_logger(__name__)
 
 
 class AsyncClaudeAnalyzer:
-    """Async version of ClaudeAnalyzer for use in async contexts"""
+    """Async version of ClaudeAnalyzer for use in async contexts."""
 
-    def __init__(self, api_key: str | None = None, github_token: str | None = None):
+    def __init__(
+        self, api_key: str | None = None, github_token: str | None = None
+    ) -> None:
         self.api_key = api_key or Config.ANTHROPIC_API_KEY
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY is required for AsyncClaudeAnalyzer")
@@ -71,7 +73,7 @@ class AsyncClaudeAnalyzer:
             # Re-raise connection errors
             raise
         except (RuntimeError, TypeError, ValueError) as e:
-            logger.error(f"Unexpected error fetching files: {e}")
+            logger.exception(f"Unexpected error fetching files: {e}")
             raise ConnectionError(f"Failed to fetch files from GitHub: {e}")
 
         prompt = self._build_prompt(github_url, readme, package_json, pyproject)
@@ -80,7 +82,7 @@ class AsyncClaudeAnalyzer:
             analysis_text = await self._call_claude_api(prompt)
             return self._parse_claude_response(analysis_text)
         except AnthropicError as e:
-            logger.error(f"Claude API error: {e}")
+            logger.exception(f"Claude API error: {e}")
             raise ConnectionError(f"Failed to get analysis from Claude: {e}")
 
     @retry(
@@ -89,7 +91,7 @@ class AsyncClaudeAnalyzer:
         retry=retry_if_exception_type((AnthropicError,)),
     )
     async def _call_claude_api(self, prompt: str) -> str:
-        """Call Claude API with retry logic"""
+        """Call Claude API with retry logic."""
         # Run the synchronous Claude API call in a thread pool
         loop = asyncio.get_event_loop()
         message = await loop.run_in_executor(

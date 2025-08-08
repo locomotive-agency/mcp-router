@@ -22,7 +22,7 @@ class BasePathProtectionMiddleware(BaseHTTPMiddleware):
         app: ASGIApp,
         protected_paths: list[str] = None,
         skip_paths: list[str] = None,
-    ):
+    ) -> None:
         """Initialize base path protection middleware.
 
         Args:

@@ -8,7 +8,6 @@ from mcp_anywhere.auth.token_verifier import TokenVerifier
 from mcp_anywhere.core.base_middleware import BasePathProtectionMiddleware
 from mcp_anywhere.logging_config import get_logger
 
-
 logger = get_logger(__name__)
 
 
@@ -22,7 +21,7 @@ class JWTAuthMiddleware(BasePathProtectionMiddleware):
         protected_paths: list[str] = None,
         required_scopes: list[str] = None,
         skip_paths: list[str] = None,
-    ):
+    ) -> None:
         """Initialize JWT authentication middleware.
 
         Args:

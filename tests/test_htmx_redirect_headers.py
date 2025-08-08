@@ -24,7 +24,7 @@ def test_htmx_redirect_logic():
     mock_request.headers.get.return_value = None  # No HX-Request header
 
     if mock_request.headers.get("HX-Request"):
-        assert False, "Should not reach this branch for non-HTMX requests"
+        raise AssertionError("Should not reach this branch for non-HTMX requests")
     else:
         # Would return RedirectResponse in actual code
         redirect_url = "/servers/test-id"

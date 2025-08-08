@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class TokenVerifier:
     """JWT token verifier for OAuth 2.0 access tokens."""
 
-    def __init__(self, secret_key: str | None = None):
+    def __init__(self, secret_key: str | None = None) -> None:
         """Initialize the token verifier.
 
         Args:
@@ -69,7 +69,7 @@ class TokenVerifier:
             return None
 
         except (KeyError, TypeError, ValueError) as e:
-            logger.error(f"Unexpected error during token verification: {str(e)}")
+            logger.exception(f"Unexpected error during token verification: {str(e)}")
             return None
 
     def extract_bearer_token(self, authorization_header: str | None) -> str | None:
@@ -112,7 +112,6 @@ class TokenVerifier:
             return None
 
         return self.verify(token)
-
 
     def has_all_scopes(
         self, token_payload: dict[str, Any], required_scopes: list

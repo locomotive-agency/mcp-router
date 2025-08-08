@@ -5,9 +5,9 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.types import ASGIApp
 
+from mcp_anywhere.config import Config
 from mcp_anywhere.core.base_middleware import BasePathProtectionMiddleware
 from mcp_anywhere.logging_config import get_logger
-from mcp_anywhere.config import Config
 
 logger = get_logger(__name__)
 
@@ -21,7 +21,7 @@ class SessionAuthMiddleware(BasePathProtectionMiddleware):
         protected_paths: list[str] = None,
         skip_paths: list[str] = None,
         login_url: str = "/auth/login",
-    ):
+    ) -> None:
         """Initialize session authentication middleware.
 
         Args:
@@ -101,7 +101,9 @@ class RedirectMiddleware(BaseHTTPMiddleware):
             return RedirectResponse(url=f"{Config.MCP_PATH_PREFIX}")
 
         # If it's a .well-known path with /mcp, strip it for correct routing
-        if ".well-known" in request.url.path and request.url.path.endswith(mcp_mount_path):
+        if ".well-known" in request.url.path and request.url.path.endswith(
+            mcp_mount_path
+        ):
             new_path = request.url.path[: -len(mcp_mount_path)]
             request.scope["path"] = new_path
 
@@ -109,7 +111,7 @@ class RedirectMiddleware(BaseHTTPMiddleware):
 
 
 class MCPAuthMiddleware(BaseHTTPMiddleware):
-    """ASGI middleware that handles authentication for MCP endpoints"""
+    """ASGI middleware that handles authentication for MCP endpoints."""
 
     async def dispatch(self, request: Request, call_next):
         # Only apply authentication to MCP endpoints (exact path or subpaths)
