@@ -513,3 +513,32 @@ class ContainerManager:
                         logger.exception(f"Failed to mount server '{server.name}': {e}")
         else:
             logger.info("No built servers to mount.")
+
+    async def cleanup_all_containers(self) -> None:
+        """Clean up all MCP server containers during shutdown."""
+        try:
+            # Get all active servers to find their container names
+            async with get_async_session() as session:
+                servers = await get_active_servers(session)
+                
+            if not servers:
+                logger.debug("No active servers found for cleanup.")
+                return
+                
+            logger.info(f"Cleaning up {len(servers)} server containers...")
+            
+            for server in servers:
+                container_name = self._get_container_name(server.id)
+                self._cleanup_existing_container(container_name)
+                
+            logger.info("Container cleanup complete.")
+            
+        except Exception as e:
+            logger.error(f"Error during container cleanup: {e}")
+        finally:
+            # Close docker client connection
+            try:
+                self.docker_client.close()
+                logger.debug("Docker client connection closed.")
+            except Exception as e:
+                logger.debug(f"Error closing docker client: {e}")

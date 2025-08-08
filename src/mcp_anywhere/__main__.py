@@ -7,12 +7,57 @@ including HTTP server, STDIO server, and client connection modes.
 import argparse
 import asyncio
 import shutil
+import signal
 import sys
+from typing import Optional
 
 from mcp_anywhere.config import Config
+from mcp_anywhere.container.manager import ContainerManager
+from mcp_anywhere.database import close_db
+from mcp_anywhere.logging_config import get_logger
 from mcp_anywhere.transport.http_server import run_http_server
 from mcp_anywhere.transport.stdio_gateway import run_connect_gateway
 from mcp_anywhere.transport.stdio_server import run_stdio_server
+
+logger = get_logger(__name__)
+
+# Global variable to track shutdown
+_shutdown_requested = False
+
+
+def setup_signal_handlers() -> None:
+    """Setup signal handlers for graceful shutdown."""
+    def signal_handler(signum: int, frame) -> None:
+        global _shutdown_requested
+        if not _shutdown_requested:
+            _shutdown_requested = True
+            logger.info("Shutdown requested. Cleaning up...")
+            # Create a task to handle cleanup
+            asyncio.create_task(cleanup_and_exit())
+
+    # Handle SIGINT (Ctrl+C)
+    signal.signal(signal.SIGINT, signal_handler)
+    # Handle SIGTERM (docker stop, etc)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+
+async def cleanup_and_exit() -> None:
+    """Perform cleanup tasks and exit gracefully."""
+    try:
+        # Clean up containers
+        container_manager = ContainerManager()
+        await container_manager.cleanup_all_containers()
+        
+        # Close database connections
+        await close_db()
+        logger.info("Database connections closed.")
+        
+        logger.info("Shutdown complete.")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+    finally:
+        # Force exit after cleanup
+        sys.exit(0)
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -143,6 +188,10 @@ async def main() -> None:
             reset_data(confirm=args.confirm)
             return
 
+        # Setup signal handlers for graceful shutdown (only for server modes)
+        if args.command == "serve":
+            setup_signal_handlers()
+
         # Handle serve command (asynchronous)
         if args.command == "serve":
             if args.transport == "http":
@@ -159,8 +208,20 @@ async def main() -> None:
             raise ValueError(f"Invalid command: {args.command}")
 
     except KeyboardInterrupt:
-        # Silent exit for all modes
-        pass
+        # Graceful shutdown message
+        if not _shutdown_requested:
+            print("\nShutting down...")
+            try:
+                # Clean up containers
+                container_manager = ContainerManager()
+                await container_manager.cleanup_all_containers()
+                
+                # Close database connections
+                await close_db()
+                print("Database connections closed.")
+                print("Shutdown complete.")
+            except Exception as e:
+                logger.error(f"Error during cleanup: {e}")
 
     except (ValueError, RuntimeError, ConnectionError) as e:
         # Only show errors for non-connect modes
