@@ -1,184 +1,240 @@
-# MCP Router (Alpha)
+# MCP Anywhere
 
-🚀 **Load any tools from GitHub → Configure API keys → Select tools → Use anywhere**
+A unified gateway for Model Context Protocol (MCP) servers that enables discovery, configuration, and access to tools from GitHub repositories through a single endpoint.
 
-A unified gateway for Model Context Protocol (MCP) servers that lets you discover, configure, and access tools from any GitHub repository through a single endpoint.
+> **Current Version**: 0.8.0  
+> **Note**: This project is in alpha. APIs and features are subject to change.
 
-> ⚠️ **Alpha Software**: This project is in active development. APIs may change, and some features are experimental.
+## Overview
 
-## What is MCP Router?
+MCP Anywhere provides:
+- Automatic tool discovery from GitHub repositories
+- Centralized API key and credential management
+- Selective tool enablement and access control
+- Unified endpoint for all MCP tools
+- Docker-based isolation for secure execution
 
-MCP Router simplifies using AI tools by:
-- **Auto-discovering tools** from any GitHub repository
-- **Managing API keys** and credentials in one place  
-- **Selective tool access** - enable only what you need
-- **Single endpoint** for all your tools (no more juggling configs)
-- **Docker isolation** for secure tool execution
+## Installation
 
-## Quick Start
-
-### 🏃 Run Locally (2 minutes)
+### Local Installation
 
 ```bash
-# Clone and setup
-git clone https://github.com/locomotive-agency/mcp-router.git
-cd mcp-router
-pip install -r requirements.txt
+# Clone repository
+git clone https://github.com/locomotive-agency/mcp-anywhere.git
+cd mcp-anywhere
 
-# Configure (minimal setup)
+# Install with uv (recommended)
+uv sync
+
+# Or install with pip
+pip install -e .
+
+# Configure environment
 cp env.example .env
-# Edit .env - just add:
-# ADMIN_PASSCODE=changeme123  (min 8 chars)
-# ANTHROPIC_API_KEY=sk-ant-...  (for GitHub analysis)
+# Edit .env with required values:
+# SECRET_KEY=<secure-random-key>
+# ANTHROPIC_API_KEY=<your-api-key>
 
-# Run it!
-python -m mcp_router
-# Open http://localhost:8000
+# Start server
+mcp-anywhere serve http
+# Or: python -m mcp_anywhere serve http
+# Access at http://localhost:8000
 ```
 
-### 🚀 Deploy to Fly.io (5 minutes)
+### Production Deployment (Fly.io)
 
 ```bash
 # Install Fly CLI
 curl -L https://fly.io/install.sh | sh
 
-# Deploy
-cd mcp-router
-fly launch  # Follow prompts
-fly secrets set ADMIN_PASSCODE=your-secure-password
-fly secrets set ANTHROPIC_API_KEY=sk-ant-your-key
+# Deploy application
+cd mcp-anywhere
+fly launch
+fly secrets set SECRET_KEY=<secure-random-key>
+fly secrets set JWT_SECRET_KEY=<jwt-secret-key>
+fly secrets set ANTHROPIC_API_KEY=<your-api-key>
 fly deploy
 
-# Done! Access at https://your-app.fly.dev
+# Application available at https://your-app.fly.dev
 ```
 
-## How It Works
+## Usage
 
-### 1. Add Tools from GitHub
+### Adding Tools from GitHub
 
-Navigate to the web UI and paste any MCP server GitHub URL:
-- `https://github.com/modelcontextprotocol/servers` (official tools)
-- `https://github.com/yzfly/mcp-python-interpreter` (Python sandbox)
-- Any repository with MCP tools!
+Use the web interface to add MCP server repositories:
+- Official MCP servers: `https://github.com/modelcontextprotocol/servers`
+- Python interpreter: `https://github.com/yzfly/mcp-python-interpreter`
+- Any compatible MCP repository
 
-Claude automatically analyzes the repo and configures it for you.
+The system uses Claude AI to automatically analyze and configure repositories.
 
-### 2. Configure Your Tools
+### Configuration
 
-- **API Keys**: Store once, use everywhere
-- **Toggle Tools**: Enable/disable specific tools
-- **Docker Settings**: Automatic containerization for security
+- **API Keys**: Centralized credential storage
+- **Tool Management**: Enable or disable specific tools
+- **Container Settings**: Automatic Docker containerization
 
-### 3. Connect Your Client
+### Client Integration
 
-**For Claude Desktop:**
+**Claude Desktop Configuration:**
 ```json
 {
   "mcpServers": {
-    "mcp-router": {
-      "command": "python",
-      "args": ["-m", "mcp_router", "--transport", "stdio"]
+    "mcp-anywhere": {
+      "command": "mcp-anywhere",
+      "args": ["connect"]
     }
   }
 }
 ```
 
-**For Production (API):**
+**HTTP API Integration:**
 ```python
 from fastmcp import Client
 from fastmcp.client.auth import BearerAuth
 
 async with Client(
     "https://your-app.fly.dev/mcp/",
-    auth=BearerAuth(token="your-api-key")
+    auth=BearerAuth(token="<oauth-token>")
 ) as client:
     tools = await client.list_tools()
 ```
 
-## Key Features
+**Command Line Interface:**
+```bash
+# For MCP client connection
+mcp-anywhere connect
+# Or: python -m mcp_anywhere connect
 
-### 🔧 Tool Discovery
-- Automatic GitHub repository analysis
-- Support for npx, uvx, and Docker-based tools
-- Pre-configured with Python interpreter
+# For STDIO server mode (local Claude Desktop integration)
+mcp-anywhere serve stdio
 
-### 🔒 Security
-- Docker isolation for each tool
-- OAuth 2.1 and API key authentication
-- Selective tool enabling
+# For HTTP server mode with OAuth (production)
+mcp-anywhere serve http --host 0.0.0.0 --port 8000
+```
 
-### 🌐 Deployment Ready
-- Single-command Fly.io deployment
-- Built-in web UI for management
-- Production-ready HTTP transport
+## Features
+
+### Tool Discovery and Management
+- Automatic repository analysis using Claude AI
+- Container health monitoring with intelligent remounting
+- Support for npx, uvx, and Docker runtimes
+- Selective tool enablement
+- Pre-configured Python interpreter
+
+### Security and Authentication
+- OAuth 2.0/2.1 with PKCE support (MCP SDK implementation)
+- JWT-based API authentication
+- Docker container isolation for tool execution
+- Session-based authentication for web interface
+
+### Production Architecture
+- Asynchronous architecture (Starlette/FastAPI)
+- Health monitoring with automatic recovery
+- Streamlined deployment process
+- CLI support for direct tool access
 
 ## Architecture
 
 ```
-Your App → MCP Router → Docker Containers → Individual Tools
-            ↓
-         Web UI (manage tools, keys, access)
+Client Application → MCP Anywhere Gateway → Docker Containers → MCP Tools
+                            ↓
+                    Web Management Interface
 ```
 
 ## Contributing
 
-We need help with:
+Areas for contribution:
 
-### 1. 🔐 OAuth Authentication
-- Current implementation in `src/mcp_router/mcp_oauth.py`
-- Need: Production-ready token storage (Redis/DB)
-- Need: Additional OAuth providers beyond basic flow
-- Need: Refresh token implementation
+### Authentication Enhancement
+**Implemented:**
+- MCP SDK OAuth 2.0 with PKCE support
 
-### 2. ⚡ Starlette/Async Optimization
-- Current ASGI app in `src/mcp_router/asgi.py`
-- Need: Better async patterns for tool discovery
-- Need: WebSocket support for real-time updates
-- Need: Performance optimization for concurrent requests
+**Needed:**
+- Refresh token implementation
+- Additional OAuth provider integrations
+- Production-grade token storage (Redis/PostgreSQL)
 
-### 3. 🐳 Docker Optimization
-- Current implementation in `src/mcp_router/container_manager.py`
-- Need: Container pooling for faster startup
-- Need: Resource limits and monitoring
-- Need: Multi-architecture image support
+### Performance and Scaling
+**Implemented:**
+- Asynchronous Starlette/FastAPI architecture
+- Container health monitoring and remounting
 
-## Environment Variables
+**Needed:**
+- WebSocket support for real-time updates
+- Container pooling for improved startup times
+- Multi-region deployment capabilities
 
+### Container Optimization
+**Implemented:**
+- Container reuse with health checks
+- Docker isolation with resource limits
+
+**Needed:**
+- Multi-architecture support (ARM64)
+- Container registry caching
+- Advanced resource monitoring
+
+## Configuration
+
+### Required Environment Variables
 ```bash
-# Required
-ADMIN_PASSCODE=changeme123       # Web UI password (min 8 chars)
-ANTHROPIC_API_KEY=sk-ant-...     # For GitHub repo analysis
+SECRET_KEY                  # Session encryption key
+ANTHROPIC_API_KEY          # Claude API key for repository analysis
+```
 
-# Optional
-MCP_AUTH_TYPE=api_key           # or "oauth" 
-FLASK_PORT=8000                 # Web UI port
-DOCKER_TIMEOUT=300              # Container operation timeout
+### Optional Environment Variables
+```bash
+JWT_SECRET_KEY             # JWT token signing key (defaults to SECRET_KEY)
+WEB_PORT                   # Web interface port (default: 8000)
+DATA_DIR                   # Data storage directory (default: .data)
+DOCKER_TIMEOUT             # Container operation timeout in seconds (default: 300)
+LOG_LEVEL                  # Logging level (default: INFO)
+GITHUB_TOKEN               # GitHub token for private repository access
 ```
 
 ## Development
 
+### Development Setup
 ```bash
+# Install development dependencies
+uv sync --group dev
+
 # Run tests
-pytest
+uv run pytest
 
-# Run with debug logging
-LOG_LEVEL=DEBUG python -m mcp_router
+# Run linting
+uv run ruff check src/ tests/
 
-# Clear database for fresh start
-python -m mcp_router --clear-db
+# Run type checking
+uv run mypy src/
+```
+
+### Testing
+```bash
+# Run all tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov=mcp_anywhere
+```
+
+### Debug Mode
+```bash
+LOG_LEVEL=DEBUG mcp-anywhere serve http
+```
+
+### Data Reset
+```bash
+mcp-anywhere reset --confirm
 ```
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/locomotive-agency/mcp-router/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/locomotive-agency/mcp-router/discussions)
+- [GitHub Issues](https://github.com/locomotive-agency/mcp-anywhere/issues)
+- [GitHub Discussions](https://github.com/locomotive-agency/mcp-anywhere/discussions)
 
 ## License
 
 See [LICENSE](LICENSE)
-
----
-
-**Made with ❤️ by the MCP Router Team**
-
-*Want to contribute? Check out our [contribution areas](#contributing) above!*

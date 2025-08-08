@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MCP Anywhere{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="/static/app.css">
+    <meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
+</head>
+<body class="bg-gray-50">
+    <nav class="bg-white shadow-md border-b border-gray-200">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="/" class="flex items-center logo-container">
+                        <img src="/static/MCPanywhere.svg" alt="MCP Anywhere" class="logo-svg">
+                    </a>
+                </div>
+                
+                <!-- Mobile Menu -->
+                <div class="flex items-center space-x-2 sm:hidden">
+                    <a href="/servers/add" class="btn-primary inline-flex items-center px-3 py-2 rounded-lg transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        <span class="ml-1">Add</span>
+                    </a>
+                    <button class="mobile-menu-toggle p-2 text-gray-600 hover:text-gray-900" onclick="toggleMobileMenu()">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Desktop Menu -->
+                <div class="hidden sm:flex items-center space-x-6">
+                    <a href="/" class="text-gray-600 hover:text-gray-900 font-medium transition-colors">
+                        Dashboard
+                    </a>
+                    <a href="/servers/add" class="btn-primary inline-flex items-center px-4 py-2 rounded-lg transition-colors shadow-md hover:shadow-lg">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Add Server
+                    </a>
+                    {% if current_user is defined and current_user.is_authenticated %}
+                    <div class="flex items-center space-x-3">
+                        <form method="POST" action="/auth/logout" class="inline">
+                            <button type="submit" 
+                                    class="inline-flex items-center text-gray-600 hover:text-gray-900 font-medium transition-colors">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                                Logout
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <a href="/auth/login" class="inline-flex items-center text-gray-600 hover:text-gray-900 font-medium transition-colors">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
+                        </svg>
+                        Login
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Mobile Menu Dropdown -->
+            <div id="mobile-menu" class="hidden sm:hidden border-t border-gray-200 py-3">
+                <div class="space-y-3">
+                    <a href="/" class="block text-gray-600 hover:text-gray-900 font-medium transition-colors">
+                        Dashboard
+                    </a>
+                    {% if current_user is defined and current_user.is_authenticated %}
+                    <form method="POST" action="/auth/logout" class="inline">
+                        <button type="submit" 
+                                class="flex items-center text-gray-600 hover:text-gray-900 font-medium transition-colors">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                            </svg>
+                            Logout
+                        </button>
+                    </form>
+                    {% else %}
+                    <a href="/auth/login" class="flex items-center text-gray-600 hover:text-gray-900 font-medium transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
+                        </svg>
+                        Login
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto py-6 px-4">
+        {# Flash messages - will be implemented later if needed #}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="mt-auto py-6 px-4 text-center text-gray-500 text-sm">
+                    <p class="break-words">MCP Anywhere - Unified gateway for Model Context Protocol servers</p>
+    </footer>
+
+    {% block scripts %}
+    <script>
+        document.body.addEventListener('htmx:configRequest', function(evt) {
+            evt.detail.headers['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        });
+    </script>
+    {% endblock %}
+
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                console.log('Async: Copying to clipboard was successful!');
+            }, function(err) {
+                console.error('Async: Could not copy text: ', err);
+            });
+        }
+        
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        }
+        
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('mobile-menu');
+            const menuToggle = document.querySelector('.mobile-menu-toggle');
+            
+            if (menu && !menu.contains(event.target) && !menuToggle.contains(event.target)) {
+                menu.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html> 

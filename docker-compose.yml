@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./.data:/app/.data # Persist application data
+    env_file:
+      - .env
+    # depends_on:
+    #   - db # Remove if not using Postgres

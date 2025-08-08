@@ -2,7 +2,7 @@
   "mcpServers": {
       "default-server": {
           "type": "streamable-http",
-          "url": "https://mcp-router-withered-resonance-1726.fly.dev/mcp",
+          "url": "https://mcp-anywhere-withered-resonance-1726.fly.dev/mcp",
           "note": "For Streamable HTTP connections, add this URL directly in your MCP Client"
       }
   }

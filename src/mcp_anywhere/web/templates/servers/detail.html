@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}{{ server.name }} - MCP Anywhere{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex-1">
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ server.name }}</h1>
+                <p class="mt-2 text-gray-600">{{ server.description or "No description provided" }}</p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <a href="/servers/{{ server.id }}/edit" 
+                   class="btn-primary inline-flex items-center justify-center px-4 py-2 rounded-lg transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                    Edit Server
+                </a>
+                <form method="POST" action="/servers/{{ server.id }}/delete" 
+                      onsubmit="return confirm('Are you sure you want to delete this server?')"
+                      class="inline">
+                    <button type="submit" 
+                            class="inline-flex items-center justify-center w-full bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        Delete Server
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server Information Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- Status Information -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold mb-4">Status</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Server Status:</span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                        {% if server.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                        {% if server.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Build Status:</span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if server.build_status == 'built' %}bg-blue-100 text-blue-800{% elif server.build_status == 'building' %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                        {{ server.build_status.title() }}
+                    </span>
+                </div>
+                {% if server.build_error %}
+                <div class="p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p class="text-sm text-red-700">{{ server.build_error }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Configuration Information -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold mb-4">Configuration</h3>
+            <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                    <span class="text-gray-600 font-medium">Runtime Type:</span>
+                    <span class="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{{ server.runtime_type }}</span>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                    <span class="text-gray-600 font-medium">GitHub URL:</span>
+                    <a href="{{ server.github_url }}" target="_blank" 
+                       class="text-blue-600 hover:text-blue-800 text-sm break-all">
+                        {{ server.github_url.split('/')[-1] }}
+                    </a>
+                </div>
+                {% if server.image_tag %}
+                <div class="flex flex-col gap-1">
+                    <span class="text-gray-600 font-medium">Docker Image:</span>
+                    <span class="font-mono text-sm bg-gray-100 px-2 py-1 rounded break-all">{{ server.image_tag }}</span>
+                </div>
+                {% endif %}
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                    <span class="text-gray-600 font-medium">Created:</span>
+                    <span class="text-sm">{{ server.created_at.strftime('%Y-%m-%d %H:%M:%S') if server.created_at else 'Unknown' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Commands Section -->
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <h3 class="text-lg font-semibold mb-4">Commands</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Install Command</label>
+                {% if server.install_command %}
+                    <div class="bg-gray-100 p-3 rounded-md font-mono text-sm">{{ server.install_command }}</div>
+                {% else %}
+                    <div class="text-gray-500 italic">None</div>
+                {% endif %}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Start Command</label>
+                <div class="bg-gray-100 p-3 rounded-md font-mono text-sm">{{ server.start_command }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Environment Variables Section -->
+    {% if server.env_variables %}
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <h3 class="text-lg font-semibold mb-4">Environment Variables</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Key</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for env_var in server.env_variables %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{{ env_var.key }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{{ env_var.value or "(empty)" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ env_var.description or "No description" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tools Section -->
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-semibold">Available Tools</h3>
+            <span class="text-sm text-gray-500">{{ tools|length if tools else 0 }} tool(s)</span>
+        </div>
+        
+        {% if tools %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tool Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Enabled</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for tool in tools %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{{ tool.tool_name }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ tool.tool_description or "No description" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            {% with server_id = server.id %}
+                                {% include "partials/tool_toggle.html" %}
+                            {% endwith %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 7.172V5L8 4z"></path>
+            </svg>
+            <h3 class="mt-4 text-lg font-medium text-gray-900">No tools discovered yet</h3>
+            <p class="mt-2 text-sm text-gray-500">Tools will appear here once the server is built and running.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Back Navigation -->
+    <div class="flex justify-start">
+        <a href="/" 
+           class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+
+{% endblock %}

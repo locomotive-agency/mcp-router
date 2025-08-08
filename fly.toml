@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for mcp-router-withered-resonance-1726 on 2025-06-30T16:54:32-04:00
+# fly.toml app configuration file generated for mcp-anywhere-withered-resonance-1726 on 2025-06-30T16:54:32-04:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'mcp-router-withered-resonance-1726'
+app = 'mcp-anywhere-withered-resonance-1726'
 primary_region = 'iad'
 kill_signal = 'SIGINT'
 kill_timeout = '5s'
@@ -12,16 +12,15 @@ kill_timeout = '5s'
   dockerfile = 'Dockerfile'
 
 [env]
-  DATABASE_URL = 'sqlite:////data/mcp_router.db'
+  DATA_DIR = '/.data'
   DOCKER_HOST = 'unix:///var/run/docker.sock'
-  FLASK_PORT = '8000'
-  MCP_HOST = '0.0.0.0'
-  MCP_AUTH_TYPE = 'oauth'
-  MCP_TRANSPORT = 'http'
+  WEB_PORT = '8000'
+  MCP_PATH = '/mcp'
+  LOG_LEVEL = 'INFO'
 
 [[mounts]]
-  source = 'mcp_router_data'
-  destination = '/data'
+  source = 'mcp_anywhere_data'
+  destination = '/.data'
 
 [http_service]
   internal_port = 8000
@@ -58,7 +57,7 @@ kill_timeout = '5s'
 # No separate service needed due to the new dual transport architecture
 
 [processes]
-  app = 'tini -s -- python -m mcp_router --clear-db'
+  app = 'python -m mcp_anywhere serve http'
 
 [[vm]]
   memory = '4gb'

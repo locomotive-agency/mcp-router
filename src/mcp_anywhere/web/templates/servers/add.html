@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block title %}Add New Server - MCP Anywhere{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <h2 class="text-2xl font-bold mb-6">Add MCP Server</h2>
+    
+    {% if error %}
+        <div class="mb-4 p-4 rounded-md bg-red-100 text-red-700">
+            <p class="font-medium">Error analyzing repository:</p>
+            <p class="text-sm mt-1">{{ error }}</p>
+        </div>
+    {% endif %}
+    
+    {% if warning %}
+        <div class="mb-4 p-4 rounded-md bg-yellow-100 text-yellow-700">
+            <p class="font-medium">Warning:</p>
+            <p class="text-sm mt-1">{{ warning }}</p>
+        </div>
+    {% endif %}
+    
+    {% if analysis %}
+        <div class="mb-4 p-4 rounded-md bg-green-100 text-green-700">
+            <p class="font-medium">Repository Analysis Complete!</p>
+            <p class="text-sm mt-1">Found: {{ analysis.description or "No description available" }}</p>
+            <p class="text-sm">Recommended runtime: {{ analysis.runtime_type or "Not detected" }}</p>
+        </div>
+    {% endif %}
+    
+    <form method="POST" action="/servers/add" class="space-y-6">
+        <!-- Step 1: GitHub URL Analysis -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-medium mb-4">Step 1: Analyze Repository</h3>
+            <p class="text-sm text-gray-600 mb-4">
+                Enter a GitHub repository URL and we'll analyze it with Claude to extract the MCP server configuration.
+            </p>
+            
+            <div class="mb-4">
+                <label for="github_url" class="block text-sm font-medium mb-2">GitHub URL</label>
+                <input type="url" 
+                       id="github_url"
+                       name="github_url" 
+                       value="{{ github_url or '' }}"
+                       class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                       placeholder="https://github.com/owner/repo" 
+                       required>
+                <p class="text-xs text-gray-500 mt-1">URL to the GitHub repository containing the MCP server</p>
+                {% if errors and errors.github_url %}
+                    <p class="text-red-600 text-sm mt-1">{{ errors.github_url[0] }}</p>
+                {% endif %}
+            </div>
+            
+            <!-- Patience Note -->
+            <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 text-yellow-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                    <p class="text-sm text-yellow-700">
+                        <strong>Please be patient:</strong> Adding a new server may take several minutes as we analyze the repository, build the Docker image, and discover available tools.
+                    </p>
+                </div>
+            </div>
+            
+            <button type="submit" 
+                    name="analyze" 
+                    id="analyze-btn"
+                    hx-post="/servers/add"
+                    hx-target="#analysis-results"
+                    hx-include="[name='github_url']"
+                    hx-indicator="#analyze-btn .htmx-indicator"
+                    class="btn-primary px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 flex items-center" style="--tw-ring-color: var(--mint-dark);">
+                <svg class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
+                <div class="htmx-indicator hidden inline w-4 h-4 mr-2 animate-spin">
+                    <svg viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+                <span>Analyze with Claude</span>
+            </button>
+        </div>
+        
+        <!-- Analysis Results (HTMX Target) -->
+        <div id="analysis-results">
+            {% if analysis %}
+            <!-- Step 2: Configuration Form -->
+            <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-medium mb-4">Step 2: Configure Server</h3>
+            <p class="text-sm text-gray-600 mb-4">
+                Review and adjust the configuration extracted from the repository.
+            </p>
+            
+            <div class="grid grid-cols-1 gap-4">
+                <div>
+                    <label for="name" class="block text-sm font-medium mb-2">Name</label>
+                    <input type="text" 
+                           id="name"
+                           name="name" 
+                           value="{{ analysis.name or '' }}"
+                           class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                           placeholder="my-mcp-server"
+                           required>
+                    <p class="text-xs text-gray-500 mt-1">Unique name for this server</p>
+                    {% if errors and errors.name %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.name[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="description" class="block text-sm font-medium mb-2">Description</label>
+                    <textarea id="description"
+                              name="description" 
+                              rows="2"
+                              class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Brief description of what this server does...">{{ analysis.description or '' }}</textarea>
+                    {% if errors and errors.description %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.description[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="runtime_type" class="block text-sm font-medium mb-2">Runtime</label>
+                    <select id="runtime_type"
+                            name="runtime_type" 
+                            class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required>
+                        <option value="">Select runtime type...</option>
+                        <option value="npx" {% if analysis.runtime_type == 'npx' %}selected{% endif %}>
+                            Node.js (npx)
+                        </option>
+                        <option value="uvx" {% if analysis.runtime_type == 'uvx' %}selected{% endif %}>
+                            Python (uvx)
+                        </option>
+                        <option value="docker" {% if analysis.runtime_type == 'docker' %}selected{% endif %}>
+                            Docker
+                        </option>
+                    </select>
+                    {% if errors and errors.runtime_type %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.runtime_type[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="install_command" class="block text-sm font-medium mb-2">
+                        Install Command 
+                        <span class="text-gray-500 font-normal">(optional)</span>
+                    </label>
+                    <input type="text" 
+                           id="install_command"
+                           name="install_command" 
+                           value="{{ analysis.install_command or '' }}"
+                           class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="npm install or pip install -e .">
+                    <p class="text-xs text-gray-500 mt-1">Command to install the server package (required for npx/uvx)</p>
+                    {% if errors and errors.install_command %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.install_command[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="start_command" class="block text-sm font-medium mb-2">Start Command</label>
+                    <input type="text" 
+                           id="start_command"
+                           name="start_command" 
+                           value="{{ analysis.start_command or '' }}"
+                           class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                           placeholder="npx mcp-server or python -m mcp_server"
+                           required>
+                    <p class="text-xs text-gray-500 mt-1">Command to start the MCP server</p>
+                    {% if errors and errors.start_command %}
+                        <p class="text-red-600 text-sm mt-1">{{ errors.start_command[0] }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Environment Variables -->
+            {% if analysis.env_variables %}
+            <div class="mt-6">
+                <h4 class="text-md font-medium mb-3">Environment Variables</h4>
+                <div class="space-y-3">
+                    {% for env in analysis.env_variables %}
+                    <div class="bg-gray-50 p-3 rounded-md">
+                        <div class="grid grid-cols-1 gap-2">
+                            <div class="flex items-center justify-between">
+                                <label class="text-sm font-medium">
+                                    {{ env.key }}
+                                    {% if env.get('required', True) %}
+                                        <span class="text-red-500">*</span>
+                                    {% endif %}
+                                </label>
+                                <input type="hidden" name="env_keys[]" value="{{ env.key }}">
+                            </div>
+                            <input type="password" 
+                                   name="env_value_{{ env.key }}"
+                                   class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                                   placeholder="Enter value">
+                            <p class="text-xs text-gray-500">{{ env.description }}</p>
+                            <input type="hidden" name="env_desc_{{ env.key }}" value="{{ env.description }}">
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="mt-6 flex justify-end space-x-3">
+                <a href="/" 
+                   class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        name="save"
+                        id="save-btn"
+                        class="btn-success px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 flex items-center" style="--tw-ring-color: var(--mint-green);">
+                    <svg id="save-icon" class="inline w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <svg id="save-spinner" class="hidden inline w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span id="save-text">Add Server</span>
+                </button>
+            </div>
+            </div>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<script>
+// Handle Add Server button loading state (Analyze button uses HTMX)
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    
+    // HTMX now handles form submission for save button
+    form.addEventListener('submit', function(event) {
+        // Only handle non-HTMX submissions if needed
+    });
+});
+
+// Environment variable management functions
+function addEnvVar() {
+    const container = document.getElementById('env-vars-container');
+    const index = container.children.length;
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 mb-2';
+    div.innerHTML = `
+        <input type="text" name="env_key_${index}" placeholder="VARIABLE_NAME" class="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        <input type="text" name="env_value_${index}" placeholder="value" class="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        <button type="button" onclick="removeEnvVar(this)" class="px-3 py-2 text-red-600 hover:text-red-800">✕</button>
+    `;
+    container.appendChild(div);
+}
+
+function removeEnvVar(button) {
+    button.parentElement.remove();
+}
+</script>
+
+{% endblock %}

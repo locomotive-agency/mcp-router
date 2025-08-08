@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}MCP Anywhere - Dashboard{% endblock %}
+
+{% block content %}
+<!-- MCP Server Status Section -->
+<div class="mb-6" id="mcp-status">
+    <div class="bg-white rounded-lg shadow-md p-4">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-lg font-semibold">MCP Server Status</h3>
+                <div class="mt-2 flex items-center space-x-4">
+                    <span class="flex items-center">
+                        <span class="h-3 w-3 bg-green-500 rounded-full mr-2"></span>
+                        <span class="text-green-600 font-medium">Running</span>
+                    </span>
+                    <span class="text-gray-600">Transport: {{ transport_mode|upper }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="border-t pt-4">
+            <h4 class="text-sm font-semibold text-gray-700 mb-3">Connection Information</h4>
+            
+            {% if transport_mode == 'stdio' %}
+                <div class="space-y-3">
+                    <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <p class="text-sm text-green-800 mb-2">
+                            <strong>STDIO Mode Active</strong> - Ready for Claude Desktop integration
+                        </p>
+                        <div class="text-xs text-green-700">
+                            <div><strong>Command:</strong> <code class="bg-green-100 px-1 rounded">python3 -m mcp_anywhere connect</code></div>
+                            <div class="mt-2">
+                                <strong>Note:</strong> MCP communication happens over standard I/O. 
+                                The web UI is available for server management.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800 mb-2">
+                            <strong>Claude Desktop Configuration</strong>
+                        </p>
+                        <div class="text-xs text-blue-700 space-y-2">
+                            <div>Download the configuration file to integrate with Claude Desktop:</div>
+                            <div class="flex space-x-2">
+                                <a href="/config/download" 
+                                   class="btn-primary inline-flex items-center px-3 py-1 rounded text-xs">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    Download Config
+                                </a>
+                                <a href="/config/view" target="_blank"
+                                   class="inline-flex items-center px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
+                                    View Config
+                                </a>
+                                <a href="/config/instructions" target="_blank"
+                                   class="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Setup Instructions
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p class="text-sm text-blue-800 mb-2">
+                        <strong>HTTP Mode Active</strong> - Ready for remote access
+                    </p>
+                    <div class="text-xs text-blue-700 space-y-1">
+                        <div><strong>MCP Endpoint:</strong> 
+                            <span class="font-mono">{{ request.url.scheme }}://{{ request.url.netloc }}/mcp</span>
+                            <button onclick="copyToClipboard('{{ request.url.scheme }}://{{ request.url.netloc }}/mcp')" 
+                                    class="ml-2 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if error %}
+    <div class="mb-4 p-4 rounded-md bg-red-100 text-red-700">
+        {{ error }}
+    </div>
+{% endif %}
+
+<div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold text-gray-900">Configured Servers</h2>
+</div>
+
+{% if servers %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for server in servers %}
+        <div class="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ server.name }}</h3>
+                
+                {% if server.description %}
+                <p class="text-sm text-gray-600 mb-3 h-12 leading-4 overflow-hidden" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">{{ server.description }}</p>
+                {% else %}
+                <p class="text-sm text-gray-600 mb-3 h-12 leading-4">&nbsp;</p>
+                {% endif %}
+                
+                <div class="flex flex-wrap gap-2 mb-3">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                        {% if server.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                        {% if server.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if server.build_status == 'built' %}bg-blue-100 text-blue-800{% elif server.build_status == 'building' %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                        {{ server.build_status.title() }}
+                    </span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        {{ server.tools|length }} tools
+                    </span>
+                </div>
+                
+                <div class="text-xs text-gray-500 space-y-1">
+                    <div><strong>Runtime:</strong> {{ server.runtime_type }}</div>
+                    <div><strong>Repository:</strong> 
+                        <a href="{{ server.github_url }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                            {{ server.github_url.split('/')[-1] }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex space-x-2">
+                <a href="/servers/{{ server.id }}" 
+                   class="btn-info flex-1 text-sm font-medium py-2 px-3 rounded text-center">
+                    View Details
+                </a>
+                <form method="POST" action="/servers/{{ server.id }}/delete" 
+                      onsubmit="return confirm('Are you sure you want to delete {{ server.name }}?')">
+                    <button type="submit" 
+                            class="bg-red-500 text-white text-sm font-medium py-2 px-3 rounded hover:bg-red-600">
+                        Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-12 bg-white rounded-lg shadow-md">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+        <h3 class="mt-4 text-lg font-medium text-gray-900">No servers configured yet</h3>
+        <p class="mt-2 text-sm text-gray-500">Get started by adding your first MCP server.</p>
+        <div class="mt-6">
+            <a href="/servers/add" class="btn-primary inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md">
+                <svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Your First Server
+            </a>
+        </div>
+    </div>
+{% endif %}
+
+{% endblock %}

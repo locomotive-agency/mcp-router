@@ -52,7 +52,6 @@ coverage.xml
 cover/
 
 # Flask stuff:
-instance/
 .webassets-cache
 
 # Scrapy stuff:
@@ -153,11 +152,14 @@ Thumbs.db
 ehthumbs.db
 
 # Application specific
-mcp_router.db
+mcp_anywhere.db
 logs/
 *.log
 .cursorrules
 .cursorignore
+
+# Application data directory
+.data/
 project.md
 .aider*
 locomotive-service.json
@@ -167,3 +169,8 @@ data/
 .pytest_cache/
 .ruff_cache/
 .vscode/
+archive/
+engineering_plan.md
+claude.md
+mcp_simple_auth/
+vendor/
