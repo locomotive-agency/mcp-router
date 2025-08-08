@@ -29,7 +29,12 @@ templates = Jinja2Templates(directory=str(template_dir))
 async def login_page(request: Request) -> HTMLResponse:
     """Render the login page."""
     error = request.query_params.get("error")
-    return templates.TemplateResponse(request, "auth/login.html", {"error": error})
+    next_url = request.query_params.get("next", "")
+    return templates.TemplateResponse(
+        request, 
+        "auth/login.html", 
+        {"error": error, "next_url": next_url}
+    )
 
 
 async def handle_login(request: Request) -> RedirectResponse:
@@ -37,6 +42,9 @@ async def handle_login(request: Request) -> RedirectResponse:
     form = await request.form()
     username = form.get("username")
     password = form.get("password")
+    
+    # Get next URL from form data first, then query params as fallback
+    next_url = form.get("next") or request.query_params.get("next", "/")
 
     # Get database session
     async with request.app.state.get_async_session() as session:
@@ -48,69 +56,191 @@ async def handle_login(request: Request) -> RedirectResponse:
             request.session["user_id"] = user.id
             request.session["username"] = user.username
 
-            # Redirect to original OAuth request or home
-            next_url = request.query_params.get("next", "/")
+            # Redirect to original OAuth request or specified next URL
+            logger.info(f"User {username} logged in successfully, redirecting to: {next_url}")
             return RedirectResponse(url=next_url, status_code=302)
 
-    # Login failed
-    return RedirectResponse(
-        url="/auth/login?error=invalid_credentials", status_code=302
-    )
+    # Login failed - preserve next URL in error redirect
+    error_url = f"/auth/login?error=invalid_credentials"
+    if next_url != "/":
+        error_url += f"&next={next_url}"
+    return RedirectResponse(url=error_url, status_code=302)
 
 
 async def consent_page(request: Request) -> HTMLResponse:
-    """Render the consent page."""
-    oauth_request = request.session.get("oauth_request", {})
-
+    """Render the consent page with CSRF protection."""
+    # Get state parameter from URL
+    state = request.query_params.get("state")
+    if not state:
+        logger.warning("Consent page accessed without state parameter")
+        return RedirectResponse(url="/", status_code=302)
+    
+    # Retrieve OAuth request from provider using state
+    oauth_provider = getattr(request.app.state, 'oauth_provider', None)
+    if not oauth_provider:
+        logger.error("OAuth provider not available")
+        return RedirectResponse(url="/", status_code=302)
+        
+    oauth_request = oauth_provider.oauth_requests.get(state)
     if not oauth_request:
+        logger.warning(f"No OAuth request found for state: {state}")
         return RedirectResponse(url="/", status_code=302)
 
+    # Check if user is authenticated (admin session)
+    user_id = request.session.get("user_id")
+    username = request.session.get("username")
+    
+    if not user_id:
+        # User not authenticated, redirect to login with return URL
+        login_url = f"/auth/login?next={request.url}"
+        logger.info(f"User not authenticated, redirecting to login: {login_url}")
+        return RedirectResponse(url=login_url, status_code=302)
+
+    # User is authenticated, show consent page
+    # Store OAuth request in session for form processing (add user_id)
+    oauth_request["user_id"] = user_id  # Add authenticated user ID
+    request.session["oauth_request"] = oauth_request
+    request.session["oauth_state"] = state
+
+    # Generate CSRF state for form protection
+    csrf_protection = getattr(request.app.state, 'csrf_protection', None)
+    csrf_state = ""
+    
+    if csrf_protection:
+        try:
+            csrf_state = csrf_protection.generate_state(
+                oauth_request.get("client_id", ""),
+                oauth_request.get("redirect_uri", "")
+            )
+            # Store CSRF state in session for validation
+            request.session["csrf_state"] = csrf_state
+        except ValueError as e:
+            logger.error(f"Failed to generate CSRF state: {e}")
+            return RedirectResponse(url="/", status_code=302)
+
+    # Handle scopes safely - ensure it's always a list
+    scopes = oauth_request.get("scopes", [])
+    if scopes is None:
+        scopes = []
+    elif not isinstance(scopes, list):
+        # If it's a string, split it
+        scopes = str(scopes).split() if scopes else []
+    
     return templates.TemplateResponse(
         request,
         "auth/consent.html",
         {
             "client_id": oauth_request.get("client_id"),
-            "scope": oauth_request.get("scope"),
-            "username": request.session.get("username"),
+            "scope": " ".join(scopes),
+            "username": username,
+            "csrf_state": csrf_state,
         },
     )
 
 
 async def handle_consent(request: Request) -> RedirectResponse:
-    """Process consent form submission."""
+    """Process consent form submission with CSRF validation."""
     form = await request.form()
-    action = form.get("action")
+    action = form.get("action", "deny")
+    submitted_csrf_state = form.get("state")
 
     oauth_request = request.session.get("oauth_request", {})
     if not oauth_request:
         return RedirectResponse(url="/", status_code=302)
 
+    # Validate CSRF state if CSRF protection is enabled
+    csrf_protection = getattr(request.app.state, 'csrf_protection', None)
+    if csrf_protection:
+        # Get stored CSRF state from session
+        session_csrf_state = request.session.get("csrf_state")
+        
+        # Validate CSRF state is present in both places
+        if not submitted_csrf_state or not session_csrf_state:
+            logger.warning(
+                f"CSRF validation failed - missing state: "
+                f"submitted={bool(submitted_csrf_state)}, session={bool(session_csrf_state)}"
+            )
+            return RedirectResponse(
+                url="/auth/login?error=invalid_request", 
+                status_code=302
+            )
+        
+        # Validate CSRF states match
+        if submitted_csrf_state != session_csrf_state:
+            logger.warning("CSRF validation failed - state mismatch")
+            return RedirectResponse(
+                url="/auth/login?error=invalid_request",
+                status_code=302
+            )
+        
+        # Validate CSRF state with protection class
+        if not csrf_protection.validate_state(
+            submitted_csrf_state,
+            oauth_request.get("client_id", ""),
+            oauth_request.get("redirect_uri", "")
+        ):
+            logger.warning("CSRF state validation failed in protection class")
+            return RedirectResponse(
+                url="/auth/login?error=invalid_request",
+                status_code=302
+            )
+        
+        # Clear CSRF state from session (consumed)
+        request.session.pop("csrf_state", None)
+
     provider = request.app.state.oauth_provider
 
     if action == "allow":
         # Generate authorization code
-        code = await provider.create_authorization_code(
-            request=request, **oauth_request
-        )
+        try:
+            code = await provider.create_authorization_code(
+                request=request, **oauth_request
+            )
 
-        # Build redirect URL
-        redirect_uri = oauth_request["redirect_uri"]
-        params = f"code={code}"
-        if oauth_request.get("state"):
-            params += f"&state={oauth_request['state']}"
+            # Build redirect URL
+            redirect_uri = oauth_request["redirect_uri"]
+            params = f"code={code}"
+            if oauth_request.get("state"):
+                params += f"&state={oauth_request['state']}"
 
-        redirect_url = f"{redirect_uri}?{params}"
+            redirect_url = f"{redirect_uri}?{params}"
+            
+            logger.info(
+                f"User {oauth_request.get('user_id')} approved OAuth request for "
+                f"client {oauth_request.get('client_id')}, redirecting with code"
+            )
+        except Exception as e:
+            logger.error(f"Failed to create authorization code: {e}")
+            # Redirect with error
+            redirect_uri = oauth_request["redirect_uri"] 
+            params = "error=server_error"
+            if oauth_request.get("state"):
+                params += f"&state={oauth_request['state']}"
+            redirect_url = f"{redirect_uri}?{params}"
     else:
-        # User denied
+        # User denied or unknown action - treat as denial
         redirect_uri = oauth_request["redirect_uri"]
         params = "error=access_denied"
         if oauth_request.get("state"):
             params += f"&state={oauth_request['state']}"
 
         redirect_url = f"{redirect_uri}?{params}"
+        
+        logger.info(
+            f"User {oauth_request.get('user_id')} denied OAuth request for "
+            f"client {oauth_request.get('client_id')}"
+        )
 
-    # Clear OAuth request from session
-    del request.session["oauth_request"]
+    # Clear OAuth request from session and provider storage
+    request.session.pop("oauth_request", None)
+    oauth_state = request.session.pop("oauth_state", None)
+    
+    # Clean up OAuth request from provider storage
+    if oauth_state:
+        oauth_provider = getattr(request.app.state, 'oauth_provider', None)
+        if oauth_provider:
+            oauth_provider.oauth_requests.pop(oauth_state, None)
+            logger.info(f"Cleaned up OAuth request state: {oauth_state}")
 
     return RedirectResponse(url=redirect_url, status_code=302)
 
@@ -123,10 +253,10 @@ async def handle_logout(request: Request) -> RedirectResponse:
     return RedirectResponse(url="/auth/login", status_code=302)
 
 
-def create_oauth_routes(get_async_session) -> list[Route]:
+def create_oauth_http_routes(get_async_session, oauth_provider=None) -> list[Route]:
     """Create all OAuth routes using MCP SDK."""
-    # Create provider instance
-    provider = MCPAnywhereAuthProvider(get_async_session)
+    # Use provided provider or create new instance
+    provider = oauth_provider or MCPAnywhereAuthProvider(get_async_session)
 
     # Configure auth settings - use SERVER_URL as issuer (simple)
     auth_settings = AuthSettings(
@@ -136,7 +266,7 @@ def create_oauth_routes(get_async_session) -> list[Route]:
             valid_scopes=["mcp:read", "mcp:write"],
             default_scopes=["mcp:read"],
         ),
-        resource_server_url=f"{Config.SERVER_URL}/mcp",
+        resource_server_url=f"{Config.SERVER_URL}{Config.MCP_PATH_PREFIX}",
         service_documentation_url=f"{Config.SERVER_URL}/docs",
     )
 
@@ -152,15 +282,20 @@ def create_oauth_routes(get_async_session) -> list[Route]:
     # Add only the missing protected resource endpoint that MCP SDK doesn't provide
     async def protected_resource_metadata(request: Request) -> JSONResponse:
         base_url = str(request.base_url).rstrip("/")
-        return JSONResponse(
-            {
-                "resource": f"{base_url}/mcp",
-                "authorization_servers": [base_url],
-                "jwks_uri": f"{base_url}/.well-known/jwks.json",
-                "bearer_methods_supported": ["header"],
-                "scopes_supported": ["mcp:read", "mcp:write"],
-            }
-        )
+        response_data = {
+            "resource": f"{base_url}{Config.MCP_PATH_PREFIX}",
+            "authorization_servers": [base_url],
+            "jwks_uri": f"{base_url}/.well-known/jwks.json",
+            "bearer_methods_supported": ["header"],
+            "scopes_supported": ["mcp:read", "mcp:write"],
+        }
+        
+        response = JSONResponse(response_data)
+        # Add CORS headers for OAuth protected resource discovery
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return response
 
     mcp_routes.append(
         Route(
@@ -173,6 +308,8 @@ def create_oauth_routes(get_async_session) -> list[Route]:
     # Add essential auth UI routes
     mcp_routes.append(Route("/auth/login", endpoint=login_page, methods=["GET"]))
     mcp_routes.append(Route("/auth/login", endpoint=handle_login, methods=["POST"]))
+    mcp_routes.append(Route("/auth/consent", endpoint=consent_page, methods=["GET"]))
+    mcp_routes.append(Route("/auth/consent", endpoint=handle_consent, methods=["POST"]))
     mcp_routes.append(Route("/auth/logout", endpoint=handle_logout, methods=["POST"]))
 
     return mcp_routes

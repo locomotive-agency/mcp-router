@@ -1,11 +1,13 @@
-"""STDIO transport module for running MCP Anywhere server with STDIO MCP transport.
+"""STDIO transport module for running MCP Anywhere admin web UI only.
 
-This module runs the full application (web UI + MCP manager) but provides MCP
-over STDIO transport instead of HTTP. This is different from the lightweight
-gateway which doesn't include the web UI.
+This server provides:
+- Web UI for management at the specified host:port
+- Container build/initialization lifecycle (handled by app lifespan)
+
+It does NOT start MCP over STDIO. To connect via STDIO, use:
+    mcp-anywhere connect
+which leverages the stdio gateway.
 """
-
-import asyncio
 
 import uvicorn
 
@@ -14,21 +16,14 @@ from mcp_anywhere.logging_config import configure_logging, get_logger
 from mcp_anywhere.web.app import create_app
 
 
-async def run_stdio_server(
-    host: str = "0.0.0.0", port: int = 8000, log_level: str = "info"
-) -> None:
-    """Run the full MCP Anywhere server with STDIO transport for MCP.
-
-    This provides:
-    - Web UI for management at the specified host:port
-    - MCP protocol over STDIO (no OAuth required)
+async def run_stdio_server(host: str = "0.0.0.0", port: int = 8000) -> None:
+    """Run MCP Anywhere with the admin UI only (no MCP over STDIO).
 
     Args:
         host: Host address for the web UI
         port: Port number for the web UI
-        log_level: Logging level for uvicorn
     """
-    # Configure logging for STDIO server mode
+    # Configure logging for STDIO admin UI mode
     configure_logging(
         log_level=Config.LOG_LEVEL,
         log_format=Config.LOG_FORMAT,
@@ -37,64 +32,21 @@ async def run_stdio_server(
     )
 
     logger = get_logger(__name__)
-    logger.info("Starting MCP Anywhere Server with STDIO transport")
+    logger.info("Starting MCP Anywhere Server with STDIO admin UI")
     logger.info(f"Web UI: http://{host}:{port}/")
-    logger.info("MCP: Available over stdio (no OAuth required)")
-
-    # Create app with stdio transport mode (no OAuth on MCP)
-    app = create_app(transport_mode="stdio")
-    startup_complete = asyncio.Event()
-
-    # Store the original lifespan handler to delegate to it
-    original_lifespan = app.router.lifespan_context
-    original_asgi_app = app
-
-    async def lifespan_extending_app(scope, receive, send):
-        if scope["type"] == "lifespan":
-            # Create a custom receive function to intercept startup.complete
-            async def custom_receive():
-                message = await receive()
-                if message["type"] == "lifespan.startup.complete":
-                    startup_complete.set()
-                return message
-
-            # Delegate to the original lifespan handler with our custom receive
-            await app.router.lifespan(scope, custom_receive, send)
-        else:
-            await original_asgi_app(scope, receive, send)
-
-    # Replace the app's __call__ method to use our extending app
-    app.__call__ = lifespan_extending_app
-
-    # Configure uvicorn for the web UI
-    config = uvicorn.Config(app, host=host, port=port, log_level=log_level.lower())
-    server = uvicorn.Server(config=config)
-    server_task = asyncio.create_task(server.serve())
-
-    # Wait for startup to complete
-    await startup_complete.wait()
-    logger.info("Web UI has started and lifespan is complete.")
+    logger.info("Note: MCP over STDIO is available via 'mcp-anywhere connect'")
 
     try:
-        # Get the MCP manager from app state
-        mcp_manager = app.state.mcp_manager
-        if mcp_manager is None:
-            raise AttributeError("MCP manager not found in application state")
+        # Create the Starlette application in stdio mode (no OAuth on MCP)
+        app = create_app(transport_mode="stdio")
 
-        # Start the STDIO transport for MCP
-        stdio_task = asyncio.create_task(mcp_manager.router.run(transport="stdio"))
-        logger.info("STDIO MCP transport started")
+        # Configure uvicorn for the web UI
+        config = uvicorn.Config(app, host=host, port=port, log_level=Config.LOG_LEVEL.lower())
+        server = uvicorn.Server(config=config)
 
-        # Run both the web server and STDIO transport concurrently
-        await asyncio.gather(server_task, stdio_task)
+        # Run the server
+        await server.serve()
 
-    except asyncio.CancelledError:
-        logger.info("STDIO server tasks cancelled")
-        server.should_exit = True
-        await server.shutdown()
-        raise
     except (RuntimeError, ValueError, OSError) as e:
-        logger.error(f"Failed to start STDIO server: {e}")
-        server.should_exit = True
-        await server.shutdown()
+        logger.error(f"Failed to start STDIO admin UI server: {e}")
         raise

@@ -8,7 +8,7 @@ from mcp_anywhere.web.app import create_app
 
 
 async def run_http_server(
-    host: str = "0.0.0.0", port: int = 8000, log_level: str = "info"
+    host: str = "0.0.0.0", port: int = 8000
 ) -> None:
     """Run the MCP Anywhere as an HTTP web server using uvicorn.
 
@@ -28,17 +28,18 @@ async def run_http_server(
     logger = get_logger(__name__)
     logger.info("Starting MCP Anywhere Server with HTTP transport")
     logger.info(f"Web UI: http://{host}:{port}/")
-    logger.info(f"MCP Endpoint: http://{host}:{port}/mcp (with OAuth)")
+    logger.info(f"MCP Endpoint: http://{host}:{port}{Config.MCP_PATH_MOUNT} (with OAuth)")
 
     try:
         # Create the Starlette application with http transport mode
         app = create_app(transport_mode="http")
 
         # Create uvicorn server configuration
-        config = uvicorn.Config(app, host=host, port=port, log_level=log_level)
+        config = uvicorn.Config(app, host=host, port=port, log_level=Config.LOG_LEVEL.lower())
 
         # Create and run the server
         server = uvicorn.Server(config)
+
         await server.serve()
 
     except (RuntimeError, ValueError, OSError) as e:

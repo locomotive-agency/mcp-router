@@ -29,8 +29,9 @@ async def test_run_http_server_creates_uvicorn_server():
 
         # Verify calls
         mock_create_app.assert_called_once()
+        from unittest.mock import ANY
         mock_uvicorn.Config.assert_called_once_with(
-            mock_app, host="0.0.0.0", port=8000, log_level="info"
+            mock_app, host="0.0.0.0", port=8000, log_level=ANY
         )
         mock_uvicorn.Server.assert_called_once_with(mock_config)
         mock_server.serve.assert_called_once()
@@ -58,8 +59,9 @@ async def test_run_http_server_with_custom_host_port():
         await run_http_server(host="127.0.0.1", port=9000)
 
         # Verify config was created with custom values
+        from unittest.mock import ANY
         mock_uvicorn.Config.assert_called_once_with(
-            mock_app, host="127.0.0.1", port=9000, log_level="info"
+            mock_app, host="127.0.0.1", port=9000, log_level=ANY
         )
 
 

@@ -1,8 +1,8 @@
 """
 Test that STDIO transport mode doesn't apply JWT authentication to MCP endpoints.
 
-This test ensures that when running in STDIO mode, the MCPProtectionMiddleware
-is not applied since MCP communication happens over STDIO, not HTTP.
+In STDIO mode, MCP communication happens over STDIO, not HTTP, so HTTP auth
+middleware for MCP endpoints must not be applied.
 """
 
 import os

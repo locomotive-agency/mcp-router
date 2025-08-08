@@ -8,6 +8,7 @@ from mcp_anywhere.auth.token_verifier import TokenVerifier
 from mcp_anywhere.core.base_middleware import BasePathProtectionMiddleware
 from mcp_anywhere.logging_config import get_logger
 
+
 logger = get_logger(__name__)
 
 
@@ -132,75 +133,7 @@ class JWTAuthMiddleware(BasePathProtectionMiddleware):
         return await call_next(request)
 
 
-class MCPProtectionMiddleware(JWTAuthMiddleware):
-    """Specialized JWT middleware for protecting MCP endpoints."""
-
-    def __init__(
-        self,
-        app: ASGIApp,
-        secret_key: str | None = None,
-        mcp_path: str = "/mcp",
-        required_scopes: list[str] = None,
-    ):
-        """Initialize MCP protection middleware.
-
-        Args:
-            app: ASGI application
-            secret_key: JWT secret key for token verification
-            mcp_path: Base path for MCP endpoints
-            required_scopes: List of scopes required for MCP access
-        """
-        # Protect all MCP endpoints
-        protected_paths = [f"{mcp_path}/*"]
-
-        # Skip auth endpoints and other public paths
-        # (Web UI routes are handled by SessionAuthMiddleware)
-        skip_paths = [
-            "/auth/*",
-            "/static/*",
-            "/favicon.ico",
-            "/",
-            "/servers/*",
-            "/health",
-        ]
-
-        # Default MCP scopes if not specified
-        if not required_scopes:
-            required_scopes = ["read"]
-
-        super().__init__(
-            app=app,
-            secret_key=secret_key,
-            protected_paths=protected_paths,
-            required_scopes=required_scopes or ["read"],
-            skip_paths=skip_paths,
-        )
-
-        logger.info(f"MCP Protection Middleware initialized for path: {mcp_path}")
-
-
-def create_mcp_auth_middleware(
-    secret_key: str | None = None,
-    mcp_path: str = "/mcp",
-    required_scopes: list[str] = None,
-) -> type:
-    """Factory function to create MCP authentication middleware class.
-
-    Args:
-        secret_key: JWT secret key
-        mcp_path: Base path for MCP endpoints
-        required_scopes: Required scopes for MCP access
-
-    Returns:
-        Middleware class configured for MCP protection
-    """
-
-    def middleware_factory(app: ASGIApp) -> MCPProtectionMiddleware:
-        return MCPProtectionMiddleware(
-            app=app,
-            secret_key=secret_key,
-            mcp_path=mcp_path,
-            required_scopes=required_scopes,
-        )
-
-    return middleware_factory
+"""
+The specialized MCPProtectionMiddleware and its factory were removed as unused.
+JWTAuthMiddleware remains for generic JWT-protected endpoints if needed.
+"""

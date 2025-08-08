@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastmcp import FastMCP
@@ -8,10 +9,12 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Mount
+from starlette.staticfiles import StaticFiles
 
 from mcp_anywhere.auth.initialization import initialize_oauth_data
 from mcp_anywhere.auth.provider import MCPAnywhereAuthProvider
-from mcp_anywhere.auth.routes import create_oauth_routes
+from mcp_anywhere.auth.routes import create_oauth_http_routes
+from mcp_anywhere.auth.csrf import CSRFProtection
 from mcp_anywhere.config import Config
 from mcp_anywhere.container.manager import ContainerManager
 from mcp_anywhere.core.mcp_manager import MCPManager
@@ -26,16 +29,16 @@ logger = get_logger(__name__)
 
 
 class RedirectMiddleware(BaseHTTPMiddleware):
-    """Middleware to redirect /mcp to /mcp/"""
+    """Middleware to redirect MCP mount path to its trailing-slash variant."""
 
     async def dispatch(self, request: Request, call_next):
-        mcp_path = Config.MCP_PATH
-        if request.url.path == mcp_path:
-            return RedirectResponse(url=f"{mcp_path}/")
+        mcp_mount_path = Config.MCP_PATH_MOUNT
+        if request.url.path == mcp_mount_path:
+            return RedirectResponse(url=f"{Config.MCP_PATH_PREFIX}")
 
         # If it's a .well-known path with /mcp, strip it for correct routing
-        if ".well-known" in request.url.path and request.url.path.endswith(mcp_path):
-            new_path = request.url.path[: -len(mcp_path)]
+        if ".well-known" in request.url.path and request.url.path.endswith(mcp_mount_path):
+            new_path = request.url.path[: -len(mcp_mount_path)]
             request.scope["path"] = new_path
 
         return await call_next(request)
@@ -47,7 +50,7 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Only apply authentication to MCP endpoints (exact path or subpaths)
         path = request.url.path
-        mcp_path = Config.MCP_PATH.rstrip("/")
+        mcp_path = Config.MCP_PATH_MOUNT
 
         # Get out early if not an MCP endpoint or if it's a .well-known path
         if not path.startswith(mcp_path) or ".well-known" in path:
@@ -77,9 +80,9 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
                 status_code=500,
             )
 
-        # Validate OAuth token
-        payload = await oauth_provider.verify_token(token)
-        if not payload:
+        # Validate OAuth token via introspection
+        access_token = await oauth_provider.introspect_token(token)
+        if not access_token:
             return JSONResponse(
                 {
                     "error": "Invalid token",
@@ -90,6 +93,7 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 
         # Authentication successful, proceed with request
         return await call_next(request)
+## Removed temporary MCP HTTP exception logger used for diagnostics
 
 
 async def create_mcp_manager() -> MCPManager:
@@ -133,9 +137,25 @@ def create_lifespan(transport_mode: str):
         # Add database session function to app state
         app.state.get_async_session = get_async_session
 
-        # Initialize OAuth provider if in HTTP mode
+        # Initialize CSRF protection if in HTTP mode
+        csrf_cleanup_task = None
         if transport_mode == "http":
-            app.state.oauth_provider = MCPAnywhereAuthProvider(get_async_session)
+            app.state.csrf_protection = CSRFProtection(expiration_seconds=600)
+            logger.info("OAuth provider and CSRF protection initialized")
+            
+            # Start background task for CSRF state cleanup
+            async def csrf_cleanup_worker():
+                """Background task to periodically clean up expired CSRF states."""
+                while True:
+                    try:
+                        await asyncio.sleep(300)  # Clean up every 5 minutes
+                        app.state.csrf_protection.cleanup_expired()
+                    except Exception as e:
+                        logger.error(f"CSRF cleanup task error: {e}")
+                        await asyncio.sleep(60)  # Retry after 1 minute on error
+            
+            csrf_cleanup_task = asyncio.create_task(csrf_cleanup_worker())
+            logger.info("Started CSRF cleanup background task")
 
         # Initialize container manager and load default servers
         container_manager = ContainerManager()
@@ -155,17 +175,24 @@ def create_lifespan(transport_mode: str):
         # Create and mount FastMCP HTTP app for HTTP mode
         if transport_mode == "http":
             # Create the FastMCP HTTP app using path="/" to avoid double-mounting
-            # Since it will be mounted at /mcp in the main Starlette app
+            # Since it will be mounted at MCP path in the main Starlette app
             mcp_http_app = mcp_manager.router.http_app(path="/")
             app.state.mcp_http_app = mcp_http_app
 
             # Mount the FastMCP app at the MCP path
-            app.router.mount(Config.MCP_PATH, mcp_http_app)
-            logger.info(f"FastMCP HTTP app mounted at {Config.MCP_PATH}")
+            app.router.mount(Config.MCP_PATH_MOUNT, mcp_http_app)
+            logger.info(f"FastMCP HTTP app mounted at {Config.MCP_PATH_MOUNT}")
 
         yield
 
         # Clean up resources on shutdown
+        if csrf_cleanup_task:
+            csrf_cleanup_task.cancel()
+            try:
+                await csrf_cleanup_task
+            except asyncio.CancelledError:
+                logger.info("CSRF cleanup task cancelled")
+        
         await close_db()
 
     return lifespan
@@ -177,6 +204,11 @@ def create_app(transport_mode: str = "http") -> Starlette:
     Args:
         transport_mode: The transport mode ("http" or "stdio")
     """
+    # Create shared OAuth provider for HTTP mode
+    shared_oauth_provider = None
+    if transport_mode == "http":
+        shared_oauth_provider = MCPAnywhereAuthProvider(get_async_session)
+    
     # Configure middleware
     middleware = [
         # Session middleware for login state
@@ -200,8 +232,8 @@ def create_app(transport_mode: str = "http") -> Starlette:
     # Add OAuth routes FIRST for HTTP mode (before catch-all web mount)
     if transport_mode == "http":
         try:
-            # Create OAuth routes using MCP SDK - simple approach
-            oauth_routes = create_oauth_routes(get_async_session)
+            # Create OAuth routes using shared provider instance
+            oauth_routes = create_oauth_http_routes(get_async_session, shared_oauth_provider)
             app_routes.extend(oauth_routes)
             logger.info(f"Added {len(oauth_routes)} OAuth routes")
         except Exception as e:
@@ -211,11 +243,16 @@ def create_app(transport_mode: str = "http") -> Starlette:
     # Add other routes
     app_routes.extend(
         [
-            # Mount("/static", app=StaticFiles(directory="src/mcp_anywhere/web/static"), name="static"),
+            # Static assets
+            Mount(
+                "/static",
+                app=StaticFiles(directory="src/mcp_anywhere/web/static"),
+                name="static",
+            ),
             # Add config routes (for Claude Desktop integration)
             *config_routes,
-            # Add web routes LAST (catch-all mount)
-            Mount("/", routes=routes.routes, name="web"),
+            # Add web routes explicitly so they don't shadow the /mcp mount
+            *routes.routes,
         ]
     )
 
@@ -227,12 +264,11 @@ def create_app(transport_mode: str = "http") -> Starlette:
         routes=app_routes,
     )
 
-    # Store transport mode in app state for UI display
+    # Store transport mode and shared OAuth provider in app state
     app.state.transport_mode = transport_mode
+    if shared_oauth_provider:
+        app.state.oauth_provider = shared_oauth_provider
 
     return app
 
 
-async def create_asgi_app(transport_mode: str = "http") -> Starlette:
-    """Create the ASGI application with FastMCP mounting for HTTP mode."""
-    return create_app(transport_mode)

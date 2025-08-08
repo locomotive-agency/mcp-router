@@ -6,6 +6,7 @@ from starlette.types import ASGIApp
 
 from mcp_anywhere.core.base_middleware import BasePathProtectionMiddleware
 from mcp_anywhere.logging_config import get_logger
+from mcp_anywhere.config import Config
 
 logger = get_logger(__name__)
 
@@ -37,7 +38,7 @@ class SessionAuthMiddleware(BasePathProtectionMiddleware):
                 "/auth/*",
                 "/static/*",
                 "/favicon.ico",
-                "/mcp/*",  # MCP API has its own JWT middleware
+                f"{Config.MCP_PATH_MOUNT}/*",  # MCP API has its own JWT middleware
             ],
         )
 

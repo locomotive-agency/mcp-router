@@ -8,7 +8,5 @@ __all__ = [
     "MCPAnywhereAuthProvider",
     "TokenVerifier",
     "JWTAuthMiddleware",
-    "MCPProtectionMiddleware",
-    "create_mcp_auth_middleware",
-    "create_oauth_routes",
+    "create_oauth_http_routes",
 ]

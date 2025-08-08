@@ -50,11 +50,23 @@ class Config:
     )
 
     # MCP Server settings
-    MCP_PATH = os.environ.get("MCP_PATH", "/mcp")
+    # Base path users configure (may or may not include leading/trailing slashes)
+    _RAW_MCP_PATH = os.environ.get("MCP_PATH", "/mcp")
+
+    # Normalize to always have a single leading slash and no trailing slash
+    if not _RAW_MCP_PATH.startswith("/"):
+        _RAW_MCP_PATH = f"/{_RAW_MCP_PATH}"
+    MCP_PATH = _RAW_MCP_PATH.rstrip("/") or "/"
+
+    # Derived helpers:
+    # - MCP_PATH_MOUNT: non-trailing variant for Starlette mount (e.g. "/mcp")
+    # - MCP_PATH_PREFIX: trailing-slash variant for URLs (e.g. "/mcp/")
+    MCP_PATH_MOUNT = MCP_PATH
+    MCP_PATH_PREFIX = MCP_PATH if MCP_PATH.endswith("/") else (MCP_PATH + "/")
 
     # Server URL - configurable for different environments
     SERVER_URL = os.environ.get(
-        "SERVER_URL", f"http://localhost:{int(os.environ.get('WEB_PORT', '8000'))}"
+        "SERVER_URL", f"http://localhost:{os.environ.get('WEB_PORT', '8000')}"
     )
 
     # Logging settings
