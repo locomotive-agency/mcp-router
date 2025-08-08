@@ -37,7 +37,7 @@ async def run_http_server(
 
     try:
         # Create the Starlette application with http transport mode
-        app = create_app(transport_mode="http")
+        app = await create_app(transport_mode="http")
 
         # Create uvicorn server configuration
         config = uvicorn.Config(app, host=host, port=port, log_level=Config.LOG_LEVEL.lower())

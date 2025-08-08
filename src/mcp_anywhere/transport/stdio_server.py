@@ -44,7 +44,7 @@ async def run_stdio_server(host: str = None, port: int = None) -> None:
 
     try:
         # Create the Starlette application in stdio mode (no OAuth on MCP)
-        app = create_app(transport_mode="stdio")
+        app = await create_app(transport_mode="stdio")
 
         # Configure uvicorn for the web UI
         config = uvicorn.Config(app, host=host, port=port, log_level=Config.LOG_LEVEL.lower())
