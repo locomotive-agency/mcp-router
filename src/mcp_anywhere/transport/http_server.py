@@ -48,5 +48,5 @@ async def run_http_server(
         await server.serve()
 
     except (RuntimeError, ValueError, OSError) as e:
-        logger.error(f"Failed to start HTTP server: {e}")
+        logger.exception("Failed to start HTTP server: {e}", e=e)
         raise
