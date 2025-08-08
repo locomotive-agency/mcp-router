@@ -3,11 +3,11 @@ Provides all required endpoints including .well-known discovery.
 """
 
 
-from mcp.server.auth.routes import create_auth_routes
+from mcp.server.auth.routes import create_auth_routes, create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 from sqlalchemy import select
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.routing import Route
 from starlette.templating import Jinja2Templates
 
@@ -279,31 +279,17 @@ def create_oauth_http_routes(get_async_session, oauth_provider=None) -> list[Rou
         revocation_options=auth_settings.revocation_options,
     )
 
-    # Add only the missing protected resource endpoint that MCP SDK doesn't provide
-    async def protected_resource_metadata(request: Request) -> JSONResponse:
-        base_url = str(request.base_url).rstrip("/")
-        response_data = {
-            "resource": f"{base_url}{Config.MCP_PATH_PREFIX}",
-            "authorization_servers": [base_url],
-            "jwks_uri": f"{base_url}/.well-known/jwks.json",
-            "bearer_methods_supported": ["header"],
-            "scopes_supported": ["mcp:read", "mcp:write"],
-        }
-        
-        response = JSONResponse(response_data)
-        # Add CORS headers for OAuth protected resource discovery
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
-
-    mcp_routes.append(
-        Route(
-            "/.well-known/oauth-protected-resource",
-            endpoint=protected_resource_metadata,
-            methods=["GET"],
-        )
+    # Add protected resource metadata using vendor's helper
+    # This provides the OAuth 2.0 Protected Resource Metadata endpoint (RFC 9728)
+    # with proper CORS handling and spec compliance
+    protected_resource_routes = create_protected_resource_routes(
+        resource_url=f"{Config.SERVER_URL}{Config.MCP_PATH_PREFIX}",
+        authorization_servers=[str(Config.SERVER_URL)],
+        scopes_supported=["mcp:read", "mcp:write"],
     )
+    
+    # Add the protected resource routes to our routes list
+    mcp_routes.extend(protected_resource_routes)
 
     # Add essential auth UI routes
     mcp_routes.append(Route("/auth/login", endpoint=login_page, methods=["GET"]))

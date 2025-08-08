@@ -101,22 +101,13 @@ class MCPAnywhereAuthProvider(OAuthAuthorizationServerProvider):
     async def exchange_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: AuthorizationCodeT
     ) -> OAuthToken:
-        """Exchange authorization code for access token with PKCE support."""
+        """Exchange authorization code for access token with PKCE support.
+        
+        Note: Client authentication is already handled by the vendor's ClientAuthenticator
+        before this method is called, so we don't need to re-validate credentials here.
+        """
         # Extract the code string from the AuthorizationCode object
         code_string = authorization_code.code
-        
-        # Validate client credentials
-        async with self.db_session_factory() as session:
-            logger.debug(client)
-            stmt = select(OAuth2Client).where(OAuth2Client.client_id == client.client_id)
-            db_client = await session.scalar(stmt)
-
-            if not db_client:
-                raise TokenError("invalid_client")
-
-            # Only check client_secret for confidential clients (non-PKCE flows)
-            if db_client.is_confidential and db_client.client_secret != client.client_secret:
-                raise TokenError("invalid_client")
 
         # Validate authorization code
         auth_code_data = self.auth_codes.get(code_string)

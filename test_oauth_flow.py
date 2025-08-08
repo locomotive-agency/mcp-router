@@ -54,7 +54,7 @@ class OAuthFlowTester:
         
         return client_data
     
-    def step2_admin_login(self, username="admin", password="n3lNlsLkpJwCcMyoAJgO5A"):
+    def step2_admin_login(self, username="admin", password="yoNw0bz62zpHavDukXCTxA"):
         """Step 2: Login as admin to enable consent"""
         print("\n🔸 Step 2: Logging in as admin...")
         
