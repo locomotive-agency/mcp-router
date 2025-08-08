@@ -35,26 +35,23 @@ def mock_env_stdio():
 
 
 @pytest.fixture
-def app_stdio(mock_env_stdio):
+async def app_stdio(mock_env_stdio):
     """Create app instance for STDIO mode."""
-    # Mock the lifespan to avoid actual database initialization
-    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
-        # Create app with transport mode context
-        app = create_app(transport_mode="stdio")
-        return app
+    # Create app with transport mode context (simplified version doesn't need lifespan mocking)
+    app = await create_app(transport_mode="stdio")
+    return app
 
 
 @pytest.fixture
-def app_http():
+async def app_http():
     """Create app instance for HTTP mode."""
-    # Mock the lifespan to avoid actual database initialization
-    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
-        # Create app with transport mode context
-        app = create_app(transport_mode="http")
-        return app
+    # Create app with transport mode context (simplified version doesn't need lifespan mocking)
+    app = await create_app(transport_mode="http")
+    return app
 
 
-def test_stdio_mode_no_jwt_on_mcp_endpoints(app_stdio):
+@pytest.mark.asyncio
+async def test_stdio_mode_no_jwt_on_mcp_endpoints(app_stdio):
     """
     Test that in STDIO mode, /mcp endpoints don't require JWT authentication.
 
@@ -74,7 +71,8 @@ def test_stdio_mode_no_jwt_on_mcp_endpoints(app_stdio):
         )
 
 
-def test_stdio_mode_web_ui_still_protected(app_stdio):
+@pytest.mark.asyncio
+async def test_stdio_mode_web_ui_still_protected(app_stdio):
     """
     Test that in STDIO mode, web UI endpoints still require session authentication.
 

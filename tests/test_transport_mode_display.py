@@ -25,22 +25,21 @@ async def mock_lifespan(app):
 
 
 @pytest.fixture
-def app_stdio_with_mode():
+async def app_stdio_with_mode():
     """Create app instance for STDIO mode with transport mode in state."""
-    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
-        app = create_app(transport_mode="stdio")
-        return app
+    app = await create_app(transport_mode="stdio")
+    return app
 
 
 @pytest.fixture
-def app_http_with_mode():
+async def app_http_with_mode():
     """Create app instance for HTTP mode with transport mode in state."""
-    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
-        app = create_app(transport_mode="http")
-        return app
+    app = await create_app(transport_mode="http")
+    return app
 
 
-def test_stdio_mode_displays_correctly(app_stdio_with_mode):
+@pytest.mark.asyncio
+async def test_stdio_mode_displays_correctly(app_stdio_with_mode):
     """
     Test that STDIO mode is correctly stored in app state.
     """
@@ -53,7 +52,8 @@ def test_stdio_mode_displays_correctly(app_stdio_with_mode):
     ), f"Expected transport_mode to be 'stdio', got {app_stdio_with_mode.state.transport_mode}"
 
 
-def test_http_mode_displays_correctly(app_http_with_mode):
+@pytest.mark.asyncio
+async def test_http_mode_displays_correctly(app_http_with_mode):
     """
     Test that HTTP mode is correctly stored in app state.
     """

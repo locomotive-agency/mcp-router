@@ -31,10 +31,6 @@
             </div>
             
             <form method="post" action="/auth/consent">
-                <!-- CSRF protection -->
-                {% if csrf_state %}
-                <input type="hidden" name="state" value="{{ csrf_state }}">
-                {% endif %}
                 
                 <div class="flex space-x-4">
                     <button 

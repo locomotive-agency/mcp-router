@@ -11,7 +11,7 @@ async def app():
     """
     Test fixture to create a Starlette app instance.
     """
-    return create_app()
+    return await create_app()
 
 
 @pytest.mark.asyncio

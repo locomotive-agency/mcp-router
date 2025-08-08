@@ -19,16 +19,16 @@ from mcp_anywhere.base import Base
 from mcp_anywhere.web.app import create_app
 
 
-@pytest.fixture(scope="session")
-def app() -> Starlette:
+@pytest_asyncio.fixture(scope="function")
+async def app() -> Starlette:
     """
-    Creates a single Starlette app instance for the entire test session.
+    Creates a Starlette app instance for each test.
     Defaults to HTTP mode for backward compatibility with existing tests.
 
     Returns:
         Starlette: The configured application instance
     """
-    return create_app(transport_mode="http")
+    return await create_app(transport_mode="http")
 
 
 @pytest_asyncio.fixture(scope="function")

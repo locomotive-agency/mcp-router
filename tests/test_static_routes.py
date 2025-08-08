@@ -1,3 +1,4 @@
+import pytest
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
@@ -11,12 +12,14 @@ def _has_static_mount(app) -> bool:
     return False
 
 
-def test_static_mount_present_in_http_mode():
-    app = create_app(transport_mode="http")
+@pytest.mark.asyncio
+async def test_static_mount_present_in_http_mode():
+    app = await create_app(transport_mode="http")
     assert _has_static_mount(app)
 
 
-def test_static_mount_present_in_stdio_mode():
-    app = create_app(transport_mode="stdio")
+@pytest.mark.asyncio
+async def test_static_mount_present_in_stdio_mode():
+    app = await create_app(transport_mode="stdio")
     assert _has_static_mount(app)
 

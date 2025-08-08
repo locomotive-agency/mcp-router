@@ -2,6 +2,7 @@
 
 A unified gateway for Model Context Protocol (MCP) servers that enables discovery, configuration, and access to tools from GitHub repositories through a single endpoint.
 
+> **Current Version**: 0.8.0  
 > **Note**: This project is in alpha. APIs and features are subject to change.
 
 ## Overview
@@ -21,6 +22,11 @@ MCP Anywhere provides:
 # Clone repository
 git clone https://github.com/locomotive-agency/mcp-anywhere.git
 cd mcp-anywhere
+
+# Install with uv (recommended)
+uv sync
+
+# Or install with pip
 pip install -e .
 
 # Configure environment
@@ -30,7 +36,8 @@ cp env.example .env
 # ANTHROPIC_API_KEY=<your-api-key>
 
 # Start server
-python -m mcp_anywhere serve http
+mcp-anywhere serve http
+# Or: python -m mcp_anywhere serve http
 # Access at http://localhost:8000
 ```
 
@@ -75,8 +82,8 @@ The system uses Claude AI to automatically analyze and configure repositories.
 {
   "mcpServers": {
     "mcp-anywhere": {
-      "command": "python",
-      "args": ["-m", "mcp_anywhere", "connect"]
+      "command": "mcp-anywhere",
+      "args": ["connect"]
     }
   }
 }
@@ -96,7 +103,15 @@ async with Client(
 
 **Command Line Interface:**
 ```bash
-python -m mcp_anywhere connect
+# For MCP client connection
+mcp-anywhere connect
+# Or: python -m mcp_anywhere connect
+
+# For STDIO server mode (local Claude Desktop integration)
+mcp-anywhere serve stdio
+
+# For HTTP server mode with OAuth (production)
+mcp-anywhere serve http --host 0.0.0.0 --port 8000
 ```
 
 ## Features
@@ -181,19 +196,38 @@ GITHUB_TOKEN               # GitHub token for private repository access
 
 ## Development
 
+### Development Setup
+```bash
+# Install development dependencies
+uv sync --group dev
+
+# Run tests
+uv run pytest
+
+# Run linting
+uv run ruff check src/ tests/
+
+# Run type checking
+uv run mypy src/
+```
+
 ### Testing
 ```bash
-pytest
+# Run all tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov=mcp_anywhere
 ```
 
 ### Debug Mode
 ```bash
-LOG_LEVEL=DEBUG python -m mcp_anywhere serve http
+LOG_LEVEL=DEBUG mcp-anywhere serve http
 ```
 
 ### Data Reset
 ```bash
-python -m mcp_anywhere reset --confirm
+mcp-anywhere reset --confirm
 ```
 
 ## Support

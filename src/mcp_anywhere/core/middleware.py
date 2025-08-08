@@ -9,9 +9,9 @@ References:
 
 """
 
-from typing import Any, Iterable
+from typing import Any
 
-from fastmcp.server.middleware import Middleware
+from fastmcp.server.middleware import Middleware, MiddlewareContext
 from sqlalchemy import select
 
 from mcp_anywhere.database import MCPServerTool, get_async_session
@@ -26,23 +26,27 @@ class ToolFilterMiddleware(Middleware):
     Hooks into FastMCP's lifecycle so tools are filtered before exposure.
     """
 
-    async def on_list_tools(self, tools: Iterable[Any]) -> list[Any]:
+    async def on_list_tools(self, context: MiddlewareContext, call_next):
         """Called by FastMCP before returning the available tools list.
 
         Args:
-            tools: Iterable of tool objects/dicts from FastMCP
+            context: Middleware context from FastMCP
+            call_next: Function to continue middleware chain
 
         Returns:
             list[Any]: Filtered list with disabled tools removed
         """
+        # Get the tools from the next middleware in the chain
+        tools = await call_next(context)
+        
         try:
             disabled_tools = await self._get_disabled_tools_async()
         except Exception as exc:  # Do not fail tool listing on DB errors
             logger.error(f"Tool filtering skipped due to DB error: {exc}")
-            return list(tools)
+            return tools
 
         if not disabled_tools:
-            return list(tools)
+            return tools
 
         filtered = self._filter_tools(list(tools), disabled_tools)
         logger.info(

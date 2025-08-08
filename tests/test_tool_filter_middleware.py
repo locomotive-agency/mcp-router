@@ -36,12 +36,17 @@ async def test_tool_filter_middleware_passthrough_when_no_disabled_tools():
         {"name": "another_enabled_tool", "description": "Another enabled tool"},
     ]
 
+    # Mock context and call_next
+    mock_context = Mock()
+    mock_call_next = AsyncMock(return_value=tools)
+
     # No disabled tools
     with patch.object(
         ToolFilterMiddleware, "_get_disabled_tools_async", new=AsyncMock(return_value=set())
     ):
-        result = await middleware.on_list_tools(tools)
+        result = await middleware.on_list_tools(mock_context, mock_call_next)
         assert result == tools
+        mock_call_next.assert_called_once_with(mock_context)
 
 
 @pytest.mark.asyncio
@@ -57,12 +62,17 @@ async def test_tool_filter_middleware_filters_disabled_tools():
 
     middleware = ToolFilterMiddleware()
 
+    # Mock context and call_next
+    mock_context = Mock()
+    mock_call_next = AsyncMock(return_value=tools)
+
     with patch.object(
         ToolFilterMiddleware, "_get_disabled_tools_async", new=AsyncMock(return_value={"disabled_tool"})
     ):
-        filtered = await middleware.on_list_tools(tools)
+        filtered = await middleware.on_list_tools(mock_context, mock_call_next)
         tool_names = {t["name"] if isinstance(t, dict) else getattr(t, "name", "") for t in filtered}
         assert "disabled_tool" not in tool_names
+        mock_call_next.assert_called_once_with(mock_context)
 
 
 @pytest.mark.asyncio
@@ -104,11 +114,16 @@ async def test_middleware_handles_database_errors():
         {"name": "maybe_disabled_tool"},
     ]
 
+    # Mock context and call_next
+    mock_context = Mock()
+    mock_call_next = AsyncMock(return_value=tools)
+
     with patch.object(
         ToolFilterMiddleware, "_get_disabled_tools_async", new=AsyncMock(side_effect=Exception("DB failure"))
     ):
-        result = await middleware.on_list_tools(tools)
+        result = await middleware.on_list_tools(mock_context, mock_call_next)
         assert result == tools
+        mock_call_next.assert_called_once_with(mock_context)
 
 
 @pytest.mark.asyncio

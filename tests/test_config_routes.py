@@ -24,22 +24,19 @@ async def mock_lifespan(app):
 
 
 @pytest.fixture
-def app_stdio():
+async def app_stdio():
     """Create app instance for STDIO mode."""
-    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
-        app = create_app(transport_mode="stdio")
-        return app
+    return await create_app(transport_mode="stdio")
 
 
 @pytest.fixture
-def app_http():
+async def app_http():
     """Create app instance for HTTP mode."""
-    with patch("mcp_anywhere.web.app.create_lifespan", return_value=mock_lifespan):
-        app = create_app(transport_mode="http")
-        return app
+    return await create_app(transport_mode="http")
 
 
-def test_config_download_stdio_mode(app_stdio):
+@pytest.mark.asyncio
+async def test_config_download_stdio_mode(app_stdio):
     """
     Test that config download works in STDIO mode.
     """
@@ -72,7 +69,8 @@ def test_config_download_stdio_mode(app_stdio):
         assert "connect" in server_config["args"]
 
 
-def test_config_view_stdio_mode(app_stdio):
+@pytest.mark.asyncio
+async def test_config_view_stdio_mode(app_stdio):
     """
     Test that config view endpoint returns proper JSON in STDIO mode.
     """
@@ -87,7 +85,8 @@ def test_config_view_stdio_mode(app_stdio):
         assert "mcp-anywhere" in config["mcpServers"]
 
 
-def test_config_instructions_stdio_mode(app_stdio):
+@pytest.mark.asyncio
+async def test_config_instructions_stdio_mode(app_stdio):
     """
     Test that setup instructions are provided in STDIO mode.
     """
@@ -104,7 +103,8 @@ def test_config_instructions_stdio_mode(app_stdio):
         assert "configuration" in html.lower()
 
 
-def test_config_routes_not_available_http_mode(app_http):
+@pytest.mark.asyncio
+async def test_config_routes_not_available_http_mode(app_http):
     """
     Test that config routes return appropriate message in HTTP mode.
     """

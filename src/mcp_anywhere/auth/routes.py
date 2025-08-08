@@ -102,21 +102,7 @@ async def consent_page(request: Request) -> HTMLResponse:
     request.session["oauth_request"] = oauth_request
     request.session["oauth_state"] = state
 
-    # Generate CSRF state for form protection
-    csrf_protection = getattr(request.app.state, 'csrf_protection', None)
-    csrf_state = ""
-    
-    if csrf_protection:
-        try:
-            csrf_state = csrf_protection.generate_state(
-                oauth_request.get("client_id", ""),
-                oauth_request.get("redirect_uri", "")
-            )
-            # Store CSRF state in session for validation
-            request.session["csrf_state"] = csrf_state
-        except ValueError as e:
-            logger.error(f"Failed to generate CSRF state: {e}")
-            return RedirectResponse(url="/", status_code=302)
+    # No CSRF token needed - using SameSite strict cookies for protection
 
     # Handle scopes safely - ensure it's always a list
     scopes = oauth_request.get("scopes", [])
@@ -133,60 +119,18 @@ async def consent_page(request: Request) -> HTMLResponse:
             "client_id": oauth_request.get("client_id"),
             "scope": " ".join(scopes),
             "username": username,
-            "csrf_state": csrf_state,
         },
     )
 
 
 async def handle_consent(request: Request) -> RedirectResponse:
-    """Process consent form submission with CSRF validation."""
+    """Process consent form submission. CSRF protection via SameSite strict cookies."""
     form = await request.form()
     action = form.get("action", "deny")
-    submitted_csrf_state = form.get("state")
 
     oauth_request = request.session.get("oauth_request", {})
     if not oauth_request:
         return RedirectResponse(url="/", status_code=302)
-
-    # Validate CSRF state if CSRF protection is enabled
-    csrf_protection = getattr(request.app.state, 'csrf_protection', None)
-    if csrf_protection:
-        # Get stored CSRF state from session
-        session_csrf_state = request.session.get("csrf_state")
-        
-        # Validate CSRF state is present in both places
-        if not submitted_csrf_state or not session_csrf_state:
-            logger.warning(
-                f"CSRF validation failed - missing state: "
-                f"submitted={bool(submitted_csrf_state)}, session={bool(session_csrf_state)}"
-            )
-            return RedirectResponse(
-                url="/auth/login?error=invalid_request", 
-                status_code=302
-            )
-        
-        # Validate CSRF states match
-        if submitted_csrf_state != session_csrf_state:
-            logger.warning("CSRF validation failed - state mismatch")
-            return RedirectResponse(
-                url="/auth/login?error=invalid_request",
-                status_code=302
-            )
-        
-        # Validate CSRF state with protection class
-        if not csrf_protection.validate_state(
-            submitted_csrf_state,
-            oauth_request.get("client_id", ""),
-            oauth_request.get("redirect_uri", "")
-        ):
-            logger.warning("CSRF state validation failed in protection class")
-            return RedirectResponse(
-                url="/auth/login?error=invalid_request",
-                status_code=302
-            )
-        
-        # Clear CSRF state from session (consumed)
-        request.session.pop("csrf_state", None)
 
     provider = request.app.state.oauth_provider
 

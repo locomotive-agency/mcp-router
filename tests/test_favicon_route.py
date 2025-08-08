@@ -9,7 +9,7 @@ from mcp_anywhere.web.app import create_app
 @pytest.mark.asyncio
 async def test_favicon_returns_204():
     """Test that favicon.ico route returns 204 No Content."""
-    app = create_app()
+    app = await create_app()
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
@@ -23,7 +23,7 @@ async def test_favicon_returns_204():
 @pytest.mark.asyncio
 async def test_favicon_method_not_allowed():
     """Test that favicon.ico only accepts GET requests."""
-    app = create_app()
+    app = await create_app()
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
